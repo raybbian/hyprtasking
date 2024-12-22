@@ -13,6 +13,8 @@
 #include "overview.hpp"
 
 CFunctionHook *g_pRenderWorkspaceHook;
+void *g_pRenderWindow;
+void *g_pRenderLayer;
 
 APICALL EXPORT std::string PLUGIN_API_VERSION() { return HYPRLAND_API_VERSION; }
 
@@ -35,7 +37,7 @@ static SDispatchResult dispatchToggleView(std::string arg) {
         return SDispatchResult{false, false, "Failed to get view for monitor."};
 
     if (currentView->isActive()) {
-        infoNotification("Hiding overviews");
+        Debug::log(LOG, "[Hyprtasking] Hiding overviews");
         for (auto &view : g_overviews) {
             if (view == nullptr)
                 continue;
@@ -44,7 +46,7 @@ static SDispatchResult dispatchToggleView(std::string arg) {
             view->hide();
         }
     } else {
-        infoNotification("Showing overviews");
+        Debug::log(LOG, "[Hyprtasking] Showing overviews");
         for (auto &view : g_overviews) {
             if (view == nullptr)
                 continue;
@@ -66,7 +68,6 @@ static void hkRenderWorkspace(void *thisptr, PHLMONITOR pMonitor,
             thisptr, pMonitor, pWorkspace, now, geometry);
         return;
     }
-
     view->render();
 }
 
@@ -75,10 +76,47 @@ static void registerMonitors() {
         if (getViewForMonitor(m) != nullptr)
             continue;
 
-        infoNotification("Creating view for monitor " + m->szName);
+        Debug::log(LOG, "[Hyprtasking] Creating view for monitor " + m->szName);
 
         CHyprtaskingView *view = new CHyprtaskingView(m->ID);
         g_overviews.emplace_back(view);
+    }
+}
+
+static void failNotification(const std::string &reason) {
+    HyprlandAPI::addNotification(PHANDLE, "[Hyprtasking] " + reason,
+                                 CHyprColor{1.0, 0.2, 0.2, 1.0}, 5000);
+}
+
+static void initFunctions() {
+    static auto FNS =
+        HyprlandAPI::findFunctionsByName(PHANDLE, "renderWorkspace");
+    if (FNS.empty()) {
+        failNotification("No fns for hook renderWorkspace!");
+        throw std::runtime_error(
+            "[Hyprtasking] No fns for hook renderWorkspace");
+    }
+    g_pRenderWorkspaceHook = HyprlandAPI::createFunctionHook(
+        PHANDLE, FNS[0].address, (void *)hkRenderWorkspace);
+
+    FNS = HyprlandAPI::findFunctionsByName(PHANDLE, "renderWindow");
+    if (FNS.empty()) {
+        failNotification("No fns for hook renderWindow!");
+        throw std::runtime_error("[Hyprtasking] No fns for hook renderWindow");
+    }
+    g_pRenderWindow = FNS[0].address;
+
+    FNS = HyprlandAPI::findFunctionsByName(PHANDLE, "renderLayer");
+    if (FNS.empty()) {
+        failNotification("No fns for hook renderLayer!");
+        throw std::runtime_error("[Hyprtasking] No fns for hook renderLayer");
+    }
+    g_pRenderLayer = FNS[0].address;
+
+    bool success = g_pRenderWorkspaceHook->hook();
+    if (!success) {
+        failNotification("Failed initializing hooks");
+        throw std::runtime_error("[Hyprtasking] Failed initializing hooks");
     }
 }
 
@@ -95,21 +133,7 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
     HyprlandAPI::addDispatcher(PHANDLE, "hyprtasking:toggle",
                                dispatchToggleView);
 
-    static auto FNS =
-        HyprlandAPI::findFunctionsByName(PHANDLE, "renderWorkspace");
-    if (FNS.empty()) {
-        failNotification("No fns for hook renderWorkspace!");
-        throw std::runtime_error(
-            "[Hyprtasking] No fns for hook renderWorkspace");
-    }
-    g_pRenderWorkspaceHook = HyprlandAPI::createFunctionHook(
-        PHANDLE, FNS[0].address, (void *)hkRenderWorkspace);
-
-    bool success = g_pRenderWorkspaceHook->hook();
-    if (!success) {
-        failNotification("Failed initializing hooks");
-        throw std::runtime_error("[Hyprtasking] Failed initializing hooks");
-    }
+    initFunctions();
 
     registerMonitors();
     static auto P2 = HyprlandAPI::registerCallbackDynamic(
@@ -118,7 +142,7 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
             registerMonitors();
         });
 
-    infoNotification("Plugin initialized");
+    Debug::log(LOG, "[Hyprtasking] Plugin initialized");
 
     return {"Hyprtasking", "A workspace management plugin", "raybbian", "1.0"};
 }

@@ -1,6 +1,6 @@
 project('hyprtasking', 'cpp',
   version: '0.1',
-  default_options: ['buildtype=release'],
+  default_options: ['buildtype=debug'],
 )
 
 cpp_compiler = meson.get_compiler('cpp')
@@ -14,7 +14,7 @@ endif
 
 add_project_arguments(
   [
-    '-Wno-narrowing',
+    '-Wno-narrowing', '-g'
   ],
   language: 'cpp')
 

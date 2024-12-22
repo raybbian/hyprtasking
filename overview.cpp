@@ -7,7 +7,6 @@
 #include <hyprland/src/render/Renderer.hpp>
 #include <hyprutils/math/Box.hpp>
 
-#include "globals.hpp"
 #include "overview.hpp"
 
 CHyprtaskingView::CHyprtaskingView(MONITORID inMonitorID) {
@@ -24,8 +23,8 @@ void CHyprtaskingView::show() {
 
     active = true;
 
-    g_pHyprRenderer->damageMonitor(pMonitor);
-    g_pCompositor->scheduleFrameForMonitor(pMonitor);
+    // g_pHyprRenderer->damageMonitor(pMonitor);
+    // g_pCompositor->scheduleFrameForMonitor(pMonitor);
 }
 
 void CHyprtaskingView::hide() {
@@ -35,8 +34,8 @@ void CHyprtaskingView::hide() {
 
     active = false;
 
-    g_pHyprRenderer->damageMonitor(pMonitor);
-    g_pCompositor->scheduleFrameForMonitor(pMonitor);
+    // g_pHyprRenderer->damageMonitor(pMonitor);
+    // g_pCompositor->scheduleFrameForMonitor(pMonitor);
 }
 
 PHLMONITOR CHyprtaskingView::getMonitor() {
