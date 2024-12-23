@@ -13,8 +13,6 @@
 #include "overview.hpp"
 
 CFunctionHook *g_pRenderWorkspaceHook;
-void *g_pRenderWindow;
-void *g_pRenderLayer;
 
 APICALL EXPORT std::string PLUGIN_API_VERSION() { return HYPRLAND_API_VERSION; }
 
@@ -98,20 +96,6 @@ static void initFunctions() {
     }
     g_pRenderWorkspaceHook = HyprlandAPI::createFunctionHook(
         PHANDLE, FNS[0].address, (void *)hkRenderWorkspace);
-
-    FNS = HyprlandAPI::findFunctionsByName(PHANDLE, "renderWindow");
-    if (FNS.empty()) {
-        failNotification("No fns for hook renderWindow!");
-        throw std::runtime_error("[Hyprtasking] No fns for hook renderWindow");
-    }
-    g_pRenderWindow = FNS[0].address;
-
-    FNS = HyprlandAPI::findFunctionsByName(PHANDLE, "renderLayer");
-    if (FNS.empty()) {
-        failNotification("No fns for hook renderLayer!");
-        throw std::runtime_error("[Hyprtasking] No fns for hook renderLayer");
-    }
-    g_pRenderLayer = FNS[0].address;
 
     bool success = g_pRenderWorkspaceHook->hook();
     if (!success) {

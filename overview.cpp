@@ -23,8 +23,8 @@ void CHyprtaskingView::show() {
 
     active = true;
 
-    // g_pHyprRenderer->damageMonitor(pMonitor);
-    // g_pCompositor->scheduleFrameForMonitor(pMonitor);
+    g_pHyprRenderer->damageMonitor(pMonitor);
+    g_pCompositor->scheduleFrameForMonitor(pMonitor);
 }
 
 void CHyprtaskingView::hide() {
@@ -34,8 +34,8 @@ void CHyprtaskingView::hide() {
 
     active = false;
 
-    // g_pHyprRenderer->damageMonitor(pMonitor);
-    // g_pCompositor->scheduleFrameForMonitor(pMonitor);
+    g_pHyprRenderer->damageMonitor(pMonitor);
+    g_pCompositor->scheduleFrameForMonitor(pMonitor);
 }
 
 PHLMONITOR CHyprtaskingView::getMonitor() {

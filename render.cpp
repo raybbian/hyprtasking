@@ -9,100 +9,6 @@
 #include "globals.hpp"
 #include "overview.hpp"
 
-#define LAYER_BACKGROUND 0
-#define LAYER_BOTTOM 1
-#define LAYER_OVERLAY 2
-#define LAYER_TOP 3
-
-void CHyprtaskingView::renderWindow(PHLWINDOW pWindow, timespec *time) {
-    const PHLMONITOR pMonitor = getMonitor();
-    if (pMonitor == nullptr)
-        return;
-
-    const auto oWorkspace = pWindow->m_pWorkspace;
-    pWindow->m_pWorkspace = pMonitor->activeWorkspace;
-
-    g_pHyprRenderer->damageWindow(pWindow);
-    ((tRenderWindow)g_pRenderWindow)(g_pHyprRenderer.get(), pWindow, pMonitor,
-                                     time, true, RENDER_PASS_MAIN, false,
-                                     false);
-
-    pWindow->m_pWorkspace = oWorkspace;
-}
-
-void CHyprtaskingView::renderLayer(PHLLS pLayer, timespec *time) {
-    const PHLMONITOR pMonitor = getMonitor();
-    if (pMonitor == nullptr)
-        return;
-
-    ((tRenderLayer)g_pRenderLayer)(g_pHyprRenderer.get(), pLayer, pMonitor,
-                                   time, false);
-}
-
-void CHyprtaskingView::renderWorkspace(PHLWORKSPACE pWorkspace, timespec *time,
-                                       const CBox &geometry) {
-    const PHLMONITOR pMonitor = getMonitor();
-    if (pMonitor == nullptr)
-        return;
-
-    float scale = (float)geometry.width / pMonitor->vecPixelSize.x;
-    Vector2D translate = Vector2D{geometry.x, geometry.y} / scale;
-
-    bool oRenderModifEnabled = g_pHyprOpenGL->m_RenderData.renderModif.enabled;
-
-    g_pHyprOpenGL->m_RenderData.renderModif.modifs.emplace_back(
-        std::make_pair<>(
-            SRenderModifData::eRenderModifType::RMOD_TYPE_TRANSLATE,
-            translate));
-    g_pHyprOpenGL->m_RenderData.renderModif.modifs.emplace_back(
-        std::make_pair<>(SRenderModifData::eRenderModifType::RMOD_TYPE_SCALE,
-                         scale));
-    g_pHyprOpenGL->m_RenderData.renderModif.enabled = true;
-
-    // Render bottom layers
-    for (auto &pLayer : pMonitor->m_aLayerSurfaceLayers[LAYER_BACKGROUND]) {
-        renderLayer(pLayer.lock(), time);
-    }
-    for (auto &pLayer : pMonitor->m_aLayerSurfaceLayers[LAYER_BOTTOM]) {
-        renderLayer(pLayer.lock(), time);
-    }
-
-    // Render tiled, then floating, then active
-    for (auto &pWindow : g_pCompositor->m_vWindows) {
-        if (pWindow == nullptr || pWindow->m_pWorkspace != pWorkspace)
-            continue;
-        if (pWindow->m_bIsFloating)
-            continue;
-        renderWindow(pWindow, time);
-    }
-    for (auto &pWindow : g_pCompositor->m_vWindows) {
-        if (pWindow == nullptr || pWindow->m_pWorkspace != pWorkspace)
-            continue;
-        if (!pWindow->m_bIsFloating)
-            continue;
-        if (pWorkspace->getLastFocusedWindow() == pWindow)
-            continue;
-        renderWindow(pWindow, time);
-    }
-    if (auto pWindow = pWorkspace->getLastFocusedWindow()) {
-        if (pWindow->m_bIsFloating) {
-            renderWindow(pWindow, time);
-        }
-    }
-
-    // Render top layers
-    for (auto &pLayer : pMonitor->m_aLayerSurfaceLayers[LAYER_OVERLAY]) {
-        renderLayer(pLayer.lock(), time);
-    }
-    for (auto &pLayer : pMonitor->m_aLayerSurfaceLayers[LAYER_TOP]) {
-        renderLayer(pLayer.lock(), time);
-    }
-
-    g_pHyprOpenGL->m_RenderData.renderModif.modifs.pop_back();
-    g_pHyprOpenGL->m_RenderData.renderModif.modifs.pop_back();
-    g_pHyprOpenGL->m_RenderData.renderModif.enabled = oRenderModifEnabled;
-}
-
 void CHyprtaskingView::render() {
     const PHLMONITOR pMonitor = getMonitor();
     if (pMonitor == nullptr)
@@ -124,36 +30,50 @@ void CHyprtaskingView::render() {
     timespec time;
     clock_gettime(CLOCK_MONOTONIC, &time);
 
+    // TODO: is this inefficient?
+    g_pHyprRenderer->damageMonitor(pMonitor);
+    g_pHyprOpenGL->m_RenderData.pCurrentMonData->blurFBShouldRender = true;
     CBox viewBox = {{0, 0}, pMonitor->vecPixelSize};
     g_pHyprOpenGL->renderRect(&viewBox, CHyprColor{0, 0, 0, 1.0});
-    pMonitor->addDamage(&viewBox);
 
+    // Do a dance with active workspaces, Hyprland will only render the current
+    // active one so make the workspace active before rendering it, etc
     const PHLWORKSPACE startWorkspace = pMonitor->activeWorkspace;
     startWorkspace->startAnim(false, false, true);
     startWorkspace->m_bVisible = false;
 
-    double workspaceX = 0.0;
-    double workspaceY = 0.0;
-    double scale = 0.5;
-    double workspaceW = pMonitor->vecPixelSize.x * scale;
-    double workspaceH = pMonitor->vecPixelSize.y * scale;
-    for (const WORKSPACEID wsID : workspaces) {
-        const PHLWORKSPACE pWorkspace = g_pCompositor->getWorkspaceByID(wsID);
-        if (pWorkspace == nullptr || pMonitor == nullptr)
-            continue;
+    size_t ROWS = 3;
+    Vector2D workspaceSize = pMonitor->vecPixelSize / ROWS;
+    for (size_t i = 0; i < ROWS; i++) {
+        for (size_t j = 0; j < ROWS; j++) {
+            size_t ind = j * ROWS + i;
+            const PHLWORKSPACE pWorkspace =
+                ind < workspaces.size()
+                    ? g_pCompositor->getWorkspaceByID(workspaces[ind])
+                    : nullptr;
 
-        pMonitor->activeWorkspace = pWorkspace;
-        pWorkspace->startAnim(true, false, true);
-        pWorkspace->m_bVisible = true;
+            // renderModif translation used by renderWorkspace is weird so need
+            // to scale the translation up as well
+            CBox curBox = {
+                {i * workspaceSize.x * ROWS, j * workspaceSize.y * ROWS},
+                workspaceSize};
 
-        CBox curBox{workspaceX, workspaceY, workspaceW, workspaceH};
-        ((tRenderWorkspace)(g_pRenderWorkspaceHook->m_pOriginal))(
-            g_pHyprRenderer.get(), pMonitor, pWorkspace, &time, curBox);
+            if (pWorkspace != nullptr) {
+                pMonitor->activeWorkspace = pWorkspace;
+                pWorkspace->startAnim(true, false, true);
+                pWorkspace->m_bVisible = true;
 
-        pWorkspace->startAnim(false, false, true);
-        pWorkspace->m_bVisible = false;
+                ((tRenderWorkspace)(g_pRenderWorkspaceHook->m_pOriginal))(
+                    g_pHyprRenderer.get(), pMonitor, pWorkspace, &time, curBox);
 
-        workspaceX += workspaceW / scale;
+                pWorkspace->startAnim(false, false, true);
+                pWorkspace->m_bVisible = false;
+            } else {
+                // If pWorkspace is null, then just render the layers
+                ((tRenderWorkspace)(g_pRenderWorkspaceHook->m_pOriginal))(
+                    g_pHyprRenderer.get(), pMonitor, pWorkspace, &time, curBox);
+            }
+        }
     }
 
     pMonitor->activeWorkspace = startWorkspace;
