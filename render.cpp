@@ -14,6 +14,8 @@ void CHyprtaskingView::render() {
     if (pMonitor == nullptr)
         return;
 
+    workspaceBoxes.clear();
+
     std::vector<WORKSPACEID> workspaces;
     for (auto &ws : g_pCompositor->m_vWorkspaces) {
         if (ws == nullptr)
@@ -36,13 +38,12 @@ void CHyprtaskingView::render() {
     CBox viewBox = {{0, 0}, pMonitor->vecPixelSize};
     g_pHyprOpenGL->renderRect(&viewBox, CHyprColor{0, 0, 0, 1.0});
 
-    // Do a dance with active workspaces, Hyprland will only render the current
-    // active one so make the workspace active before rendering it, etc
+    // Do a dance with active workspaces: Hyprland will only properly render the
+    // current active one so make the workspace active before rendering it, etc
     const PHLWORKSPACE startWorkspace = pMonitor->activeWorkspace;
     startWorkspace->startAnim(false, false, true);
     startWorkspace->m_bVisible = false;
 
-    size_t ROWS = 3;
     Vector2D workspaceSize = pMonitor->vecPixelSize / ROWS;
     for (size_t i = 0; i < ROWS; i++) {
         for (size_t j = 0; j < ROWS; j++) {
@@ -54,9 +55,9 @@ void CHyprtaskingView::render() {
 
             // renderModif translation used by renderWorkspace is weird so need
             // to scale the translation up as well
-            CBox curBox = {
-                {i * workspaceSize.x * ROWS, j * workspaceSize.y * ROWS},
-                workspaceSize};
+            CBox actualBox = {{i * workspaceSize.x, j * workspaceSize.y},
+                              workspaceSize};
+            CBox curBox = {{actualBox.pos() * ROWS}, actualBox.size()};
 
             if (pWorkspace != nullptr) {
                 pMonitor->activeWorkspace = pWorkspace;
@@ -68,6 +69,8 @@ void CHyprtaskingView::render() {
 
                 pWorkspace->startAnim(false, false, true);
                 pWorkspace->m_bVisible = false;
+
+                workspaceBoxes.emplace_back(pWorkspace->m_iID, actualBox);
             } else {
                 // If pWorkspace is null, then just render the layers
                 ((tRenderWorkspace)(g_pRenderWorkspaceHook->m_pOriginal))(
