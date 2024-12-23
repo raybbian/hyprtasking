@@ -124,13 +124,13 @@ void CHyprtaskingView::render() {
     timespec time;
     clock_gettime(CLOCK_MONOTONIC, &time);
 
-    // g_pCompositor->scheduleFrameForMonitor(pMonitor);
-    g_pHyprOpenGL->m_RenderData.pCurrentMonData->blurFBShouldRender = true;
-    CBox damage{{0, 0}, pMonitor->vecPixelSize};
-    pMonitor->addDamage(&damage);
-
     CBox viewBox = {{0, 0}, pMonitor->vecPixelSize};
     g_pHyprOpenGL->renderRect(&viewBox, CHyprColor{0, 0, 0, 1.0});
+    pMonitor->addDamage(&viewBox);
+
+    const PHLWORKSPACE startWorkspace = pMonitor->activeWorkspace;
+    startWorkspace->startAnim(false, false, true);
+    startWorkspace->m_bVisible = false;
 
     double workspaceX = 0.0;
     double workspaceY = 0.0;
@@ -139,17 +139,24 @@ void CHyprtaskingView::render() {
     double workspaceH = pMonitor->vecPixelSize.y * scale;
     for (const WORKSPACEID wsID : workspaces) {
         const PHLWORKSPACE pWorkspace = g_pCompositor->getWorkspaceByID(wsID);
-        if (pWorkspace == nullptr || pMonitor == nullptr) {
-            Debug::log(WARN, "pWorkspace or pMonitor is null for ws " +
-                                 std::to_string(wsID));
+        if (pWorkspace == nullptr || pMonitor == nullptr)
             continue;
-        }
+
+        pMonitor->activeWorkspace = pWorkspace;
+        pWorkspace->startAnim(true, false, true);
+        pWorkspace->m_bVisible = true;
 
         CBox curBox{workspaceX, workspaceY, workspaceW, workspaceH};
-        g_pHyprOpenGL->m_RenderData.clipBox = curBox;
-        renderWorkspace(pWorkspace, &time, curBox);
-        g_pHyprOpenGL->m_RenderData.clipBox = CBox();
+        ((tRenderWorkspace)(g_pRenderWorkspaceHook->m_pOriginal))(
+            g_pHyprRenderer.get(), pMonitor, pWorkspace, &time, curBox);
 
-        workspaceX += workspaceW;
+        pWorkspace->startAnim(false, false, true);
+        pWorkspace->m_bVisible = false;
+
+        workspaceX += workspaceW / scale;
     }
+
+    pMonitor->activeWorkspace = startWorkspace;
+    startWorkspace->startAnim(true, false, true);
+    startWorkspace->m_bVisible = true;
 }
