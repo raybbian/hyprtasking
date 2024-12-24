@@ -71,7 +71,7 @@ CHyprtaskingView::mouseCoordsWorkspaceRelative(Vector2D mousePos,
     // Make offset relative to (0, 0) again
     offset += pMonitor->vecPosition;
 
-    return offset;
+    return offset.round();
 }
 
 PHLWORKSPACE CHyprtaskingView::mouseWorkspace(Vector2D mousePos) {
