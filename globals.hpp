@@ -4,19 +4,22 @@
 #include <hyprland/src/desktop/DesktopTypes.hpp>
 #include <hyprland/src/plugins/HookSystem.hpp>
 #include <hyprland/src/plugins/PluginAPI.hpp>
+#include <hyprutils/math/Vector2D.hpp>
 
 inline HANDLE PHANDLE = nullptr;
 
-inline void failNotification(const std::string &reason) {
-    HyprlandAPI::addNotification(PHANDLE, "[Hyprtasking] " + reason,
-                                 CHyprColor{1.0, 0.2, 0.2, 1.0}, 5000);
-}
+const size_t ROWS = 2;
 
-inline void infoNotification(const std::string &message) {
-    HyprlandAPI::addNotification(PHANDLE, "[Hyprtasking] " + message,
-                                 CHyprColor{0.2, 0.2, 1.0, 1.0}, 5000);
-}
+inline CFunctionHook *g_pRenderWorkspaceHook = nullptr;
+typedef void (*tRenderWorkspace)(void *thisptr, PHLMONITOR pMonitor,
+                                 PHLWORKSPACE pWorkspace, timespec *now,
+                                 const CBox &geometry);
 
-extern CFunctionHook *g_pRenderWorkspaceHook;
-typedef void (*tRenderWorkspace)(void *, PHLMONITOR, PHLWORKSPACE, timespec *,
-                                 const CBox &);
+inline CFunctionHook *g_pGetMouseCoordsInternalHook = nullptr;
+typedef Vector2D (*tGetMouseCoordsInternal)(void *thisptr);
+
+inline void *g_pRenderWindow = nullptr;
+typedef Vector2D (*tRenderWindow)(void *thisptr, PHLWINDOW pWindow,
+                                  PHLMONITOR pMonitor, timespec *time,
+                                  bool decorate, eRenderPassMode mode,
+                                  bool ignorePosition, bool ignoreAllGeometry);
