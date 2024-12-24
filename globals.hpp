@@ -8,7 +8,7 @@
 
 inline HANDLE PHANDLE = nullptr;
 
-const size_t ROWS = 3;
+const size_t ROWS = 2;
 
 inline CFunctionHook *g_pRenderWorkspaceHook = nullptr;
 typedef void (*tRenderWorkspace)(void *thisptr, PHLMONITOR pMonitor,

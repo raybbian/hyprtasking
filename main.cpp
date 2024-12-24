@@ -71,7 +71,6 @@ static void hkRenderWorkspace(void *thisptr, PHLMONITOR pMonitor,
     view->render();
 }
 
-// Only hook when triggering a window drag
 static Vector2D hkGetMouseCoordsInternal(void *thisptr) {
     const Vector2D oMousePos =
         ((tGetMouseCoordsInternal)(g_pGetMouseCoordsInternalHook->m_pOriginal))(
@@ -86,7 +85,6 @@ static Vector2D hkGetMouseCoordsInternal(void *thisptr) {
 }
 
 static void onMouseButton(void *thisptr, SCallbackInfo &info, std::any args) {
-
     const PHLMONITOR pMonitor = g_pCompositor->getMonitorFromCursor();
     const auto view = getViewForMonitor(pMonitor);
     if (pMonitor == nullptr || view == nullptr || !view->isActive())
@@ -98,7 +96,34 @@ static void onMouseButton(void *thisptr, SCallbackInfo &info, std::any args) {
     if (e.button != BTN_LEFT)
         return;
     const bool pressed = e.state == WL_POINTER_BUTTON_STATE_PRESSED;
-    view->mouseButtonEvent(pressed);
+    if (pressed) {
+        g_pKeybindManager->changeMouseBindMode(MBIND_MOVE);
+    } else {
+        g_pKeybindManager->changeMouseBindMode(MBIND_INVALID);
+    }
+}
+
+static void onMouseMove(void *thisptr, SCallbackInfo &info, std::any args) {
+    const PHLMONITOR pMonitor = g_pCompositor->getMonitorFromCursor();
+    const auto view = getViewForMonitor(pMonitor);
+    if (pMonitor == nullptr || view == nullptr || !view->isActive())
+        return;
+
+    const Vector2D mousePos =
+        ((tGetMouseCoordsInternal)(g_pGetMouseCoordsInternalHook->m_pOriginal))(
+            thisptr);
+    const PHLWORKSPACE pWorkspace = view->mouseWorkspace(mousePos);
+    if (pWorkspace == nullptr)
+        return;
+    pMonitor->changeWorkspace(pWorkspace, true);
+
+    // WARN: maybe broken for multiple monitors?
+    const PHLWINDOW dragWindow = g_pInputManager->currentlyDraggedWindow.lock();
+    if (dragWindow == nullptr)
+        return;
+    g_pCompositor->moveWindowToWorkspaceSafe(dragWindow, pWorkspace);
+    // otherwise the window leaves blur (?) artifacts on all workspaces
+    dragWindow->m_fMovingToWorkspaceAlpha.setValueAndWarp(1.0);
 }
 
 static void registerMonitors() {
@@ -156,7 +181,9 @@ static void initFunctions() {
 static void registerCallbacks() {
     static auto P1 = HyprlandAPI::registerCallbackDynamic(
         PHANDLE, "mouseButton", onMouseButton);
-    static auto P2 = HyprlandAPI::registerCallbackDynamic(
+    static auto P2 =
+        HyprlandAPI::registerCallbackDynamic(PHANDLE, "mouseMove", onMouseMove);
+    static auto P3 = HyprlandAPI::registerCallbackDynamic(
         PHANDLE, "monitorAdded",
         [&](void *thisptr, SCallbackInfo &info, std::any data) {
             registerMonitors();

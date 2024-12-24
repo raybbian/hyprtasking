@@ -28,8 +28,6 @@ struct CHyprtaskingView {
     void hide();
     void render();
 
-    void mouseButtonEvent(bool pressed);
-
     // These two fns are called inside the hook for getMouseCoordsInternal, so
     // we cannot use that function within these methods
     PHLWORKSPACE mouseWorkspace(Vector2D mousePos);
