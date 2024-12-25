@@ -15,9 +15,6 @@ typedef void (*tRenderWorkspace)(void *thisptr, PHLMONITOR pMonitor,
                                  PHLWORKSPACE pWorkspace, timespec *now,
                                  const CBox &geometry);
 
-inline CFunctionHook *g_pGetMouseCoordsInternalHook = nullptr;
-typedef Vector2D (*tGetMouseCoordsInternal)(void *thisptr);
-
 inline void *g_pRenderWindow = nullptr;
 typedef void (*tRenderWindow)(void *thisptr, PHLWINDOW pWindow,
                               PHLMONITOR pMonitor, timespec *time,

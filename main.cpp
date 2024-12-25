@@ -71,22 +71,10 @@ static void hkRenderWorkspace(void *thisptr, PHLMONITOR pMonitor,
     view->render();
 }
 
-static Vector2D hkGetMouseCoordsInternal(void *thisptr) {
-    Debug::log(LOG, "[Hyprtasking] Hooked get mouse coords internal");
-    const Vector2D oMousePos =
-        ((tGetMouseCoordsInternal)(g_pGetMouseCoordsInternalHook->m_pOriginal))(
-            thisptr);
-    const PHLMONITOR pMonitor = g_pCompositor->getMonitorFromVector(oMousePos);
-    const auto view = getViewForMonitor(pMonitor);
-
-    if (pMonitor == nullptr || view == nullptr || !view->isActive())
-        return oMousePos;
-
-    return view->mouseCoordsWorkspaceRelative(oMousePos);
-}
-
 static void onMouseButton(void *thisptr, SCallbackInfo &info, std::any args) {
-    const PHLMONITOR pMonitor = g_pCompositor->getMonitorFromCursor();
+    const Vector2D mouseCoords = g_pInputManager->getMouseCoordsInternal();
+    const PHLMONITOR pMonitor =
+        g_pCompositor->getMonitorFromVector(mouseCoords);
     const auto view = getViewForMonitor(pMonitor);
     if (pMonitor == nullptr || view == nullptr || !view->isActive())
         return;
@@ -97,34 +85,35 @@ static void onMouseButton(void *thisptr, SCallbackInfo &info, std::any args) {
     if (e.button != BTN_LEFT)
         return;
     const bool pressed = e.state == WL_POINTER_BUTTON_STATE_PRESSED;
+
+    const Vector2D mappedCoords =
+        view->mouseCoordsWorkspaceRelative(mouseCoords);
+
+    // NOTE: logic copied from CKeybindManager::changeMouseBindMode
     if (pressed) {
-        g_pKeybindManager->changeMouseBindMode(MBIND_MOVE);
+        // If already dragging, then don't do anything
+        if (!g_pInputManager->currentlyDraggedWindow.expired() ||
+            g_pInputManager->dragMode != MBIND_INVALID)
+            return;
+
+        const PHLWINDOW pWindow = g_pCompositor->vectorToWindowUnified(
+            mappedCoords, RESERVED_EXTENTS | INPUT_EXTENTS | ALLOW_FLOATING);
+        if (!pWindow->isFullscreen())
+            pWindow->checkInputOnDecos(INPUT_TYPE_DRAG_START, mappedCoords);
+
+        g_pInputManager->currentlyDraggedWindow = pWindow;
+
+        g_pInputManager->dragMode = MBIND_MOVE;
+        g_pLayoutManager->getCurrentLayout()->onBeginDragWindow();
     } else {
-        g_pKeybindManager->changeMouseBindMode(MBIND_INVALID);
+        // If already not dragging, then don't do anything
+        if (g_pInputManager->currentlyDraggedWindow.expired() ||
+            g_pInputManager->dragMode == MBIND_INVALID)
+            return;
+
+        g_pLayoutManager->getCurrentLayout()->onEndDragWindow();
+        g_pInputManager->dragMode = MBIND_INVALID;
     }
-}
-
-static void onMouseMove(void *thisptr, SCallbackInfo &info, std::any args) {
-    const PHLMONITOR pMonitor = g_pCompositor->getMonitorFromCursor();
-    const auto view = getViewForMonitor(pMonitor);
-    if (pMonitor == nullptr || view == nullptr || !view->isActive())
-        return;
-
-    const Vector2D mousePos =
-        ((tGetMouseCoordsInternal)(g_pGetMouseCoordsInternalHook->m_pOriginal))(
-            thisptr);
-    const PHLWORKSPACE pWorkspace = view->mouseWorkspace(mousePos);
-    if (pWorkspace == nullptr || pWorkspace != pMonitor->activeWorkspace)
-        return;
-    pMonitor->changeWorkspace(pWorkspace, true);
-
-    // WARN: maybe broken for multiple monitors?
-    const PHLWINDOW dragWindow = g_pInputManager->currentlyDraggedWindow.lock();
-    if (dragWindow == nullptr)
-        return;
-    g_pCompositor->moveWindowToWorkspaceSafe(dragWindow, pWorkspace);
-    // otherwise the window leaves blur (?) artifacts on all workspaces
-    dragWindow->m_fMovingToWorkspaceAlpha.setValueAndWarp(1.0);
 }
 
 static void registerMonitors() {
@@ -157,17 +146,6 @@ static void initFunctions() {
     bool success = g_pRenderWorkspaceHook->hook();
     Debug::log(LOG, "[Hyprtasking] Hooked {}", FNS[0].signature);
 
-    FNS = HyprlandAPI::findFunctionsByName(PHANDLE, "getMouseCoordsInternal");
-    if (FNS.empty()) {
-        failNotification("No fns for hook getMouseCoordsInternal");
-        throw std::runtime_error(
-            "[Hyprtasking] No fns for hook getMouseCoordsInternal");
-    }
-    g_pGetMouseCoordsInternalHook = HyprlandAPI::createFunctionHook(
-        PHANDLE, FNS[0].address, (void *)hkGetMouseCoordsInternal);
-    success = success && g_pGetMouseCoordsInternalHook->hook();
-    Debug::log(LOG, "[Hyprtasking] Hooked {}", FNS[0].signature);
-
     FNS = HyprlandAPI::findFunctionsByName(PHANDLE, "renderWindow");
     if (FNS.empty()) {
         failNotification("No renderWindow");
@@ -184,8 +162,6 @@ static void initFunctions() {
 static void registerCallbacks() {
     static auto P1 = HyprlandAPI::registerCallbackDynamic(
         PHANDLE, "mouseButton", onMouseButton);
-    static auto P2 =
-        HyprlandAPI::registerCallbackDynamic(PHANDLE, "mouseMove", onMouseMove);
     static auto P3 = HyprlandAPI::registerCallbackDynamic(
         PHANDLE, "monitorAdded",
         [&](void *thisptr, SCallbackInfo &info, std::any data) {
