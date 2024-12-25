@@ -1,5 +1,4 @@
 #include <ctime>
-#include <hyprutils/math/Vector2D.hpp>
 #include <linux/input-event-codes.h>
 
 #include <hyprland/src/Compositor.hpp>
@@ -10,6 +9,7 @@
 #include <hyprland/src/plugins/HookSystem.hpp>
 #include <hyprland/src/plugins/PluginAPI.hpp>
 #include <hyprutils/math/Box.hpp>
+#include <hyprutils/math/Vector2D.hpp>
 
 #include "globals.hpp"
 #include "overview.hpp"
@@ -114,7 +114,7 @@ static void onMouseMove(void *thisptr, SCallbackInfo &info, std::any args) {
         ((tGetMouseCoordsInternal)(g_pGetMouseCoordsInternalHook->m_pOriginal))(
             thisptr);
     const PHLWORKSPACE pWorkspace = view->mouseWorkspace(mousePos);
-    if (pWorkspace == nullptr)
+    if (pWorkspace == nullptr || pWorkspace != pMonitor->activeWorkspace)
         return;
     pMonitor->changeWorkspace(pWorkspace, true);
 
