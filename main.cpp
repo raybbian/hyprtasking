@@ -72,6 +72,7 @@ static void hkRenderWorkspace(void *thisptr, PHLMONITOR pMonitor,
 }
 
 static Vector2D hkGetMouseCoordsInternal(void *thisptr) {
+    Debug::log(LOG, "[Hyprtasking] Hooked get mouse coords internal");
     const Vector2D oMousePos =
         ((tGetMouseCoordsInternal)(g_pGetMouseCoordsInternalHook->m_pOriginal))(
             thisptr);
@@ -153,6 +154,8 @@ static void initFunctions() {
     }
     g_pRenderWorkspaceHook = HyprlandAPI::createFunctionHook(
         PHANDLE, FNS[0].address, (void *)hkRenderWorkspace);
+    bool success = g_pRenderWorkspaceHook->hook();
+    Debug::log(LOG, "[Hyprtasking] Hooked {}", FNS[0].signature);
 
     FNS = HyprlandAPI::findFunctionsByName(PHANDLE, "getMouseCoordsInternal");
     if (FNS.empty()) {
@@ -162,6 +165,8 @@ static void initFunctions() {
     }
     g_pGetMouseCoordsInternalHook = HyprlandAPI::createFunctionHook(
         PHANDLE, FNS[0].address, (void *)hkGetMouseCoordsInternal);
+    success = success && g_pGetMouseCoordsInternalHook->hook();
+    Debug::log(LOG, "[Hyprtasking] Hooked {}", FNS[0].signature);
 
     FNS = HyprlandAPI::findFunctionsByName(PHANDLE, "renderWindow");
     if (FNS.empty()) {
@@ -170,8 +175,6 @@ static void initFunctions() {
     }
     g_pRenderWindow = FNS[0].address;
 
-    bool success = g_pRenderWorkspaceHook->hook();
-    success = g_pGetMouseCoordsInternalHook->hook();
     if (!success) {
         failNotification("Failed initializing hooks");
         throw std::runtime_error("[Hyprtasking] Failed initializing hooks");
