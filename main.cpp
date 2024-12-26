@@ -5,9 +5,13 @@
 #include <hyprland/src/SharedDefs.hpp>
 #include <hyprland/src/desktop/DesktopTypes.hpp>
 #include <hyprland/src/managers/KeybindManager.hpp>
+#include <hyprland/src/managers/LayoutManager.hpp>
+#include <hyprland/src/managers/PointerManager.hpp>
 #include <hyprland/src/managers/input/InputManager.hpp>
 #include <hyprland/src/plugins/HookSystem.hpp>
 #include <hyprland/src/plugins/PluginAPI.hpp>
+#include <hyprland/src/plugins/PluginSystem.hpp>
+#include <hyprland/src/render/Renderer.hpp>
 #include <hyprutils/math/Box.hpp>
 #include <hyprutils/math/Vector2D.hpp>
 
@@ -16,44 +20,16 @@
 
 APICALL EXPORT std::string PLUGIN_API_VERSION() { return HYPRLAND_API_VERSION; }
 
-static std::shared_ptr<CHyprtaskingView>
-getViewForMonitor(PHLMONITORREF pMonitor) {
-    if (pMonitor == nullptr)
-        return nullptr;
-    for (auto &view : g_vOverviews) {
-        if (!view)
-            continue;
-        if (view->getMonitor() != pMonitor)
-            continue;
-        return view;
-    }
-    return nullptr;
-}
-
 static SDispatchResult dispatchToggleView(std::string arg) {
-    const auto currentMonitor = g_pCompositor->getMonitorFromCursor();
-    const auto currentView = getViewForMonitor(currentMonitor);
-    if (currentView == nullptr)
+    if (g_pHyprtasking == nullptr)
         return SDispatchResult{false, false, "Failed to get view for monitor."};
 
-    if (currentView->isActive()) {
-        Debug::log(LOG, "[Hyprtasking] Hiding overviews");
-        for (auto &view : g_vOverviews) {
-            if (view == nullptr)
-                continue;
-            if (!view->isActive())
-                continue;
-            view->hide();
-        }
-    } else {
+    if (!g_pHyprtasking->isActive()) {
         Debug::log(LOG, "[Hyprtasking] Showing overviews");
-        for (auto &view : g_vOverviews) {
-            if (view == nullptr)
-                continue;
-            if (view->isActive())
-                continue;
-            view->show();
-        }
+        g_pHyprtasking->show();
+    } else {
+        Debug::log(LOG, "[Hyprtasking] Hiding overviews");
+        g_pHyprtasking->hide();
     }
 
     return SDispatchResult{};
@@ -62,69 +38,67 @@ static SDispatchResult dispatchToggleView(std::string arg) {
 static void hkRenderWorkspace(void *thisptr, PHLMONITOR pMonitor,
                               PHLWORKSPACE pWorkspace, timespec *now,
                               const CBox &geometry) {
-    const auto view = getViewForMonitor(pMonitor);
-    if (view == nullptr || !view->isActive()) {
+    if (g_pHyprtasking == nullptr || !g_pHyprtasking->isActive()) {
         ((tRenderWorkspace)(g_pRenderWorkspaceHook->m_pOriginal))(
             thisptr, pMonitor, pWorkspace, now, geometry);
         return;
     }
-    view->render();
+
+    const PHTVIEW pView = g_pHyprtasking->getViewFromMonitor(pMonitor);
+    if (pView == nullptr)
+        return;
+
+    pView->render();
+}
+
+static bool hkShouldRenderWindow(void *thisptr, PHLWINDOW pWindow,
+                                 PHLMONITOR pMonitor) {
+    const bool oResult =
+        ((tShouldRenderWindow)g_pShouldRenderWindowHook->m_pOriginal)(
+            thisptr, pWindow, pMonitor);
+
+    if (g_pHyprtasking == nullptr || !g_pHyprtasking->isActive())
+        return oResult;
+
+    const PHTVIEW pView = g_pHyprtasking->getViewFromMonitor(pMonitor);
+    if (pView == nullptr)
+        return oResult;
+
+    const PHLWINDOW dragWindow = g_pInputManager->currentlyDraggedWindow.lock();
+    if (dragWindow == nullptr || pWindow != dragWindow)
+        return oResult;
+
+    return true;
 }
 
 static void onMouseButton(void *thisptr, SCallbackInfo &info, std::any args) {
-    const Vector2D mouseCoords = g_pInputManager->getMouseCoordsInternal();
-    const PHLMONITOR pMonitor =
-        g_pCompositor->getMonitorFromVector(mouseCoords);
-    const auto view = getViewForMonitor(pMonitor);
-    if (pMonitor == nullptr || view == nullptr || !view->isActive())
+    if (g_pHyprtasking == nullptr || !g_pHyprtasking->isActive())
         return;
-
     info.cancelled = true;
-
     const auto e = std::any_cast<IPointer::SButtonEvent>(args);
-    if (e.button != BTN_LEFT)
-        return;
     const bool pressed = e.state == WL_POINTER_BUTTON_STATE_PRESSED;
+    g_pHyprtasking->onMouseButton(pressed, e.button);
+}
 
-    const Vector2D mappedCoords =
-        view->mouseCoordsWorkspaceRelative(mouseCoords);
-
-    // NOTE: logic copied from CKeybindManager::changeMouseBindMode
-    if (pressed) {
-        // If already dragging, then don't do anything
-        if (!g_pInputManager->currentlyDraggedWindow.expired() ||
-            g_pInputManager->dragMode != MBIND_INVALID)
-            return;
-
-        const PHLWINDOW pWindow = g_pCompositor->vectorToWindowUnified(
-            mappedCoords, RESERVED_EXTENTS | INPUT_EXTENTS | ALLOW_FLOATING);
-        if (!pWindow->isFullscreen())
-            pWindow->checkInputOnDecos(INPUT_TYPE_DRAG_START, mappedCoords);
-
-        g_pInputManager->currentlyDraggedWindow = pWindow;
-
-        g_pInputManager->dragMode = MBIND_MOVE;
-        g_pLayoutManager->getCurrentLayout()->onBeginDragWindow();
-    } else {
-        // If already not dragging, then don't do anything
-        if (g_pInputManager->currentlyDraggedWindow.expired() ||
-            g_pInputManager->dragMode == MBIND_INVALID)
-            return;
-
-        g_pLayoutManager->getCurrentLayout()->onEndDragWindow();
-        g_pInputManager->dragMode = MBIND_INVALID;
-    }
+static void onMouseMove(void *thisptr, SCallbackInfo &info, std::any args) {
+    if (g_pHyprtasking == nullptr || !g_pHyprtasking->isActive())
+        return;
+    info.cancelled = true;
+    g_pHyprtasking->onMouseMove();
 }
 
 static void registerMonitors() {
-    for (auto &m : g_pCompositor->m_vMonitors) {
-        if (getViewForMonitor(m) != nullptr)
+    if (g_pHyprtasking == nullptr)
+        return;
+    for (const PHLMONITOR &pMonitor : g_pCompositor->m_vMonitors) {
+        if (g_pHyprtasking->getViewFromMonitor(pMonitor) != nullptr)
             continue;
 
-        Debug::log(LOG, "[Hyprtasking] Creating view for monitor " + m->szName);
+        Debug::log(LOG, "[Hyprtasking] Creating view for monitor " +
+                            pMonitor->szName);
 
-        CHyprtaskingView *view = new CHyprtaskingView(m->ID);
-        g_vOverviews.emplace_back(view);
+        CHyprtaskingView *view = new CHyprtaskingView(pMonitor->ID);
+        g_pHyprtasking->m_vViews.emplace_back(view);
     }
 }
 
@@ -134,24 +108,42 @@ static void failNotification(const std::string &reason) {
 }
 
 static void initFunctions() {
-    static auto FNS =
-        HyprlandAPI::findFunctionsByName(PHANDLE, "renderWorkspace");
-    if (FNS.empty()) {
-        failNotification("No fns for hook renderWorkspace!");
-        throw std::runtime_error(
-            "[Hyprtasking] No fns for hook renderWorkspace");
-    }
-    g_pRenderWorkspaceHook = HyprlandAPI::createFunctionHook(
-        PHANDLE, FNS[0].address, (void *)hkRenderWorkspace);
-    bool success = g_pRenderWorkspaceHook->hook();
-    Debug::log(LOG, "[Hyprtasking] Hooked {}", FNS[0].signature);
+    bool success = true;
 
-    FNS = HyprlandAPI::findFunctionsByName(PHANDLE, "renderWindow");
-    if (FNS.empty()) {
+    static auto FNS1 =
+        HyprlandAPI::findFunctionsByName(PHANDLE, "renderWorkspace");
+    if (FNS1.empty()) {
+        failNotification("No renderWorkspace!");
+        throw std::runtime_error("[Hyprtasking] No renderWorkspace");
+    }
+    if (g_pRenderWorkspaceHook == nullptr) {
+        g_pRenderWorkspaceHook = HyprlandAPI::createFunctionHook(
+            PHANDLE, FNS1[0].address, (void *)hkRenderWorkspace);
+    }
+    Debug::log(LOG, "[Hyprtasking] Attempting hook {}", FNS1[0].signature);
+    success = g_pRenderWorkspaceHook->hook();
+
+    static auto FNS2 = HyprlandAPI::findFunctionsByName(
+        PHANDLE, "_ZN13CHyprRenderer18shouldRenderWindowEN9Hyprutils6Memory14CS"
+                 "haredPointerI7CWindowEENS2_I8CMonitorEE");
+    if (FNS2.empty()) {
+        failNotification("No shouldRenderWindow");
+        throw std::runtime_error("[Hyprtasking] No shouldRenderWindow");
+    }
+    if (g_pShouldRenderWindowHook == nullptr) {
+        g_pShouldRenderWindowHook = HyprlandAPI::createFunctionHook(
+            PHANDLE, FNS2[0].address, (void *)hkShouldRenderWindow);
+    }
+    Debug::log(LOG, "[Hyprtasking] Attempting hook {}", FNS2[0].signature);
+    success = g_pShouldRenderWindowHook->hook() && success;
+
+    static auto FNS3 =
+        HyprlandAPI::findFunctionsByName(PHANDLE, "renderWindow");
+    if (FNS3.empty()) {
         failNotification("No renderWindow");
         throw std::runtime_error("[Hyprtasking] No renderWindow");
     }
-    g_pRenderWindow = FNS[0].address;
+    g_pRenderWindow = FNS3[0].address;
 
     if (!success) {
         failNotification("Failed initializing hooks");
@@ -162,12 +154,13 @@ static void initFunctions() {
 static void registerCallbacks() {
     static auto P1 = HyprlandAPI::registerCallbackDynamic(
         PHANDLE, "mouseButton", onMouseButton);
+    static auto P2 =
+        HyprlandAPI::registerCallbackDynamic(PHANDLE, "mouseMove", onMouseMove);
     static auto P3 = HyprlandAPI::registerCallbackDynamic(
         PHANDLE, "monitorAdded",
         [&](void *thisptr, SCallbackInfo &info, std::any data) {
             registerMonitors();
         });
-    registerMonitors();
 }
 
 APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
@@ -180,11 +173,17 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
         throw std::runtime_error("[Hyprtasking] Version mismatch");
     }
 
+    if (g_pHyprtasking == nullptr)
+        g_pHyprtasking = std::make_unique<CHyprtaskingManager>();
+    else
+        g_pHyprtasking->reset();
+
     HyprlandAPI::addDispatcher(PHANDLE, "hyprtasking:toggle",
                                dispatchToggleView);
 
     initFunctions();
     registerCallbacks();
+    registerMonitors();
 
     Debug::log(LOG, "[Hyprtasking] Plugin initialized");
 
@@ -192,5 +191,6 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
 }
 
 APICALL EXPORT void PLUGIN_EXIT() {
-    // ...
+    Debug::log(LOG, "[Hyprtasking] Plugin exiting");
+    g_pHyprtasking->reset();
 }
