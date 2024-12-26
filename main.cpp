@@ -4,6 +4,7 @@
 #include <hyprland/src/Compositor.hpp>
 #include <hyprland/src/SharedDefs.hpp>
 #include <hyprland/src/desktop/DesktopTypes.hpp>
+#include <hyprland/src/devices/IKeyboard.hpp>
 #include <hyprland/src/managers/KeybindManager.hpp>
 #include <hyprland/src/managers/LayoutManager.hpp>
 #include <hyprland/src/managers/PointerManager.hpp>
@@ -57,7 +58,8 @@ static bool hkShouldRenderWindow(void *thisptr, PHLWINDOW pWindow,
         ((tShouldRenderWindow)g_pShouldRenderWindowHook->m_pOriginal)(
             thisptr, pWindow, pMonitor);
 
-    if (g_pHyprtasking == nullptr || !g_pHyprtasking->isActive())
+    if (g_pHyprtasking == nullptr || !g_pHyprtasking->isActive() ||
+        pWindow == nullptr || pMonitor == nullptr)
         return oResult;
 
     const PHTVIEW pView = g_pHyprtasking->getViewFromMonitor(pMonitor);
@@ -68,7 +70,12 @@ static bool hkShouldRenderWindow(void *thisptr, PHLWINDOW pWindow,
     if (dragWindow == nullptr || pWindow != dragWindow)
         return oResult;
 
-    return true;
+    return pMonitor->activeWorkspace == pWindow->m_pWorkspace;
+
+    // TODO: would realistically like to render the other half of the window on
+    // the other monitor. This involves either (on the other monitor): changing
+    // workspaces to the one that intersects with the window's render box, or
+    // rendering the dragged window myself
 }
 
 static void onMouseButton(void *thisptr, SCallbackInfo &info, std::any args) {
@@ -85,6 +92,26 @@ static void onMouseMove(void *thisptr, SCallbackInfo &info, std::any args) {
         return;
     info.cancelled = true;
     g_pHyprtasking->onMouseMove();
+}
+
+static void onKeyPress(void *thisptr, SCallbackInfo &info, std::any args) {
+    if (g_pHyprtasking == nullptr || !g_pHyprtasking->isActive())
+        return;
+
+    const auto e = std::any_cast<IKeyboard::SKeyEvent>(
+        std::any_cast<std::unordered_map<std::string, std::any>>(
+            args)["event"]);
+
+    if (e.keycode == KEY_ESC) {
+        info.cancelled = true;
+        g_pHyprtasking->hide();
+    }
+}
+
+static void cancelEvent(void *thisptr, SCallbackInfo &info, std::any args) {
+    if (g_pHyprtasking == nullptr || !g_pHyprtasking->isActive())
+        return;
+    info.cancelled = true;
 }
 
 static void registerMonitors() {
@@ -156,7 +183,21 @@ static void registerCallbacks() {
         PHANDLE, "mouseButton", onMouseButton);
     static auto P2 =
         HyprlandAPI::registerCallbackDynamic(PHANDLE, "mouseMove", onMouseMove);
-    static auto P3 = HyprlandAPI::registerCallbackDynamic(
+    static auto P3 =
+        HyprlandAPI::registerCallbackDynamic(PHANDLE, "mouseAxis", cancelEvent);
+
+    // TODO: support touch
+    static auto P4 =
+        HyprlandAPI::registerCallbackDynamic(PHANDLE, "touchDown", cancelEvent);
+    static auto P5 =
+        HyprlandAPI::registerCallbackDynamic(PHANDLE, "touchUp", cancelEvent);
+    static auto P6 =
+        HyprlandAPI::registerCallbackDynamic(PHANDLE, "touchMove", cancelEvent);
+
+    static auto P7 =
+        HyprlandAPI::registerCallbackDynamic(PHANDLE, "keyPress", onKeyPress);
+
+    static auto P8 = HyprlandAPI::registerCallbackDynamic(
         PHANDLE, "monitorAdded",
         [&](void *thisptr, SCallbackInfo &info, std::any data) {
             registerMonitors();

@@ -30,12 +30,12 @@ struct CHyprtaskingView {
 
     // If return value < WORKSPACEID, then there is nothing there
     WORKSPACEID getWorkspaceIDFromVector(Vector2D pos);
-    // If CBox == {0, 0, 0, 0}, then there was no ws with that ID
+
     // Returns the CBox relative to (0, 0), not the monitor
+    // If CBox == {0, 0, 0, 0}, then there was no ws with that ID
     CBox getWorkspaceBoxFromID(WORKSPACEID workspaceID);
-    // pWorkspace by default is the monitor's active workspace
-    Vector2D mouseCoordsWorkspaceRelative(Vector2D mousePos,
-                                          PHLWORKSPACE pWorkspace = nullptr);
+
+    Vector2D posRelativeToWorkspaceID(Vector2D pos, WORKSPACEID workspaceID);
 };
 
 struct CHyprtaskingManager {
@@ -46,7 +46,6 @@ struct CHyprtaskingManager {
     std::vector<PHTVIEW> m_vViews;
 
     PHTVIEW getViewFromMonitor(PHLMONITOR pMonitor);
-    PHTVIEW getViewFromCursor();
 
     void show();
     void hide();

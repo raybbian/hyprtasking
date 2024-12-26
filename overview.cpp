@@ -17,32 +17,17 @@ CHyprtaskingView::CHyprtaskingView(MONITORID inMonitorID) {
 
 CHyprtaskingView::~CHyprtaskingView() {}
 
-Vector2D
-CHyprtaskingView::mouseCoordsWorkspaceRelative(Vector2D mousePos,
-                                               PHLWORKSPACE pWorkspace) {
+Vector2D CHyprtaskingView::posRelativeToWorkspaceID(Vector2D pos,
+                                                    WORKSPACEID workspaceID) {
     const PHLMONITOR pMonitor = getMonitor();
     if (pMonitor == nullptr)
-        return mousePos;
+        return pos;
 
-    if (pWorkspace == nullptr)
-        pWorkspace = pMonitor->activeWorkspace;
-    if (pWorkspace == nullptr)
-        return mousePos;
+    CBox workspaceBox = getWorkspaceBoxFromID(workspaceID);
+    if (workspaceBox.empty())
+        return pos;
 
-    // mousePos is relative to (0, 0), whereas workspaceBoxes are relative
-    // to the monitor. Make mousePos relative to the monitor.
-    Vector2D relMousePos = mousePos - pMonitor->vecPosition;
-
-    CBox workspaceBox{};
-    for (const auto &[id, box] : workspaceBoxes) {
-        if (pWorkspace->m_iID == id)
-            workspaceBox = box;
-    }
-
-    if (workspaceBox.w == 0)
-        return mousePos;
-
-    Vector2D offset = relMousePos - workspaceBox.pos();
+    Vector2D offset = pos - workspaceBox.pos();
     // The offset between mouse position and workspace box position must be
     // scaled up to the actual size of the workspace
     offset *= ROWS;
@@ -95,11 +80,6 @@ PHTVIEW CHyprtaskingManager::getViewFromMonitor(PHLMONITOR pMonitor) {
         return pView;
     }
     return nullptr;
-}
-
-PHTVIEW CHyprtaskingManager::getViewFromCursor() {
-    const PHLMONITOR pMonitor = g_pCompositor->getMonitorFromCursor();
-    return getViewFromMonitor(pMonitor);
 }
 
 void CHyprtaskingManager::show() {
