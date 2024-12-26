@@ -2,47 +2,14 @@
 
 #include <hyprland/src/Compositor.hpp>
 #include <hyprland/src/desktop/DesktopTypes.hpp>
+#include <hyprland/src/managers/input/InputManager.hpp>
 #include <hyprland/src/render/OpenGL.hpp>
 #include <hyprland/src/render/Renderer.hpp>
 #include <hyprutils/math/Vector2D.hpp>
 
 #include "globals.hpp"
 #include "overview.hpp"
-#include "src/managers/input/InputManager.hpp"
-
-static void renderWindowWithGeometry(PHLWINDOW pWindow, PHLMONITOR pMonitor,
-                                     PHLWORKSPACE pWorkspace, timespec *time,
-                                     const CBox &geometry) {
-    if (!pWindow || !pMonitor || !pWorkspace || !time)
-        return;
-
-    Vector2D translate = {geometry.x, geometry.y};
-    float scale = (float)geometry.width / pMonitor->vecPixelSize.x;
-
-    const bool oRenderModifEnabled =
-        g_pHyprOpenGL->m_RenderData.renderModif.enabled;
-    const PHLWORKSPACE oWorkspace = pWindow->m_pWorkspace;
-    const bool oPinned = pWindow->m_bPinned;
-
-    g_pHyprOpenGL->m_RenderData.renderModif.modifs.push_back(
-        {SRenderModifData::eRenderModifType::RMOD_TYPE_TRANSLATE, translate});
-    g_pHyprOpenGL->m_RenderData.renderModif.modifs.push_back(
-        {SRenderModifData::eRenderModifType::RMOD_TYPE_SCALE, scale});
-    g_pHyprOpenGL->m_RenderData.renderModif.enabled = true;
-    pWindow->m_pWorkspace = pWorkspace;
-    pWindow->m_bPinned = true;
-
-    g_pHyprRenderer->damageWindow(pWindow);
-    ((tRenderWindow)g_pRenderWindow)(g_pHyprRenderer.get(), pWindow, pMonitor,
-                                     time, true, RENDER_PASS_MAIN, false,
-                                     false);
-
-    pWindow->m_bPinned = oPinned;
-    pWindow->m_pWorkspace = oWorkspace;
-    g_pHyprOpenGL->m_RenderData.renderModif.enabled = oRenderModifEnabled;
-    g_pHyprOpenGL->m_RenderData.renderModif.modifs.pop_back();
-    g_pHyprOpenGL->m_RenderData.renderModif.modifs.pop_back();
-}
+#include "types.hpp"
 
 void CHyprtaskingView::render() {
     const PHLMONITOR pMonitor = getMonitor();
@@ -52,17 +19,22 @@ void CHyprtaskingView::render() {
     workspaceBoxes.clear();
 
     std::vector<WORKSPACEID> workspaces;
-    for (auto &ws : g_pCompositor->m_vWorkspaces) {
-        if (ws == nullptr)
+    WORKSPACEID highID = 1;
+    for (auto &pWorkspace : g_pCompositor->m_vWorkspaces) {
+        if (pWorkspace == nullptr)
             continue;
-        if (ws->m_pMonitor->ID != monitorID)
+        if (pWorkspace->m_pMonitor->ID != monitorID)
             continue;
         // ignore special workspaces for now
-        if (ws->m_iID < 1)
+        if (pWorkspace->m_iID < 1)
             continue;
-        workspaces.push_back(ws->m_iID);
+        workspaces.push_back(pWorkspace->m_iID);
+        highID = std::max(highID, pWorkspace->m_iID);
     }
     std::sort(workspaces.begin(), workspaces.end());
+    while (g_pCompositor->getWorkspaceByID(highID) != nullptr)
+        highID++;
+    workspaces.push_back(highID);
 
     timespec time;
     clock_gettime(CLOCK_MONOTONIC, &time);
@@ -80,13 +52,23 @@ void CHyprtaskingView::render() {
     startWorkspace->m_bVisible = false;
 
     Vector2D workspaceSize = pMonitor->vecPixelSize / ROWS;
+
+    std::pair activeWorkspaceLocation = {-1, -1};
     for (size_t i = 0; i < ROWS; i++) {
         for (size_t j = 0; j < ROWS; j++) {
             size_t ind = j * ROWS + i;
+            if (ind >= workspaces.size())
+                break;
+
+            // Could be nullptr, in which we render only layers
             const PHLWORKSPACE pWorkspace =
-                ind < workspaces.size()
-                    ? g_pCompositor->getWorkspaceByID(workspaces[ind])
-                    : nullptr;
+                g_pCompositor->getWorkspaceByID(workspaces[ind]);
+
+            // Render the active workspace last
+            if (pWorkspace == startWorkspace) {
+                activeWorkspaceLocation = {i, j};
+                continue;
+            }
 
             // renderModif translation used by renderWorkspace is weird so need
             // to scale the translation up as well
@@ -110,6 +92,7 @@ void CHyprtaskingView::render() {
                 // If pWorkspace is null, then just render the layers
                 ((tRenderWorkspace)(g_pRenderWorkspaceHook->m_pOriginal))(
                     g_pHyprRenderer.get(), pMonitor, pWorkspace, &time, curBox);
+                workspaceBoxes.emplace_back(workspaces[ind], actualBox);
             }
         }
     }
@@ -118,10 +101,16 @@ void CHyprtaskingView::render() {
     startWorkspace->startAnim(true, false, true);
     startWorkspace->m_bVisible = true;
 
-    const PHLWINDOW dragWindow = g_pInputManager->currentlyDraggedWindow.lock();
-    if (dragWindow != nullptr) {
-        CBox geometry = g_pInputManager->getMouseCoordsInternal();
-        renderWindowWithGeometry(dragWindow, pMonitor,
-                                 pMonitor->activeWorkspace, time, );
+    // Render the active workspace last
+    if (activeWorkspaceLocation.first != -1) {
+        // Should always be true? Don't see why a monitor wouldn't have an
+        // active workspace
+        const auto [i, j] = activeWorkspaceLocation;
+        CBox actualBox = {{i * workspaceSize.x, j * workspaceSize.y},
+                          workspaceSize};
+        CBox curBox = {{actualBox.pos() * ROWS}, actualBox.size()};
+        ((tRenderWorkspace)(g_pRenderWorkspaceHook->m_pOriginal))(
+            g_pHyprRenderer.get(), pMonitor, startWorkspace, &time, curBox);
+        workspaceBoxes.emplace_back(startWorkspace->m_iID, actualBox);
     }
 }
