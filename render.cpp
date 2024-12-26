@@ -2,12 +2,14 @@
 
 #include <hyprland/src/Compositor.hpp>
 #include <hyprland/src/desktop/DesktopTypes.hpp>
+#include <hyprland/src/managers/input/InputManager.hpp>
 #include <hyprland/src/render/OpenGL.hpp>
 #include <hyprland/src/render/Renderer.hpp>
 #include <hyprutils/math/Vector2D.hpp>
 
 #include "globals.hpp"
 #include "overview.hpp"
+#include "types.hpp"
 
 void CHyprtaskingView::render() {
     const PHLMONITOR pMonitor = getMonitor();
@@ -17,17 +19,22 @@ void CHyprtaskingView::render() {
     workspaceBoxes.clear();
 
     std::vector<WORKSPACEID> workspaces;
-    for (auto &ws : g_pCompositor->m_vWorkspaces) {
-        if (ws == nullptr)
+    WORKSPACEID highID = 1;
+    for (auto &pWorkspace : g_pCompositor->m_vWorkspaces) {
+        if (pWorkspace == nullptr)
             continue;
-        if (ws->m_pMonitor->ID != monitorID)
+        if (pWorkspace->m_pMonitor->ID != monitorID)
             continue;
         // ignore special workspaces for now
-        if (ws->m_iID < 1)
+        if (pWorkspace->m_iID < 1)
             continue;
-        workspaces.push_back(ws->m_iID);
+        workspaces.push_back(pWorkspace->m_iID);
+        highID = std::max(highID, pWorkspace->m_iID);
     }
     std::sort(workspaces.begin(), workspaces.end());
+    while (g_pCompositor->getWorkspaceByID(highID) != nullptr)
+        highID++;
+    workspaces.push_back(highID);
 
     timespec time;
     clock_gettime(CLOCK_MONOTONIC, &time);
@@ -50,10 +57,12 @@ void CHyprtaskingView::render() {
     for (size_t i = 0; i < ROWS; i++) {
         for (size_t j = 0; j < ROWS; j++) {
             size_t ind = j * ROWS + i;
+            if (ind >= workspaces.size())
+                break;
+
+            // Could be nullptr, in which we render only layers
             const PHLWORKSPACE pWorkspace =
-                ind < workspaces.size()
-                    ? g_pCompositor->getWorkspaceByID(workspaces[ind])
-                    : nullptr;
+                g_pCompositor->getWorkspaceByID(workspaces[ind]);
 
             // Render the active workspace last
             if (pWorkspace == startWorkspace) {
@@ -83,6 +92,7 @@ void CHyprtaskingView::render() {
                 // If pWorkspace is null, then just render the layers
                 ((tRenderWorkspace)(g_pRenderWorkspaceHook->m_pOriginal))(
                     g_pHyprRenderer.get(), pMonitor, pWorkspace, &time, curBox);
+                workspaceBoxes.emplace_back(workspaces[ind], actualBox);
             }
         }
     }

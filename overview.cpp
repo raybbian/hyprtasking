@@ -3,6 +3,7 @@
 #include <hyprland/src/Compositor.hpp>
 #include <hyprland/src/SharedDefs.hpp>
 #include <hyprland/src/desktop/DesktopTypes.hpp>
+#include <hyprland/src/macros.hpp>
 #include <hyprland/src/render/OpenGL.hpp>
 #include <hyprland/src/render/Renderer.hpp>
 #include <hyprutils/math/Box.hpp>
@@ -12,32 +13,9 @@
 
 CHyprtaskingView::CHyprtaskingView(MONITORID inMonitorID) {
     monitorID = inMonitorID;
-    active = false;
 }
 
 CHyprtaskingView::~CHyprtaskingView() {}
-
-void CHyprtaskingView::show() {
-    const PHLMONITOR pMonitor = getMonitor();
-    if (pMonitor == nullptr)
-        return;
-
-    active = true;
-
-    g_pHyprRenderer->damageMonitor(pMonitor);
-    g_pCompositor->scheduleFrameForMonitor(pMonitor);
-}
-
-void CHyprtaskingView::hide() {
-    const PHLMONITOR pMonitor = getMonitor();
-    if (pMonitor == nullptr)
-        return;
-
-    active = false;
-
-    g_pHyprRenderer->damageMonitor(pMonitor);
-    g_pCompositor->scheduleFrameForMonitor(pMonitor);
-}
 
 Vector2D
 CHyprtaskingView::mouseCoordsWorkspaceRelative(Vector2D mousePos,
@@ -74,23 +52,81 @@ CHyprtaskingView::mouseCoordsWorkspaceRelative(Vector2D mousePos,
     return offset;
 }
 
-PHLWORKSPACE CHyprtaskingView::mouseWorkspace(Vector2D mousePos) {
+WORKSPACEID CHyprtaskingView::getWorkspaceIDFromVector(Vector2D pos) {
     const PHLMONITOR pMonitor = getMonitor();
     if (pMonitor == nullptr)
-        return nullptr;
+        return SPECIAL_WORKSPACE_START - 1;
     // mousePos is relative to (0, 0), whereas workspaceBoxes are relative
     // to the monitor. Make mousePos relative to the monitor.
-    Vector2D relMousePos = mousePos - pMonitor->vecPosition;
+    Vector2D relPos = pos - pMonitor->vecPosition;
     for (const auto &[id, box] : workspaceBoxes) {
-        if (box.containsPoint(relMousePos)) {
-            return g_pCompositor->getWorkspaceByID(id);
+        if (box.containsPoint(relPos)) {
+            return id;
         }
     }
-    return nullptr;
+    return SPECIAL_WORKSPACE_START - 1;
+}
+
+CBox CHyprtaskingView::getWorkspaceBoxFromID(WORKSPACEID workspaceID) {
+    const PHLMONITOR pMonitor = getMonitor();
+    if (pMonitor == nullptr)
+        return {};
+    for (const auto &[id, box] : workspaceBoxes) {
+        if (id == workspaceID) {
+            CBox newBox = {pMonitor->vecPosition + box.pos(), box.size()};
+            return newBox;
+        }
+    }
+    return {};
 }
 
 PHLMONITOR CHyprtaskingView::getMonitor() {
     return g_pCompositor->getMonitorFromID(monitorID);
 }
 
-bool CHyprtaskingView::isActive() { return active; }
+PHTVIEW CHyprtaskingManager::getViewFromMonitor(PHLMONITOR pMonitor) {
+    if (pMonitor == nullptr)
+        return nullptr;
+    for (PHTVIEW pView : m_vViews) {
+        if (pView == nullptr)
+            continue;
+        if (pView->getMonitor() != pMonitor)
+            continue;
+        return pView;
+    }
+    return nullptr;
+}
+
+PHTVIEW CHyprtaskingManager::getViewFromCursor() {
+    const PHLMONITOR pMonitor = g_pCompositor->getMonitorFromCursor();
+    return getViewFromMonitor(pMonitor);
+}
+
+void CHyprtaskingManager::show() {
+    m_bActive = true;
+    for (auto view : m_vViews) {
+        PHLMONITOR pMonitor = view->getMonitor();
+        if (pMonitor == nullptr)
+            continue;
+        g_pHyprRenderer->damageMonitor(pMonitor);
+        g_pCompositor->scheduleFrameForMonitor(pMonitor);
+    }
+}
+
+void CHyprtaskingManager::hide() {
+    m_bActive = false;
+    for (auto view : m_vViews) {
+        PHLMONITOR pMonitor = view->getMonitor();
+        if (pMonitor == nullptr)
+            continue;
+        g_pHyprRenderer->damageMonitor(pMonitor);
+        g_pCompositor->scheduleFrameForMonitor(pMonitor);
+    }
+}
+
+void CHyprtaskingManager::reset() {
+    m_bActive = false;
+    m_vViews.clear();
+}
+
+bool CHyprtaskingManager::isActive() { return m_bActive; }
