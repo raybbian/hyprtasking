@@ -22,7 +22,6 @@ struct CHyprtaskingView {
 
   public:
     CHyprtaskingView(MONITORID inMonitorID);
-    ~CHyprtaskingView();
 
     PHLMONITOR getMonitor();
 

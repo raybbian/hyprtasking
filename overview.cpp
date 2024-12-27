@@ -15,8 +15,6 @@ CHyprtaskingView::CHyprtaskingView(MONITORID inMonitorID) {
     monitorID = inMonitorID;
 }
 
-CHyprtaskingView::~CHyprtaskingView() {}
-
 Vector2D CHyprtaskingView::posRelativeToWorkspaceID(Vector2D pos,
                                                     WORKSPACEID workspaceID) {
     const PHLMONITOR pMonitor = getMonitor();

@@ -52,32 +52,6 @@ static void hkRenderWorkspace(void *thisptr, PHLMONITOR pMonitor,
     pView->render();
 }
 
-static bool hkShouldRenderWindow(void *thisptr, PHLWINDOW pWindow,
-                                 PHLMONITOR pMonitor) {
-    const bool oResult =
-        ((tShouldRenderWindow)g_pShouldRenderWindowHook->m_pOriginal)(
-            thisptr, pWindow, pMonitor);
-
-    if (g_pHyprtasking == nullptr || !g_pHyprtasking->isActive() ||
-        pWindow == nullptr || pMonitor == nullptr)
-        return oResult;
-
-    const PHTVIEW pView = g_pHyprtasking->getViewFromMonitor(pMonitor);
-    if (pView == nullptr)
-        return oResult;
-
-    const PHLWINDOW dragWindow = g_pInputManager->currentlyDraggedWindow.lock();
-    if (dragWindow == nullptr || pWindow != dragWindow)
-        return oResult;
-
-    return pMonitor->activeWorkspace == pWindow->m_pWorkspace;
-
-    // TODO: would realistically like to render the other half of the window on
-    // the other monitor. This involves either (on the other monitor): changing
-    // workspaces to the one that intersects with the window's render box, or
-    // rendering the dragged window myself
-}
-
 static void onMouseButton(void *thisptr, SCallbackInfo &info, std::any args) {
     if (g_pHyprtasking == nullptr || !g_pHyprtasking->isActive())
         return;
@@ -150,27 +124,13 @@ static void initFunctions() {
     Debug::log(LOG, "[Hyprtasking] Attempting hook {}", FNS1[0].signature);
     success = g_pRenderWorkspaceHook->hook();
 
-    static auto FNS2 = HyprlandAPI::findFunctionsByName(
-        PHANDLE, "_ZN13CHyprRenderer18shouldRenderWindowEN9Hyprutils6Memory14CS"
-                 "haredPointerI7CWindowEENS2_I8CMonitorEE");
-    if (FNS2.empty()) {
-        failNotification("No shouldRenderWindow");
-        throw std::runtime_error("[Hyprtasking] No shouldRenderWindow");
-    }
-    if (g_pShouldRenderWindowHook == nullptr) {
-        g_pShouldRenderWindowHook = HyprlandAPI::createFunctionHook(
-            PHANDLE, FNS2[0].address, (void *)hkShouldRenderWindow);
-    }
-    Debug::log(LOG, "[Hyprtasking] Attempting hook {}", FNS2[0].signature);
-    success = g_pShouldRenderWindowHook->hook() && success;
-
-    static auto FNS3 =
+    static auto FNS2 =
         HyprlandAPI::findFunctionsByName(PHANDLE, "renderWindow");
-    if (FNS3.empty()) {
+    if (FNS2.empty()) {
         failNotification("No renderWindow");
         throw std::runtime_error("[Hyprtasking] No renderWindow");
     }
-    g_pRenderWindow = FNS3[0].address;
+    g_pRenderWindow = FNS2[0].address;
 
     if (!success) {
         failNotification("Failed initializing hooks");

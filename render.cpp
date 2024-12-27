@@ -11,6 +11,27 @@
 #include "overview.hpp"
 #include "types.hpp"
 
+static void renderWindowWithScale(PHLWINDOW pWindow, PHLMONITOR pMonitor,
+                                  timespec *time, const float scale) {
+    if (!pWindow || !pMonitor || !time)
+        return;
+
+    const bool oRenderModifEnabled =
+        g_pHyprOpenGL->m_RenderData.renderModif.enabled;
+
+    g_pHyprOpenGL->m_RenderData.renderModif.modifs.push_back(
+        {SRenderModifData::eRenderModifType::RMOD_TYPE_SCALECENTER, scale});
+    g_pHyprOpenGL->m_RenderData.renderModif.enabled = true;
+
+    g_pHyprRenderer->damageWindow(pWindow);
+    ((tRenderWindow)g_pRenderWindow)(g_pHyprRenderer.get(), pWindow, pMonitor,
+                                     time, true, RENDER_PASS_MAIN, false,
+                                     false);
+
+    g_pHyprOpenGL->m_RenderData.renderModif.enabled = oRenderModifEnabled;
+    g_pHyprOpenGL->m_RenderData.renderModif.modifs.pop_back();
+}
+
 void CHyprtaskingView::render() {
     const PHLMONITOR pMonitor = getMonitor();
     if (pMonitor == nullptr)
@@ -39,11 +60,20 @@ void CHyprtaskingView::render() {
     timespec time;
     clock_gettime(CLOCK_MONOTONIC, &time);
 
-    // TODO: is this inefficient?
     g_pHyprRenderer->damageMonitor(pMonitor);
     g_pHyprOpenGL->m_RenderData.pCurrentMonData->blurFBShouldRender = true;
     CBox viewBox = {{0, 0}, pMonitor->vecPixelSize};
     g_pHyprOpenGL->renderRect(&viewBox, CHyprColor{0, 0, 0, 1.0});
+
+    // Set the dragWindow's opacity to 0 when rendering workspaces
+    const PHLWINDOW dragWindow = g_pInputManager->currentlyDraggedWindow.lock();
+    float oAlpha = 1337.;
+    float oAlphaGoal = 1337.;
+    if (dragWindow != nullptr) {
+        oAlpha = dragWindow->m_fAlpha.value();
+        oAlphaGoal = dragWindow->m_fAlpha.goal();
+        dragWindow->m_fAlpha.setValueAndWarp(0.);
+    }
 
     // Do a dance with active workspaces: Hyprland will only properly render the
     // current active one so make the workspace active before rendering it, etc
@@ -52,8 +82,7 @@ void CHyprtaskingView::render() {
     startWorkspace->m_bVisible = false;
 
     Vector2D workspaceSize = pMonitor->vecPixelSize / ROWS;
-
-    std::pair activeWorkspaceLocation = {-1, -1};
+    CBox activeWorkspaceBox{};
     for (size_t i = 0; i < ROWS; i++) {
         for (size_t j = 0; j < ROWS; j++) {
             size_t ind = j * ROWS + i;
@@ -64,17 +93,17 @@ void CHyprtaskingView::render() {
             const PHLWORKSPACE pWorkspace =
                 g_pCompositor->getWorkspaceByID(workspaces[ind]);
 
-            // Render the active workspace last
-            if (pWorkspace == startWorkspace) {
-                activeWorkspaceLocation = {i, j};
-                continue;
-            }
-
             // renderModif translation used by renderWorkspace is weird so need
             // to scale the translation up as well
             CBox actualBox = {{i * workspaceSize.x, j * workspaceSize.y},
                               workspaceSize};
             CBox curBox = {{actualBox.pos() * ROWS}, actualBox.size()};
+
+            // render active one last
+            if (pWorkspace == startWorkspace) {
+                activeWorkspaceBox = actualBox;
+                continue;
+            }
 
             if (pWorkspace != nullptr) {
                 pMonitor->activeWorkspace = pWorkspace;
@@ -101,16 +130,23 @@ void CHyprtaskingView::render() {
     startWorkspace->startAnim(true, false, true);
     startWorkspace->m_bVisible = true;
 
-    // Render the active workspace last
-    if (activeWorkspaceLocation.first != -1) {
-        // Should always be true? Don't see why a monitor wouldn't have an
-        // active workspace
-        const auto [i, j] = activeWorkspaceLocation;
-        CBox actualBox = {{i * workspaceSize.x, j * workspaceSize.y},
-                          workspaceSize};
-        CBox curBox = {{actualBox.pos() * ROWS}, actualBox.size()};
+    // Render active workspace last
+    if (!activeWorkspaceBox.empty()) {
+        CBox curBox = {{activeWorkspaceBox.pos() * ROWS},
+                       activeWorkspaceBox.size()};
         ((tRenderWorkspace)(g_pRenderWorkspaceHook->m_pOriginal))(
             g_pHyprRenderer.get(), pMonitor, startWorkspace, &time, curBox);
-        workspaceBoxes.emplace_back(startWorkspace->m_iID, actualBox);
+        workspaceBoxes.emplace_back(startWorkspace->m_iID, activeWorkspaceBox);
+    }
+
+    // Render dragging window last
+    if (dragWindow != nullptr) {
+        dragWindow->m_fAlpha.setValueAndWarp(oAlpha);
+        dragWindow->m_fAlpha = oAlphaGoal;
+
+        const CBox dragBox = {dragWindow->m_vRealPosition.value(),
+                              dragWindow->m_vRealSize.value()};
+        if (!dragBox.intersection(pMonitor->logicalBox()).empty())
+            renderWindowWithScale(dragWindow, pMonitor, &time, 1.f / ROWS);
     }
 }
