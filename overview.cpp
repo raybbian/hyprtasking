@@ -50,7 +50,7 @@ CHyprtaskingView::mapWsGlobalPositionToGlobal(Vector2D pos,
         return {};
 
     // Make it workspace local
-    pos += pMonitor->vecPosition;
+    pos -= pMonitor->vecPosition;
     // Scale down the position
     pos /= ROWS;
     // Add workspace position
