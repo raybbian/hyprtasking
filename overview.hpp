@@ -19,10 +19,14 @@ struct CHyprtaskingView {
     // Store the bounding boxes of each workspace as rendered. Modified on
     // render and accessed during mouse button events.
     // TODO: is there a better way to do this?
+    // NOTE: workspace boxes do not consider monitor scaling
     std::vector<std::pair<WORKSPACEID, CBox>> workspaceBoxes;
 
   public:
     CHyprtaskingView(MONITORID inMonitorID);
+
+    CAnimatedVariable<Vector2D> m_vOffset;
+    CAnimatedVariable<Vector2D> m_vSize;
 
     PHLMONITOR getMonitor();
 

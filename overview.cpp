@@ -13,6 +13,13 @@
 
 CHyprtaskingView::CHyprtaskingView(MONITORID inMonitorID) {
     monitorID = inMonitorID;
+
+    m_vOffset.create(
+        {0, 0}, g_pConfigManager->getAnimationPropertyConfig("windowsMove"),
+        AVARDAMAGE_NONE);
+    m_vSize.create({0, 0},
+                   g_pConfigManager->getAnimationPropertyConfig("windowsMove"),
+                   AVARDAMAGE_NONE);
 }
 
 Vector2D
@@ -26,15 +33,11 @@ CHyprtaskingView::mapGlobalPositionToWsGlobal(Vector2D pos,
     if (workspaceBox.empty())
         return {};
 
-    // Get the position relative offset from workspace start (turns into
-    // workspace local)
+    pos *= pMonitor->scale;
     pos -= workspaceBox.pos();
-    // The offset between mouse position and workspace box position must be
-    // scaled up to the actual size of the workspace
     pos *= ROWS;
-    // Make offset relative to (0, 0) again
     pos += pMonitor->vecPosition;
-
+    pos /= pMonitor->scale;
     return pos;
 }
 
@@ -49,28 +52,27 @@ CHyprtaskingView::mapWsGlobalPositionToGlobal(Vector2D pos,
     if (workspaceBox.empty())
         return {};
 
-    // Make it workspace local
+    pos *= pMonitor->scale;
     pos -= pMonitor->vecPosition;
-    // Scale down the position
     pos /= ROWS;
-    // Add workspace position
     pos += workspaceBox.pos();
+    pos /= pMonitor->scale;
     return pos;
 }
 
 WORKSPACEID CHyprtaskingView::getWorkspaceIDFromVector(Vector2D pos) {
     const PHLMONITOR pMonitor = getMonitor();
     if (pMonitor == nullptr)
-        return SPECIAL_WORKSPACE_START - 1;
+        return WORKSPACE_INVALID;
     // mousePos is relative to (0, 0), whereas workspaceBoxes are relative
     // to the monitor. Make mousePos relative to the monitor.
-    Vector2D relPos = pos - pMonitor->vecPosition;
+    Vector2D relPos = (pos - pMonitor->vecPosition) * pMonitor->scale;
     for (const auto &[id, box] : workspaceBoxes) {
         if (box.containsPoint(relPos)) {
             return id;
         }
     }
-    return SPECIAL_WORKSPACE_START - 1;
+    return WORKSPACE_INVALID;
 }
 
 CBox CHyprtaskingView::getWorkspaceBoxFromID(WORKSPACEID workspaceID) {
@@ -111,6 +113,7 @@ PHTVIEW CHyprtaskingManager::getViewFromMonitor(PHLMONITOR pMonitor) {
 
 void CHyprtaskingManager::show() {
     m_bActive = true;
+
     for (auto view : m_vViews) {
         PHLMONITOR pMonitor = view->getMonitor();
         if (pMonitor == nullptr)

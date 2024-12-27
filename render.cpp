@@ -21,8 +21,10 @@ static void renderWindowAtBox(PHLWINDOW pWindow, PHLMONITOR pMonitor,
     box.y -= pMonitor->vecPosition.y;
 
     const float scale = box.w / pWindow->m_vRealSize.value().x;
-    const Vector2D transform = pMonitor->vecPosition + (box.pos() / scale) -
-                               pWindow->m_vRealPosition.value();
+    const Vector2D transform =
+        (pMonitor->vecPosition - pWindow->m_vRealPosition.value() +
+         box.pos() / scale) *
+        pMonitor->scale;
 
     const bool oRenderModifEnabled =
         g_pHyprOpenGL->m_RenderData.renderModif.enabled;

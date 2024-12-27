@@ -23,6 +23,8 @@ void CHyprtaskingManager::onMouseButton(bool pressed, uint32_t button) {
 
     if (button == BTN_LEFT) {
         if (pressed) {
+            Debug::log(LOG, "[Hyprtasking] Clicked at ({}, {})", mouseCoords.x,
+                       mouseCoords.y);
             // If left click on non-workspace workspace, do nothing
             if (pWorkspace == nullptr)
                 return;
@@ -41,14 +43,15 @@ void CHyprtaskingManager::onMouseButton(bool pressed, uint32_t button) {
             // Fix snapping to mouse cursor
             const PHLWINDOW dragWindow =
                 g_pInputManager->currentlyDraggedWindow.lock();
-            if (dragWindow != nullptr) {
-                const Vector2D realCenter = pView->mapWsGlobalPositionToGlobal(
-                    dragWindow->m_vRealPosition.value() +
-                        dragWindow->m_vRealSize.value() / 2.f,
-                    workspaceID);
-                dragWindowOffset.setValueAndWarp(realCenter - mouseCoords);
-                dragWindowOffset = {0, 0};
-            }
+            if (dragWindow == nullptr)
+                return;
+
+            const Vector2D realCenter = pView->mapWsGlobalPositionToGlobal(
+                dragWindow->m_vRealPosition.value() +
+                    dragWindow->m_vRealSize.value() / 2.f,
+                workspaceID);
+            dragWindowOffset.setValueAndWarp(realCenter - mouseCoords);
+            dragWindowOffset = {0, 0};
 
             Debug::log(LOG, "[Hyprtasking] Grabbed window at ({}, {}) on ws {}",
                        mappedCoords.x, mappedCoords.y,
@@ -62,8 +65,7 @@ void CHyprtaskingManager::onMouseButton(bool pressed, uint32_t button) {
             }
 
             // Release on empty dummy workspace, so create and switch to it
-            if (pWorkspace == nullptr &&
-                workspaceID >= SPECIAL_WORKSPACE_START) {
+            if (pWorkspace == nullptr && workspaceID != WORKSPACE_INVALID) {
                 pWorkspace = g_pCompositor->createNewWorkspace(workspaceID,
                                                                pMonitor->ID);
                 pMonitor->changeWorkspace(pWorkspace);
@@ -76,6 +78,8 @@ void CHyprtaskingManager::onMouseButton(bool pressed, uint32_t button) {
                 pWorkspace->m_bVisible = true;
             } else {
                 // TODO: drop on invalid behavior?
+                // FIXME: maybe spawn in middle of dummy workspace (to fix
+                // monitor bug)
                 pWorkspace = pMonitor->activeWorkspace;
             }
 
@@ -105,8 +109,7 @@ void CHyprtaskingManager::onMouseButton(bool pressed, uint32_t button) {
     } else if (button == BTN_RIGHT) {
         if (pressed) {
             // If right click on dummy workspace, create and go here as well
-            if (pWorkspace == nullptr &&
-                workspaceID >= SPECIAL_WORKSPACE_START) {
+            if (pWorkspace == nullptr && workspaceID != WORKSPACE_INVALID) {
                 pWorkspace = g_pCompositor->createNewWorkspace(workspaceID,
                                                                pMonitor->ID);
 
