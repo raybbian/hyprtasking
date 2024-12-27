@@ -15,24 +15,47 @@ CHyprtaskingView::CHyprtaskingView(MONITORID inMonitorID) {
     monitorID = inMonitorID;
 }
 
-Vector2D CHyprtaskingView::posRelativeToWorkspaceID(Vector2D pos,
-                                                    WORKSPACEID workspaceID) {
+Vector2D
+CHyprtaskingView::mapGlobalPositionToWsGlobal(Vector2D pos,
+                                              WORKSPACEID workspaceID) {
     const PHLMONITOR pMonitor = getMonitor();
     if (pMonitor == nullptr)
-        return pos;
+        return {};
 
     CBox workspaceBox = getWorkspaceBoxFromID(workspaceID);
     if (workspaceBox.empty())
-        return pos;
+        return {};
 
-    Vector2D offset = pos - workspaceBox.pos();
+    // Get the position relative offset from workspace start (turns into
+    // workspace local)
+    pos -= workspaceBox.pos();
     // The offset between mouse position and workspace box position must be
     // scaled up to the actual size of the workspace
-    offset *= ROWS;
+    pos *= ROWS;
     // Make offset relative to (0, 0) again
-    offset += pMonitor->vecPosition;
+    pos += pMonitor->vecPosition;
 
-    return offset;
+    return pos;
+}
+
+Vector2D
+CHyprtaskingView::mapWsGlobalPositionToGlobal(Vector2D pos,
+                                              WORKSPACEID workspaceID) {
+    const PHLMONITOR pMonitor = getMonitor();
+    if (pMonitor == nullptr)
+        return {};
+
+    CBox workspaceBox = getWorkspaceBoxFromID(workspaceID);
+    if (workspaceBox.empty())
+        return {};
+
+    // Make it workspace local
+    pos += pMonitor->vecPosition;
+    // Scale down the position
+    pos /= ROWS;
+    // Add workspace position
+    pos += workspaceBox.pos();
+    return pos;
 }
 
 WORKSPACEID CHyprtaskingView::getWorkspaceIDFromVector(Vector2D pos) {
@@ -65,6 +88,12 @@ CBox CHyprtaskingView::getWorkspaceBoxFromID(WORKSPACEID workspaceID) {
 
 PHLMONITOR CHyprtaskingView::getMonitor() {
     return g_pCompositor->getMonitorFromID(monitorID);
+}
+
+CHyprtaskingManager::CHyprtaskingManager() {
+    dragWindowOffset.create(
+        {0, 0}, g_pConfigManager->getAnimationPropertyConfig("windowsMove"),
+        AVARDAMAGE_NONE);
 }
 
 PHTVIEW CHyprtaskingManager::getViewFromMonitor(PHLMONITOR pMonitor) {

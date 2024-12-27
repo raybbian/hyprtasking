@@ -4,6 +4,7 @@
 #include <hyprland/src/Compositor.hpp>
 #include <hyprland/src/macros.hpp>
 #include <hyprland/src/managers/KeybindManager.hpp>
+#include <hyprland/src/managers/LayoutManager.hpp>
 #include <hyprland/src/managers/PointerManager.hpp>
 #include <hyprland/src/managers/input/InputManager.hpp>
 
@@ -31,20 +32,27 @@ void CHyprtaskingManager::onMouseButton(bool pressed, uint32_t button) {
             pWorkspace->m_bVisible = true;
 
             const Vector2D mappedCoords =
-                pView->posRelativeToWorkspaceID(mouseCoords, workspaceID);
+                pView->mapGlobalPositionToWsGlobal(mouseCoords, workspaceID);
 
             g_pPointerManager->warpTo(mappedCoords);
             g_pKeybindManager->changeMouseBindMode(MBIND_MOVE);
             g_pPointerManager->warpTo(mouseCoords);
 
-            onMouseMove();
+            // Fix snapping to mouse cursor
+            const PHLWINDOW dragWindow =
+                g_pInputManager->currentlyDraggedWindow.lock();
+            if (dragWindow != nullptr) {
+                const Vector2D realCenter = pView->mapWsGlobalPositionToGlobal(
+                    dragWindow->m_vRealPosition.value() +
+                        dragWindow->m_vRealSize.value() / 2.f,
+                    workspaceID);
+                dragWindowOffset.setValueAndWarp(realCenter - mouseCoords);
+                dragWindowOffset = {0, 0};
+            }
 
-            Debug::log(
-                LOG,
-                "[Hyprtasking] Attempting to grab window at ({}, {}) on ws {}",
-                mappedCoords.x, mappedCoords.y,
-                pMonitor->activeWorkspace->m_iID);
-
+            Debug::log(LOG, "[Hyprtasking] Grabbed window at ({}, {}) on ws {}",
+                       mappedCoords.x, mappedCoords.y,
+                       pMonitor->activeWorkspace->m_iID);
         } else {
             const PHLWINDOW dragWindow =
                 g_pInputManager->currentlyDraggedWindow.lock();
@@ -73,9 +81,9 @@ void CHyprtaskingManager::onMouseButton(bool pressed, uint32_t button) {
 
             g_pCompositor->moveWindowToWorkspaceSafe(dragWindow, pWorkspace);
 
-            const Vector2D mappedCoords =
-                pView->posRelativeToWorkspaceID(mouseCoords, pWorkspace->m_iID);
-
+            // Fix releasing animation
+            const Vector2D mappedCoords = pView->mapGlobalPositionToWsGlobal(
+                mouseCoords, pWorkspace->m_iID);
             dragWindow->m_vRealPosition.setValueAndWarp(
                 mappedCoords - dragWindow->m_vRealSize.value() / 2.);
 
@@ -116,10 +124,4 @@ void CHyprtaskingManager::onMouseButton(bool pressed, uint32_t button) {
     }
 }
 
-void CHyprtaskingManager::onMouseMove() {
-    const Vector2D mouseCoords = g_pInputManager->getMouseCoordsInternal();
-    const PHLWINDOW dragWindow = g_pInputManager->currentlyDraggedWindow.lock();
-    if (dragWindow != nullptr)
-        dragWindow->m_vRealPosition.setValueAndWarp(
-            mouseCoords - dragWindow->m_vRealSize.value() / 2.);
-}
+void CHyprtaskingManager::onMouseMove() { dragWindowOffset.warp(); }

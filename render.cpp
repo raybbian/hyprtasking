@@ -11,16 +11,26 @@
 #include "overview.hpp"
 #include "types.hpp"
 
-static void renderWindowWithScale(PHLWINDOW pWindow, PHLMONITOR pMonitor,
-                                  timespec *time, const float scale) {
+// Note: box is relative to (0, 0), not monitor
+static void renderWindowAtBox(PHLWINDOW pWindow, PHLMONITOR pMonitor,
+                              timespec *time, CBox box) {
     if (!pWindow || !pMonitor || !time)
         return;
+
+    box.x -= pMonitor->vecPosition.x;
+    box.y -= pMonitor->vecPosition.y;
+
+    const float scale = box.w / pWindow->m_vRealSize.value().x;
+    const Vector2D transform = pMonitor->vecPosition + (box.pos() / scale) -
+                               pWindow->m_vRealPosition.value();
 
     const bool oRenderModifEnabled =
         g_pHyprOpenGL->m_RenderData.renderModif.enabled;
 
     g_pHyprOpenGL->m_RenderData.renderModif.modifs.push_back(
-        {SRenderModifData::eRenderModifType::RMOD_TYPE_SCALECENTER, scale});
+        {SRenderModifData::eRenderModifType::RMOD_TYPE_TRANSLATE, transform});
+    g_pHyprOpenGL->m_RenderData.renderModif.modifs.push_back(
+        {SRenderModifData::eRenderModifType::RMOD_TYPE_SCALE, scale});
     g_pHyprOpenGL->m_RenderData.renderModif.enabled = true;
 
     g_pHyprRenderer->damageWindow(pWindow);
@@ -29,6 +39,7 @@ static void renderWindowWithScale(PHLWINDOW pWindow, PHLMONITOR pMonitor,
                                      false);
 
     g_pHyprOpenGL->m_RenderData.renderModif.enabled = oRenderModifEnabled;
+    g_pHyprOpenGL->m_RenderData.renderModif.modifs.pop_back();
     g_pHyprOpenGL->m_RenderData.renderModif.modifs.pop_back();
 }
 
@@ -144,9 +155,13 @@ void CHyprtaskingView::render() {
         dragWindow->m_fAlpha.setValueAndWarp(oAlpha);
         dragWindow->m_fAlpha = oAlphaGoal;
 
-        const CBox dragBox = {dragWindow->m_vRealPosition.value(),
-                              dragWindow->m_vRealSize.value()};
+        const Vector2D dragSize = dragWindow->m_vRealSize.value() / ROWS;
+        // Little sus, maybe need to add backref?
+        const CBox dragBox = {g_pInputManager->getMouseCoordsInternal() -
+                                  dragSize / 2.f +
+                                  g_pHyprtasking->dragWindowOffset.value(),
+                              dragSize};
         if (!dragBox.intersection(pMonitor->logicalBox()).empty())
-            renderWindowWithScale(dragWindow, pMonitor, &time, 1.f / ROWS);
+            renderWindowAtBox(dragWindow, pMonitor, &time, dragBox);
     }
 }

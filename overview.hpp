@@ -9,6 +9,7 @@
 #include <hyprutils/math/Box.hpp>
 #include <hyprutils/math/Vector2D.hpp>
 
+#include "src/helpers/AnimatedVariable.hpp"
 #include "types.hpp"
 
 struct CHyprtaskingView {
@@ -34,7 +35,8 @@ struct CHyprtaskingView {
     // If CBox == {0, 0, 0, 0}, then there was no ws with that ID
     CBox getWorkspaceBoxFromID(WORKSPACEID workspaceID);
 
-    Vector2D posRelativeToWorkspaceID(Vector2D pos, WORKSPACEID workspaceID);
+    Vector2D mapGlobalPositionToWsGlobal(Vector2D pos, WORKSPACEID workspaceID);
+    Vector2D mapWsGlobalPositionToGlobal(Vector2D pos, WORKSPACEID workspaceID);
 };
 
 struct CHyprtaskingManager {
@@ -42,7 +44,12 @@ struct CHyprtaskingManager {
     bool m_bActive;
 
   public:
+    CHyprtaskingManager();
+
     std::vector<PHTVIEW> m_vViews;
+
+    // So that the window doesn't teleport to the mouse's position
+    CAnimatedVariable<Vector2D> dragWindowOffset;
 
     PHTVIEW getViewFromMonitor(PHLMONITOR pMonitor);
 
