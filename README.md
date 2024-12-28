@@ -55,7 +55,8 @@ Then use `hyprctl plugin load` to load the absolute path to the `.so` file.
 
 ### Opening Overview
 
-- Bind `hyprtasking:toggle` to a keybind to open/close the overlay
+- Bind `hyprtasking:toggle, all` to a keybind to open/close the overlay on all monitors. 
+- See [below](#Configuration) for configuration options.
 
 ### Interaction
 
@@ -63,8 +64,7 @@ Then use `hyprctl plugin load` to load the absolute path to the `.so` file.
     - **Left click** to drag and drop windows around
 - Exiting:
     - Trigger `hyprtasking:toggle` again
-    - Press **ESC** to close the overlay
-    - This will change workspaces to the workspace under your cursor
+    - **Right click** to select a workspace and exit
 
 ## Configuration
 
