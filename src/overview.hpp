@@ -27,13 +27,9 @@ struct CHyprtaskingView {
     CAnimatedVariable<Vector2D> m_vOffset;
     CAnimatedVariable<float> m_fScale;
 
-    bool m_bClosing;
-
   public:
+    bool m_bClosing;
     bool m_bActive;
-
-    // Set this to hide at non-active workspace
-    PHLWORKSPACEREF hideAt;
 
     CHyprtaskingView(MONITORID inMonitorID);
 

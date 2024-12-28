@@ -46,6 +46,12 @@ static void renderWindowAtBox(PHLWINDOW pWindow, PHLMONITOR pMonitor,
 }
 
 void CHyprtaskingView::generateWorkspaceBoxes(bool useAnimModifs) {
+    static long *const *PROWS =
+        (Hyprlang::INT *const *)HyprlandAPI::getConfigValue(
+            PHANDLE, "plugin:hyprtasking:rows")
+            ->getDataStaticPtr();
+    const int ROWS = **PROWS;
+
     const PHLMONITOR pMonitor = getMonitor();
     if (pMonitor == nullptr)
         return;
@@ -60,9 +66,9 @@ void CHyprtaskingView::generateWorkspaceBoxes(bool useAnimModifs) {
         (useAnimModifs ? m_vOffset.value() : Vector2D{0, 0});
     const Vector2D workspaceSize = pMonitor->vecPixelSize * scale;
 
-    for (size_t i = 0; i < ROWS; i++) {
-        for (size_t j = 0; j < ROWS; j++) {
-            size_t ind = j * ROWS + i + 1;
+    for (int i = 0; i < ROWS; i++) {
+        for (int j = 0; j < ROWS; j++) {
+            int ind = j * ROWS + i + 1;
             const WORKSPACEID workspaceID =
                 getWorkspaceIDNameFromString(std::format("r~{}", ind)).id;
             CBox actualBox = {{i * workspaceSize.x + offset.x,
@@ -154,7 +160,8 @@ void CHyprtaskingView::render() {
     if (dragWindow != nullptr) {
         dragWindow->setHidden(false);
 
-        const Vector2D dragSize = dragWindow->m_vRealSize.value() / ROWS;
+        const Vector2D dragSize = dragWindow->m_vRealSize.value() *
+                                  m_fScale.value(); // divide by ROWS
         const CBox dragBox = {g_pInputManager->getMouseCoordsInternal() -
                                   dragSize / 2.f +
                                   g_pHyprtasking->dragWindowOffset.value(),

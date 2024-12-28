@@ -13,6 +13,7 @@
 #include <hyprland/src/plugins/PluginAPI.hpp>
 #include <hyprland/src/plugins/PluginSystem.hpp>
 #include <hyprland/src/render/Renderer.hpp>
+#include <hyprlang.hpp>
 #include <hyprutils/math/Box.hpp>
 #include <hyprutils/math/Vector2D.hpp>
 
@@ -21,19 +22,30 @@
 
 APICALL EXPORT std::string PLUGIN_API_VERSION() { return HYPRLAND_API_VERSION; }
 
-static SDispatchResult dispatchToggleView(std::string arg) {
-    if (g_pHyprtasking == nullptr)
-        return SDispatchResult{false, false, "Failed to get view for monitor."};
-
-    if (!g_pHyprtasking->isActive()) {
+static SDispatchResult dispatchShowView(std::string arg) {
+    if (g_pHyprtasking != nullptr && !g_pHyprtasking->isActive()) {
         Debug::log(LOG, "[Hyprtasking] Showing overviews");
         g_pHyprtasking->show();
-    } else {
+    }
+    return SDispatchResult{};
+}
+
+static SDispatchResult dispatchHideView(std::string arg) {
+    if (g_pHyprtasking != nullptr && g_pHyprtasking->isActive()) {
         Debug::log(LOG, "[Hyprtasking] Hiding overviews");
         g_pHyprtasking->hide();
     }
-
     return SDispatchResult{};
+}
+
+static SDispatchResult dispatchToggleView(std::string arg) {
+    if (g_pHyprtasking == nullptr)
+        return SDispatchResult{};
+
+    if (!g_pHyprtasking->isActive())
+        return dispatchShowView(arg);
+    else
+        return dispatchHideView(arg);
 }
 
 static void hkRenderWorkspace(void *thisptr, PHLMONITOR pMonitor,
@@ -164,6 +176,19 @@ static void registerCallbacks() {
         });
 }
 
+static void addDispatchers() {
+    HyprlandAPI::addDispatcher(PHANDLE, "hyprtasking:show", dispatchShowView);
+    HyprlandAPI::addDispatcher(PHANDLE, "hyprtasking:hide", dispatchHideView);
+    HyprlandAPI::addDispatcher(PHANDLE, "hyprtasking:toggle",
+                               dispatchToggleView);
+}
+
+static void initConfig() {
+    HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprtasking:rows",
+                                Hyprlang::INT{3});
+    HyprlandAPI::reloadConfig();
+}
+
 APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
     PHANDLE = handle;
 
@@ -179,9 +204,8 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
     else
         g_pHyprtasking->reset();
 
-    HyprlandAPI::addDispatcher(PHANDLE, "hyprtasking:toggle",
-                               dispatchToggleView);
-
+    initConfig();
+    addDispatchers();
     initFunctions();
     registerCallbacks();
     registerMonitors();
