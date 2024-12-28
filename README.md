@@ -17,7 +17,7 @@ https://github.com/user-attachments/assets/44cfd319-c321-4721-a34f-c428d147b811
 ## Roadmap
 
 - [x] Mouse controls
-    - [x] Exit into workspace
+    - [x] Exit into workspace (hover)
     - [x] Drag and drop windows
 - [x] Multi-monitor support (tested)
 - [x] Monitor scaling support (tested)
@@ -33,7 +33,7 @@ https://github.com/user-attachments/assets/44cfd319-c321-4721-a34f-c428d147b811
 ### Hyprpm
 
 ```
-hyprpm add https://github.com/raybbian/
+hyprpm add https://github.com/raybbian/hyprtasking
 hyprpm enable hyprtasking
 ```
 
