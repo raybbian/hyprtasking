@@ -13,13 +13,67 @@
 
 CHyprtaskingView::CHyprtaskingView(MONITORID inMonitorID) {
     monitorID = inMonitorID;
+    m_bActive = false;
+    m_bClosing = false;
+
+    const PHLMONITOR pMonitor = getMonitor();
+    if (pMonitor == nullptr)
+        return;
 
     m_vOffset.create(
         {0, 0}, g_pConfigManager->getAnimationPropertyConfig("windowsMove"),
         AVARDAMAGE_NONE);
-    m_vSize.create({0, 0},
-                   g_pConfigManager->getAnimationPropertyConfig("windowsMove"),
-                   AVARDAMAGE_NONE);
+    m_fScale.create(1.f,
+                    g_pConfigManager->getAnimationPropertyConfig("windowsMove"),
+                    AVARDAMAGE_NONE);
+}
+
+void CHyprtaskingView::show() {
+    const PHLMONITOR pMonitor = getMonitor();
+    if (pMonitor == nullptr)
+        return;
+
+    m_bActive = true;
+
+    // Generate workspace boxes for non-animating configuration
+    generateWorkspaceBoxes(false);
+
+    const CBox wsBox = workspaceBoxes[pMonitor->activeWorkspaceID()];
+
+    m_fScale.setValueAndWarp(1.);
+    m_vOffset.setValueAndWarp(-wsBox.pos() / wsBox.size() *
+                              pMonitor->vecPixelSize);
+    m_fScale = 1. / ROWS;
+    m_vOffset = {0, 0};
+
+    g_pHyprRenderer->damageMonitor(pMonitor);
+    g_pCompositor->scheduleFrameForMonitor(pMonitor);
+}
+
+void CHyprtaskingView::hide() {
+    if (m_bClosing)
+        return;
+    const PHLMONITOR pMonitor = getMonitor();
+    if (pMonitor == nullptr)
+        return;
+
+    m_bClosing = true;
+
+    // Generate workspace boxes for non-animating
+    generateWorkspaceBoxes(false);
+
+    const CBox wsBox = workspaceBoxes[pMonitor->activeWorkspaceID()];
+
+    m_fScale = 1.;
+    m_vOffset = -wsBox.pos() / wsBox.size() * pMonitor->vecPixelSize;
+
+    m_fScale.setCallbackOnEnd([this](void *) {
+        m_bActive = false;
+        m_bClosing = false;
+    });
+
+    g_pHyprRenderer->damageMonitor(pMonitor);
+    g_pCompositor->scheduleFrameForMonitor(pMonitor);
 }
 
 Vector2D
@@ -79,12 +133,13 @@ CBox CHyprtaskingView::getWorkspaceBoxFromID(WORKSPACEID workspaceID) {
     const PHLMONITOR pMonitor = getMonitor();
     if (pMonitor == nullptr)
         return {};
-    for (const auto &[id, box] : workspaceBoxes) {
-        if (id == workspaceID) {
-            CBox newBox = {pMonitor->vecPosition + box.pos(), box.size()};
-            return newBox;
-        }
+
+    if (workspaceBoxes.count(workspaceID)) {
+        CBox oBox = workspaceBoxes[workspaceID];
+        // NOTE: not scaled by monitor size
+        return {pMonitor->vecPosition + oBox.pos(), oBox.size()};
     }
+
     return {};
 }
 
@@ -112,31 +167,23 @@ PHTVIEW CHyprtaskingManager::getViewFromMonitor(PHLMONITOR pMonitor) {
 }
 
 void CHyprtaskingManager::show() {
-    m_bActive = true;
-
     for (auto view : m_vViews) {
-        PHLMONITOR pMonitor = view->getMonitor();
-        if (pMonitor == nullptr)
-            continue;
-        g_pHyprRenderer->damageMonitor(pMonitor);
-        g_pCompositor->scheduleFrameForMonitor(pMonitor);
+        view->show();
     }
 }
 
 void CHyprtaskingManager::hide() {
-    m_bActive = false;
-    for (auto view : m_vViews) {
-        PHLMONITOR pMonitor = view->getMonitor();
-        if (pMonitor == nullptr)
-            continue;
-        g_pHyprRenderer->damageMonitor(pMonitor);
-        g_pCompositor->scheduleFrameForMonitor(pMonitor);
+    for (const auto &view : m_vViews) {
+        view->hide();
     }
 }
 
-void CHyprtaskingManager::reset() {
-    m_bActive = false;
-    m_vViews.clear();
-}
+void CHyprtaskingManager::reset() { m_vViews.clear(); }
 
-bool CHyprtaskingManager::isActive() { return m_bActive; }
+bool CHyprtaskingManager::isActive() {
+    for (const auto &view : m_vViews) {
+        if (view->m_bActive)
+            return true;
+    }
+    return false;
+}

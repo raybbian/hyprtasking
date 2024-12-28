@@ -21,7 +21,7 @@ void CHyprtaskingManager::onMouseButton(bool pressed, uint32_t button) {
         pView->getWorkspaceIDFromVector(mouseCoords);
     PHLWORKSPACE pWorkspace = g_pCompositor->getWorkspaceByID(workspaceID);
 
-    if (button == BTN_LEFT) {
+    if (button == BTN_RIGHT) {
         if (pressed) {
             Debug::log(LOG, "[Hyprtasking] Clicked at ({}, {})", mouseCoords.x,
                        mouseCoords.y);
@@ -106,7 +106,7 @@ void CHyprtaskingManager::onMouseButton(bool pressed, uint32_t button) {
                 "[Hyprtasking] Attempting to drop window at ({}, {}) on ws {}",
                 mappedCoords.x, mappedCoords.y, pWorkspace->m_iID);
         }
-    } else if (button == BTN_RIGHT) {
+    } else if (button == BTN_LEFT) {
         if (pressed) {
             // If right click on dummy workspace, create and go here as well
             if (pWorkspace == nullptr && workspaceID != WORKSPACE_INVALID) {

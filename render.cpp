@@ -45,30 +45,43 @@ static void renderWindowAtBox(PHLWINDOW pWindow, PHLMONITOR pMonitor,
     g_pHyprOpenGL->m_RenderData.renderModif.modifs.pop_back();
 }
 
+void CHyprtaskingView::generateWorkspaceBoxes(bool useAnimModifs) {
+    const PHLMONITOR pMonitor = getMonitor();
+    if (pMonitor == nullptr)
+        return;
+
+    const PHLMONITOR oMonitor = g_pCompositor->m_pLastMonitor.lock();
+    g_pCompositor->setActiveMonitor(pMonitor);
+
+    workspaceBoxes.clear();
+
+    const float scale = useAnimModifs ? m_fScale.value() : 1.f / ROWS;
+    const Vector2D offset =
+        (useAnimModifs ? m_vOffset.value() : Vector2D{0, 0});
+    const Vector2D workspaceSize = pMonitor->vecPixelSize * scale;
+
+    for (size_t i = 0; i < ROWS; i++) {
+        for (size_t j = 0; j < ROWS; j++) {
+            size_t ind = j * ROWS + i + 1;
+            const WORKSPACEID workspaceID =
+                getWorkspaceIDNameFromString(std::format("r~{}", ind)).id;
+            CBox actualBox = {{i * workspaceSize.x + offset.x,
+                               j * workspaceSize.y + offset.y},
+                              workspaceSize};
+            workspaceBoxes[workspaceID] = actualBox;
+        }
+    }
+
+    if (oMonitor != nullptr)
+        g_pCompositor->setActiveMonitor(oMonitor);
+}
+
 void CHyprtaskingView::render() {
     const PHLMONITOR pMonitor = getMonitor();
     if (pMonitor == nullptr)
         return;
 
     workspaceBoxes.clear();
-
-    std::vector<WORKSPACEID> workspaces;
-    WORKSPACEID highID = 1;
-    for (auto &pWorkspace : g_pCompositor->m_vWorkspaces) {
-        if (pWorkspace == nullptr)
-            continue;
-        if (pWorkspace->m_pMonitor->ID != monitorID)
-            continue;
-        // ignore special workspaces for now
-        if (pWorkspace->m_iID < 1)
-            continue;
-        workspaces.push_back(pWorkspace->m_iID);
-        highID = std::max(highID, pWorkspace->m_iID);
-    }
-    std::sort(workspaces.begin(), workspaces.end());
-    while (g_pCompositor->getWorkspaceByID(highID) != nullptr)
-        highID++;
-    workspaces.push_back(highID);
 
     timespec time;
     clock_gettime(CLOCK_MONOTONIC, &time);
@@ -80,13 +93,8 @@ void CHyprtaskingView::render() {
 
     // Set the dragWindow's opacity to 0 when rendering workspaces
     const PHLWINDOW dragWindow = g_pInputManager->currentlyDraggedWindow.lock();
-    float oAlpha = 1337.;
-    float oAlphaGoal = 1337.;
-    if (dragWindow != nullptr) {
-        oAlpha = dragWindow->m_fAlpha.value();
-        oAlphaGoal = dragWindow->m_fAlpha.goal();
-        dragWindow->m_fAlpha.setValueAndWarp(0.);
-    }
+    if (dragWindow != nullptr)
+        dragWindow->setHidden(true);
 
     // Do a dance with active workspaces: Hyprland will only properly render the
     // current active one so make the workspace active before rendering it, etc
@@ -94,48 +102,38 @@ void CHyprtaskingView::render() {
     startWorkspace->startAnim(false, false, true);
     startWorkspace->m_bVisible = false;
 
-    Vector2D workspaceSize = pMonitor->vecPixelSize / ROWS;
-    CBox activeWorkspaceBox{};
-    for (size_t i = 0; i < ROWS; i++) {
-        for (size_t j = 0; j < ROWS; j++) {
-            size_t ind = j * ROWS + i;
-            if (ind >= workspaces.size())
-                break;
+    generateWorkspaceBoxes();
 
-            // Could be nullptr, in which we render only layers
-            const PHLWORKSPACE pWorkspace =
-                g_pCompositor->getWorkspaceByID(workspaces[ind]);
+    for (const auto &[workspaceID, actualBox] : workspaceBoxes) {
+        // Could be nullptr, in which we render only layers
+        const PHLWORKSPACE pWorkspace =
+            g_pCompositor->getWorkspaceByID(workspaceID);
 
-            // renderModif translation used by renderWorkspace is weird so need
-            // to scale the translation up as well
-            CBox actualBox = {{i * workspaceSize.x, j * workspaceSize.y},
-                              workspaceSize};
-            CBox curBox = {{actualBox.pos() * ROWS}, actualBox.size()};
+        // renderModif translation used by renderWorkspace is weird so need
+        // to scale the translation up as well
+        CBox curBox = {{actualBox.pos() / m_fScale.value()}, actualBox.size()};
 
-            // render active one last
-            if (pWorkspace == startWorkspace) {
-                activeWorkspaceBox = actualBox;
-                continue;
-            }
+        // render active one last
+        if (pWorkspace == startWorkspace && startWorkspace != nullptr)
+            continue;
 
-            if (pWorkspace != nullptr) {
-                pMonitor->activeWorkspace = pWorkspace;
-                pWorkspace->startAnim(true, false, true);
-                pWorkspace->m_bVisible = true;
+        if (pWorkspace != nullptr) {
+            pMonitor->activeWorkspace = pWorkspace;
+            pWorkspace->startAnim(true, false, true);
+            pWorkspace->m_bVisible = true;
 
-                ((tRenderWorkspace)(g_pRenderWorkspaceHook->m_pOriginal))(
-                    g_pHyprRenderer.get(), pMonitor, pWorkspace, &time, curBox);
+            ((tRenderWorkspace)(g_pRenderWorkspaceHook->m_pOriginal))(
+                g_pHyprRenderer.get(), pMonitor, pWorkspace, &time, curBox);
 
-                pWorkspace->startAnim(false, false, true);
-                pWorkspace->m_bVisible = false;
+            pWorkspace->startAnim(false, false, true);
+            pWorkspace->m_bVisible = false;
 
-                workspaceBoxes.emplace_back(pWorkspace->m_iID, actualBox);
-            } else {
-                // If pWorkspace is null, then just render the layers
-                ((tRenderWorkspace)(g_pRenderWorkspaceHook->m_pOriginal))(
-                    g_pHyprRenderer.get(), pMonitor, pWorkspace, &time, curBox);
-                workspaceBoxes.emplace_back(workspaces[ind], actualBox);
-            }
+            workspaceBoxes[pWorkspace->m_iID] = actualBox;
+        } else {
+            // If pWorkspace is null, then just render the layers
+            ((tRenderWorkspace)(g_pRenderWorkspaceHook->m_pOriginal))(
+                g_pHyprRenderer.get(), pMonitor, pWorkspace, &time, curBox);
+            workspaceBoxes[workspaceID] = actualBox;
         }
     }
 
@@ -143,22 +141,20 @@ void CHyprtaskingView::render() {
     startWorkspace->startAnim(true, false, true);
     startWorkspace->m_bVisible = true;
 
-    // Render active workspace last
-    if (!activeWorkspaceBox.empty()) {
-        CBox curBox = {{activeWorkspaceBox.pos() * ROWS},
-                       activeWorkspaceBox.size()};
+    // Render active workspace
+    if (startWorkspace != nullptr) {
+        CBox actualBox = workspaceBoxes[startWorkspace->m_iID];
+        CBox curBox = {{actualBox.pos() / m_fScale.value()}, actualBox.size()};
+
         ((tRenderWorkspace)(g_pRenderWorkspaceHook->m_pOriginal))(
             g_pHyprRenderer.get(), pMonitor, startWorkspace, &time, curBox);
-        workspaceBoxes.emplace_back(startWorkspace->m_iID, activeWorkspaceBox);
     }
 
     // Render dragging window last
     if (dragWindow != nullptr) {
-        dragWindow->m_fAlpha.setValueAndWarp(oAlpha);
-        dragWindow->m_fAlpha = oAlphaGoal;
+        dragWindow->setHidden(false);
 
         const Vector2D dragSize = dragWindow->m_vRealSize.value() / ROWS;
-        // Little sus, maybe need to add backref?
         const CBox dragBox = {g_pInputManager->getMouseCoordsInternal() -
                                   dragSize / 2.f +
                                   g_pHyprtasking->dragWindowOffset.value(),

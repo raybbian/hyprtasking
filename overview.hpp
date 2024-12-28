@@ -1,15 +1,15 @@
 #pragma once
 
 #include <cstdint>
-#include <utility>
 
 #include <hyprland/src/Compositor.hpp>
 #include <hyprland/src/SharedDefs.hpp>
 #include <hyprland/src/desktop/DesktopTypes.hpp>
+#include <hyprland/src/helpers/AnimatedVariable.hpp>
+#include <hyprland/src/macros.hpp>
 #include <hyprutils/math/Box.hpp>
 #include <hyprutils/math/Vector2D.hpp>
 
-#include "src/helpers/AnimatedVariable.hpp"
 #include "types.hpp"
 
 struct CHyprtaskingView {
@@ -20,16 +20,27 @@ struct CHyprtaskingView {
     // render and accessed during mouse button events.
     // TODO: is there a better way to do this?
     // NOTE: workspace boxes do not consider monitor scaling
-    std::vector<std::pair<WORKSPACEID, CBox>> workspaceBoxes;
+    std::unordered_map<WORKSPACEID, CBox> workspaceBoxes;
 
-  public:
-    CHyprtaskingView(MONITORID inMonitorID);
+    void generateWorkspaceBoxes(bool useAnimModifs = true);
 
     CAnimatedVariable<Vector2D> m_vOffset;
-    CAnimatedVariable<Vector2D> m_vSize;
+    CAnimatedVariable<float> m_fScale;
+
+    bool m_bClosing;
+
+  public:
+    bool m_bActive;
+
+    // Set this to hide at non-active workspace
+    PHLWORKSPACEREF hideAt;
+
+    CHyprtaskingView(MONITORID inMonitorID);
 
     PHLMONITOR getMonitor();
 
+    void show();
+    void hide();
     void render();
 
     // If return value < WORKSPACEID, then there is nothing there
@@ -44,9 +55,6 @@ struct CHyprtaskingView {
 };
 
 struct CHyprtaskingManager {
-  private:
-    bool m_bActive;
-
   public:
     CHyprtaskingManager();
 
