@@ -27,6 +27,12 @@ struct CHyprtaskingView {
     CAnimatedVariable<Vector2D> m_vOffset;
     CAnimatedVariable<float> m_fScale;
 
+    // Workspace that the overview was opened from
+    PHLWORKSPACEREF m_pOriWorkspace;
+
+    bool trySwitchToHover();
+    bool trySwitchToOriginal();
+
   public:
     bool m_bClosing;
     bool m_bActive;
@@ -38,6 +44,10 @@ struct CHyprtaskingView {
     void show();
     void hide();
     void render();
+
+    // Use to switch to the proper workspace depending on behavior before
+    // exiting. If overrideHover, we pref hover first over all else
+    void doOverviewExitBehavior(bool overrideHover = false);
 
     // If return value < WORKSPACEID, then there is nothing there
     WORKSPACEID getWorkspaceIDFromVector(Vector2D pos);
@@ -60,15 +70,19 @@ struct CHyprtaskingManager {
     CAnimatedVariable<Vector2D> dragWindowOffset;
 
     PHTVIEW getViewFromMonitor(PHLMONITOR pMonitor);
+    PHTVIEW getViewFromCursor();
 
-    void show();
-    void hide();
     void reset();
+
+    void showAllViews();
+    void hideAllViews();
+    void showCursorView();
 
     void onMouseButton(bool pressed, uint32_t button);
     void onMouseMove();
 
-    bool isActive();
+    bool hasActiveView();
+    bool cursorViewActive();
 };
 
 inline std::unique_ptr<CHyprtaskingManager> g_pHyprtasking;

@@ -87,8 +87,6 @@ void CHyprtaskingView::render() {
     if (pMonitor == nullptr)
         return;
 
-    workspaceBoxes.clear();
-
     timespec time;
     clock_gettime(CLOCK_MONOTONIC, &time);
 
@@ -157,16 +155,23 @@ void CHyprtaskingView::render() {
     }
 
     // Render dragging window last
-    if (dragWindow != nullptr) {
-        dragWindow->setHidden(false);
+    // Requires the window to intersect with the monitor box, but also the view
+    // to be active
+    if (dragWindow == nullptr)
+        return;
+    dragWindow->setHidden(false);
 
-        const Vector2D dragSize = dragWindow->m_vRealSize.value() *
-                                  m_fScale.value(); // divide by ROWS
-        const CBox dragBox = {g_pInputManager->getMouseCoordsInternal() -
-                                  dragSize / 2.f +
-                                  g_pHyprtasking->dragWindowOffset.value(),
-                              dragSize};
-        if (!dragBox.intersection(pMonitor->logicalBox()).empty())
-            renderWindowAtBox(dragWindow, pMonitor, &time, dragBox);
-    }
+    const PHTVIEW cursorView = g_pHyprtasking->getViewFromCursor();
+    if (cursorView == nullptr)
+        return;
+
+    const Vector2D dragSize =
+        dragWindow->m_vRealSize.value() *
+        cursorView->m_fScale.value(); // divide by ROWS (use cursor's view)
+    const CBox dragBox = {g_pInputManager->getMouseCoordsInternal() -
+                              dragSize / 2.f +
+                              g_pHyprtasking->dragWindowOffset.value(),
+                          dragSize};
+    if (!dragBox.intersection(pMonitor->logicalBox()).empty())
+        renderWindowAtBox(dragWindow, pMonitor, &time, dragBox);
 }

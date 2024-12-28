@@ -22,50 +22,43 @@
 
 APICALL EXPORT std::string PLUGIN_API_VERSION() { return HYPRLAND_API_VERSION; }
 
-static SDispatchResult dispatchShowView(std::string arg) {
-    if (g_pHyprtasking != nullptr && !g_pHyprtasking->isActive()) {
-        Debug::log(LOG, "[Hyprtasking] Showing overviews");
-        g_pHyprtasking->show();
-    }
-    return SDispatchResult{};
-}
-
-static SDispatchResult dispatchHideView(std::string arg) {
-    if (g_pHyprtasking != nullptr && g_pHyprtasking->isActive()) {
-        Debug::log(LOG, "[Hyprtasking] Hiding overviews");
-        g_pHyprtasking->hide();
-    }
-    return SDispatchResult{};
-}
-
 static SDispatchResult dispatchToggleView(std::string arg) {
     if (g_pHyprtasking == nullptr)
-        return SDispatchResult{};
+        return {};
 
-    if (!g_pHyprtasking->isActive())
-        return dispatchShowView(arg);
-    else
-        return dispatchHideView(arg);
+    if (arg == "all") {
+        if (g_pHyprtasking->hasActiveView())
+            g_pHyprtasking->hideAllViews();
+        else
+            g_pHyprtasking->showAllViews();
+    } else if (arg == "cursor") {
+        if (g_pHyprtasking->cursorViewActive())
+            g_pHyprtasking->hideAllViews();
+        else
+            g_pHyprtasking->showCursorView();
+    }
+    return {};
 }
 
 static void hkRenderWorkspace(void *thisptr, PHLMONITOR pMonitor,
                               PHLWORKSPACE pWorkspace, timespec *now,
                               const CBox &geometry) {
-    if (g_pHyprtasking == nullptr || !g_pHyprtasking->isActive()) {
+    if (g_pHyprtasking == nullptr || !g_pHyprtasking->hasActiveView()) {
         ((tRenderWorkspace)(g_pRenderWorkspaceHook->m_pOriginal))(
             thisptr, pMonitor, pWorkspace, now, geometry);
         return;
     }
 
+    // Render the view even if the view is not active, as we need to do our
+    // monitor dragging shenanigans
     const PHTVIEW pView = g_pHyprtasking->getViewFromMonitor(pMonitor);
     if (pView == nullptr)
         return;
-
     pView->render();
 }
 
 static void onMouseButton(void *thisptr, SCallbackInfo &info, std::any args) {
-    if (g_pHyprtasking == nullptr || !g_pHyprtasking->isActive())
+    if (g_pHyprtasking == nullptr || !g_pHyprtasking->cursorViewActive())
         return;
     info.cancelled = true;
     const auto e = std::any_cast<IPointer::SButtonEvent>(args);
@@ -74,28 +67,14 @@ static void onMouseButton(void *thisptr, SCallbackInfo &info, std::any args) {
 }
 
 static void onMouseMove(void *thisptr, SCallbackInfo &info, std::any args) {
-    if (g_pHyprtasking == nullptr || !g_pHyprtasking->isActive())
+    if (g_pHyprtasking == nullptr || !g_pHyprtasking->cursorViewActive())
         return;
     info.cancelled = true;
     g_pHyprtasking->onMouseMove();
 }
 
-static void onKeyPress(void *thisptr, SCallbackInfo &info, std::any args) {
-    if (g_pHyprtasking == nullptr || !g_pHyprtasking->isActive())
-        return;
-
-    const auto e = std::any_cast<IKeyboard::SKeyEvent>(
-        std::any_cast<std::unordered_map<std::string, std::any>>(
-            args)["event"]);
-
-    if (e.keycode == KEY_ESC) {
-        info.cancelled = true;
-        g_pHyprtasking->hide();
-    }
-}
-
 static void cancelEvent(void *thisptr, SCallbackInfo &info, std::any args) {
-    if (g_pHyprtasking == nullptr || !g_pHyprtasking->isActive())
+    if (g_pHyprtasking == nullptr || !g_pHyprtasking->cursorViewActive())
         return;
     info.cancelled = true;
 }
@@ -166,10 +145,7 @@ static void registerCallbacks() {
     static auto P6 =
         HyprlandAPI::registerCallbackDynamic(PHANDLE, "touchMove", cancelEvent);
 
-    static auto P7 =
-        HyprlandAPI::registerCallbackDynamic(PHANDLE, "keyPress", onKeyPress);
-
-    static auto P8 = HyprlandAPI::registerCallbackDynamic(
+    static auto P7 = HyprlandAPI::registerCallbackDynamic(
         PHANDLE, "monitorAdded",
         [&](void *thisptr, SCallbackInfo &info, std::any data) {
             registerMonitors();
@@ -177,8 +153,6 @@ static void registerCallbacks() {
 }
 
 static void addDispatchers() {
-    HyprlandAPI::addDispatcher(PHANDLE, "hyprtasking:show", dispatchShowView);
-    HyprlandAPI::addDispatcher(PHANDLE, "hyprtasking:hide", dispatchHideView);
     HyprlandAPI::addDispatcher(PHANDLE, "hyprtasking:toggle",
                                dispatchToggleView);
 }
@@ -186,6 +160,9 @@ static void addDispatchers() {
 static void initConfig() {
     HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprtasking:rows",
                                 Hyprlang::INT{3});
+    HyprlandAPI::addConfigValue(
+        PHANDLE, "plugin:hyprtasking:exit_behavior",
+        Hyprlang::STRING{"hovered interacted original"});
     HyprlandAPI::reloadConfig();
 }
 

@@ -10,6 +10,8 @@ https://github.com/user-attachments/assets/44cfd319-c321-4721-a34f-c428d147b811
 
 ### [Jump To Installation](#Installation)
 
+### [See Configuration](#Configuration)
+
 ## Plugin Compatibility
 
 - No clue, open an issue if something goes wrong
@@ -23,8 +25,10 @@ https://github.com/user-attachments/assets/44cfd319-c321-4721-a34f-c428d147b811
 - [x] Monitor scaling support (tested)
 - [x] Animation support
 - [ ] Configurability
+    - [x] Overview exit behavior
     - [x] Number of visible workspaces
     - [ ] Custom workspace layouts
+    - [x] Toggle behavior
     - [x] Toggle keybind
 - [ ] Touch and gesture support
     
@@ -64,14 +68,36 @@ Then use `hyprctl plugin load` to load the absolute path to the `.so` file.
 
 ## Configuration
 
-See below:
+Example below:
 
 ```
-bind = $mainMod, tab, hyprtasking:toggle
+bind = $mainMod, tab, hyprtasking:toggle, all
 
 plugin {
     hyprtasking {
         rows = 2
+        exit_behavior = original hovered interacted
     }
 }
 ```
+
+### Dispatchers
+
+- `hyprtasking:toggle, ARG` takes in 1 argument that is either `cursor` or `all`
+    - if the argument is `all`, then
+        - if all overviews are hidden, then all overviews will be shown
+        - otherwise all overviews will be hidden
+    - if the argument is `cursor`, then
+        - if current monitor's overview is hidden, then it will be shown
+        - otherwise all overviews will be hidden
+
+### Config Options
+
+- `plugin:hyprtasking:rows` (int): The number of rows (and columns) of workspaces to show
+
+- `plugin:hyprtasking:exit_behavior` (str): A space-separated list of `{'hovered', 'interacted', 'original'}`
+    - When an overview is about to hide, hyprtasking will evaluate these strings in order
+        - If the string is `'hovered'`, hyprtasking will attempt to switch to the hovered workspace
+        - If the string is `'interacted'`, hyprtasking will attempt to switch to the last interacted workspace (window drag/drop, overview show/hide)
+        - If the string is `'original'`, hyprtasking will attempt to switch to the workspace in which the overview was shown initially
+    - If hyprtasking fails to do any of the above, it will move to the next string in the list
