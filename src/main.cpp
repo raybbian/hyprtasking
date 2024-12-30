@@ -19,7 +19,7 @@
 
 #include "globals.hpp"
 #include "overview.hpp"
-#include "src/types.hpp"
+#include "types.hpp"
 
 APICALL EXPORT std::string PLUGIN_API_VERSION() { return HYPRLAND_API_VERSION; }
 
