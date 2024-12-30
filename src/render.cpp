@@ -95,11 +95,6 @@ void CHyprtaskingView::render() {
     CBox viewBox = {{0, 0}, pMonitor->vecPixelSize};
     g_pHyprOpenGL->renderRect(&viewBox, CHyprColor{0, 0, 0, 1.0});
 
-    // Set the dragWindow's opacity to 0 when rendering workspaces
-    const PHLWINDOW dragWindow = g_pInputManager->currentlyDraggedWindow.lock();
-    if (dragWindow != nullptr)
-        dragWindow->setHidden(true);
-
     // Do a dance with active workspaces: Hyprland will only properly render the
     // current active one so make the workspace active before rendering it, etc
     const PHLWORKSPACE startWorkspace = pMonitor->activeWorkspace;
@@ -154,17 +149,12 @@ void CHyprtaskingView::render() {
             g_pHyprRenderer.get(), pMonitor, startWorkspace, &time, curBox);
     }
 
-    // Render dragging window last
-    // Requires the window to intersect with the monitor box, but also the view
-    // to be active
-    if (dragWindow == nullptr)
-        return;
-    dragWindow->setHidden(false);
-
     const PHTVIEW cursorView = g_pHyprtasking->getViewFromCursor();
     if (cursorView == nullptr)
         return;
-
+    const PHLWINDOW dragWindow = g_pInputManager->currentlyDraggedWindow.lock();
+    if (dragWindow == nullptr)
+        return;
     const Vector2D dragSize =
         dragWindow->m_vRealSize.value() *
         cursorView->m_fScale.value(); // divide by ROWS (use cursor's view)

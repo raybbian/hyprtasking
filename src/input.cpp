@@ -18,7 +18,7 @@ void CHyprtaskingManager::onMouseButton(bool pressed, uint32_t button) {
 
     const Vector2D mouseCoords = g_pInputManager->getMouseCoordsInternal();
     const WORKSPACEID workspaceID =
-        pView->getWorkspaceIDFromVector(mouseCoords);
+        pView->getWorkspaceIDFromGlobal(mouseCoords);
     PHLWORKSPACE pWorkspace = g_pCompositor->getWorkspaceByID(workspaceID);
 
     if (pView->m_bClosing)
@@ -59,6 +59,10 @@ void CHyprtaskingManager::onMouseButton(bool pressed, uint32_t button) {
             Debug::log(LOG, "[Hyprtasking] Grabbed window at ({}, {}) on ws {}",
                        mappedCoords.x, mappedCoords.y,
                        pMonitor->activeWorkspace->m_iID);
+
+            CBox gWinBox = pView->getGlobalWindowBox(dragWindow);
+            Debug::log(LOG, "[Hyprtasking] Window has global box {},{},{},{}",
+                       gWinBox.x, gWinBox.y, gWinBox.w, gWinBox.h);
         } else {
             const PHLWINDOW dragWindow =
                 g_pInputManager->currentlyDraggedWindow.lock();

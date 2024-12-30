@@ -4,6 +4,7 @@
 #include <hyprland/src/SharedDefs.hpp>
 #include <hyprland/src/desktop/DesktopTypes.hpp>
 #include <hyprland/src/macros.hpp>
+#include <hyprland/src/managers/input/InputManager.hpp>
 #include <hyprland/src/render/OpenGL.hpp>
 #include <hyprland/src/render/Renderer.hpp>
 #include <hyprutils/math/Box.hpp>
@@ -41,7 +42,7 @@ bool CHyprtaskingView::trySwitchToHover() {
         return false;
 
     const Vector2D mouseCoords = g_pInputManager->getMouseCoordsInternal();
-    const WORKSPACEID workspaceID = getWorkspaceIDFromVector(mouseCoords);
+    const WORKSPACEID workspaceID = getWorkspaceIDFromGlobal(mouseCoords);
     PHLWORKSPACE pWorkspace = g_pCompositor->getWorkspaceByID(workspaceID);
 
     // If hovering on new, then create new
@@ -145,6 +146,12 @@ void CHyprtaskingView::hide() {
     m_fScale.setCallbackOnEnd([this](void *) {
         m_bActive = false;
         m_bClosing = false;
+        const PHLWORKSPACE activeWs = getMonitor()->activeWorkspace;
+        if (activeWs == nullptr)
+            return;
+        const PHLWINDOW activeWindow = activeWs->getLastFocusedWindow();
+        if (activeWindow)
+            g_pCompositor->focusWindow(activeWindow);
     });
 
     g_pHyprRenderer->damageMonitor(pMonitor);
@@ -158,7 +165,7 @@ CHyprtaskingView::mapGlobalPositionToWsGlobal(Vector2D pos,
     if (pMonitor == nullptr)
         return {};
 
-    CBox workspaceBox = getWorkspaceBoxFromID(workspaceID);
+    CBox workspaceBox = getGlobalWorkspaceBoxFromID(workspaceID);
     if (workspaceBox.empty())
         return {};
 
@@ -177,7 +184,7 @@ CHyprtaskingView::mapWsGlobalPositionToGlobal(Vector2D pos,
     if (pMonitor == nullptr)
         return {};
 
-    CBox workspaceBox = getWorkspaceBoxFromID(workspaceID);
+    CBox workspaceBox = getGlobalWorkspaceBoxFromID(workspaceID);
     if (workspaceBox.empty())
         return {};
 
@@ -189,7 +196,7 @@ CHyprtaskingView::mapWsGlobalPositionToGlobal(Vector2D pos,
     return pos;
 }
 
-WORKSPACEID CHyprtaskingView::getWorkspaceIDFromVector(Vector2D pos) {
+WORKSPACEID CHyprtaskingView::getWorkspaceIDFromGlobal(Vector2D pos) {
     const PHLMONITOR pMonitor = getMonitor();
     if (pMonitor == nullptr)
         return WORKSPACE_INVALID;
@@ -200,7 +207,7 @@ WORKSPACEID CHyprtaskingView::getWorkspaceIDFromVector(Vector2D pos) {
     return WORKSPACE_INVALID;
 }
 
-CBox CHyprtaskingView::getWorkspaceBoxFromID(WORKSPACEID workspaceID) {
+CBox CHyprtaskingView::getGlobalWorkspaceBoxFromID(WORKSPACEID workspaceID) {
     const PHLMONITOR pMonitor = getMonitor();
     if (pMonitor == nullptr)
         return {};
@@ -210,6 +217,25 @@ CBox CHyprtaskingView::getWorkspaceBoxFromID(WORKSPACEID workspaceID) {
         return {pMonitor->vecPosition + oBox.pos(), oBox.size()};
     }
     return {};
+}
+
+CBox CHyprtaskingView::getGlobalWindowBox(PHLWINDOW pWindow) {
+    const PHLMONITOR pMonitor = getMonitor();
+    if (pMonitor == nullptr || pWindow == nullptr)
+        return {};
+    PHLWORKSPACE pWorkspace = pWindow->m_pWorkspace;
+    if (pWorkspace == nullptr || pWorkspace->m_pMonitor != pMonitor)
+        return {};
+
+    CBox wsWindowBox = {pWindow->m_vRealPosition.value(),
+                        pWindow->m_vRealSize.value()};
+
+    Vector2D topLeftNoScale =
+        mapWsGlobalPositionToGlobal(wsWindowBox.pos(), pWorkspace->m_iID);
+    Vector2D bottomRightNoScale = mapWsGlobalPositionToGlobal(
+        wsWindowBox.pos() + wsWindowBox.size(), pWorkspace->m_iID);
+
+    return {topLeftNoScale, bottomRightNoScale - topLeftNoScale};
 }
 
 PHLMONITOR CHyprtaskingView::getMonitor() {
@@ -278,4 +304,24 @@ bool CHyprtaskingManager::cursorViewActive() {
     if (pView == nullptr)
         return false;
     return pView->m_bActive;
+}
+
+bool CHyprtaskingManager::shouldRenderWindow(PHLWINDOW pWindow,
+                                             PHLMONITOR pMonitor) {
+    if (pWindow == nullptr || pMonitor == nullptr)
+        return false;
+
+    if (pWindow == g_pInputManager->currentlyDraggedWindow.lock())
+        return false;
+
+    PHLWORKSPACE pWorkspace = pWindow->m_pWorkspace;
+    PHTVIEW pView = getViewFromMonitor(pMonitor);
+    if (pWorkspace == nullptr || pView == nullptr)
+        return false;
+
+    CBox winBox = pView->getGlobalWindowBox(pWindow);
+    if (winBox.empty())
+        return false;
+
+    return !winBox.intersection(pMonitor->logicalBox()).empty();
 }

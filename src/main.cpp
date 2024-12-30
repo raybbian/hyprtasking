@@ -19,6 +19,7 @@
 
 #include "globals.hpp"
 #include "overview.hpp"
+#include "src/types.hpp"
 
 APICALL EXPORT std::string PLUGIN_API_VERSION() { return HYPRLAND_API_VERSION; }
 
@@ -55,6 +56,20 @@ static void hkRenderWorkspace(void *thisptr, PHLMONITOR pMonitor,
     if (pView == nullptr)
         return;
     pView->render();
+}
+
+static bool hkShouldRenderWindow(void *thisptr, PHLWINDOW pWindow,
+                                 PHLMONITOR pMonitor) {
+    bool oRes = ((tShouldRenderWindow)(g_pShouldRenderWindowHook->m_pOriginal))(
+        thisptr, pWindow, pMonitor);
+
+    if (g_pHyprtasking == nullptr || !g_pHyprtasking->hasActiveView())
+        return oRes;
+    if (!g_pHyprtasking->shouldRenderWindow(
+            pWindow,
+            pMonitor)) // if we disallow it, say no (generally restrictive)
+        return false;
+    return oRes;
 }
 
 static void onMouseButton(void *thisptr, SCallbackInfo &info, std::any args) {
@@ -115,13 +130,27 @@ static void initFunctions() {
     Debug::log(LOG, "[Hyprtasking] Attempting hook {}", FNS1[0].signature);
     success = g_pRenderWorkspaceHook->hook();
 
-    static auto FNS2 =
+    static auto FNS2 = HyprlandAPI::findFunctionsByName(
+        PHANDLE, "_ZN13CHyprRenderer18shouldRenderWindowEN9Hyprutils6Memory14CS"
+                 "haredPointerI7CWindowEENS2_I8CMonitorEE");
+    if (g_pShouldRenderWindowHook == nullptr) {
+        g_pShouldRenderWindowHook = HyprlandAPI::createFunctionHook(
+            PHANDLE, FNS2[0].address, (void *)hkShouldRenderWindow);
+    }
+    Debug::log(LOG, "[Hyprtasking] Attempting hook {}", FNS2[0].signature);
+    success = g_pShouldRenderWindowHook->hook() && success;
+
+    for (auto &i : FNS2) {
+        Debug::log(LOG, "[Hyprtasking] shouldRenderWorkspace {}", i.signature);
+    }
+
+    static auto FNS3 =
         HyprlandAPI::findFunctionsByName(PHANDLE, "renderWindow");
-    if (FNS2.empty()) {
+    if (FNS3.empty()) {
         failNotification("No renderWindow");
         throw std::runtime_error("[Hyprtasking] No renderWindow");
     }
-    g_pRenderWindow = FNS2[0].address;
+    g_pRenderWindow = FNS3[0].address;
 
     if (!success) {
         failNotification("Failed initializing hooks");

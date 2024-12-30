@@ -50,11 +50,11 @@ struct CHyprtaskingView {
     void doOverviewExitBehavior(bool overrideHover = false);
 
     // If return value < WORKSPACEID, then there is nothing there
-    WORKSPACEID getWorkspaceIDFromVector(Vector2D pos);
+    WORKSPACEID getWorkspaceIDFromGlobal(Vector2D pos);
 
-    // Returns the CBox relative to (0, 0), not the monitor
-    // If CBox == {0, 0, 0, 0}, then there was no ws with that ID
-    CBox getWorkspaceBoxFromID(WORKSPACEID workspaceID);
+    CBox getGlobalWorkspaceBoxFromID(WORKSPACEID workspaceID);
+
+    CBox getGlobalWindowBox(PHLWINDOW pWindow);
 
     Vector2D mapGlobalPositionToWsGlobal(Vector2D pos, WORKSPACEID workspaceID);
     Vector2D mapWsGlobalPositionToGlobal(Vector2D pos, WORKSPACEID workspaceID);
@@ -83,6 +83,8 @@ struct CHyprtaskingManager {
 
     bool hasActiveView();
     bool cursorViewActive();
+
+    bool shouldRenderWindow(PHLWINDOW pWindow, PHLMONITOR pMonitor);
 };
 
 inline std::unique_ptr<CHyprtaskingManager> g_pHyprtasking;
