@@ -49,7 +49,8 @@ hyprpm enable hyprtasking
 To build, have hyprland headers installed on the system and then:
 
 ```
-make all
+meson setup build
+cd build && meson compile
 ```
 
 Then use `hyprctl plugin load` to load the absolute path to the `.so` file.
