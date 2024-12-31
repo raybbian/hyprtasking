@@ -2,9 +2,9 @@
 
 A plugin for Hyprland that allows for complete control over your windows and workspaces.
 
-- Supports Hyprland release `v0.46.2`. 
+- Supports Hyprland release `v0.46.2`.
 
-https://github.com/user-attachments/assets/44cfd319-c321-4721-a34f-c428d147b811
+https://github.com/user-attachments/assets/8d6cdfd2-2b17-4240-a117-1dbd2231ed4e
 
 > This plugin's current workflow is very similar to that of [hyprexpo](https://github.com/hyprwm/hyprland-plugins/tree/main/hyprexpo). Check it out if you'd like something more polished and performant.
 
