@@ -1,5 +1,6 @@
-#include <ctime>
+#include "overview.hpp"
 
+#include <ctime>
 #include <hyprland/src/Compositor.hpp>
 #include <hyprland/src/SharedDefs.hpp>
 #include <hyprland/src/desktop/DesktopTypes.hpp>
@@ -9,94 +10,91 @@
 #include <hyprland/src/render/Renderer.hpp>
 #include <hyprutils/math/Box.hpp>
 
+#include "config.hpp"
 #include "globals.hpp"
-#include "overview.hpp"
 
-CHyprtaskingView::CHyprtaskingView(MONITORID inMonitorID) {
-    monitorID = inMonitorID;
-    m_bActive = false;
-    m_bClosing = false;
+HTView::HTView(MONITORID in_monitor_id) {
+    monitor_id = in_monitor_id;
+    active = false;
+    closing = false;
+    navigating = false;
 
-    m_vOffset.create(
-        {0, 0}, g_pConfigManager->getAnimationPropertyConfig("windowsMove"),
-        AVARDAMAGE_NONE);
-    m_fScale.create(1.f,
-                    g_pConfigManager->getAnimationPropertyConfig("windowsMove"),
-                    AVARDAMAGE_NONE);
+    offset.create(
+        {0, 0},
+        g_pConfigManager->getAnimationPropertyConfig("windowsMove"),
+        AVARDAMAGE_NONE
+    );
+    scale.create(1.f, g_pConfigManager->getAnimationPropertyConfig("windowsMove"), AVARDAMAGE_NONE);
 
     // Adjust offset to match workspace
-    const PHLMONITOR pMonitor = getMonitor();
-    if (pMonitor == nullptr)
+    const PHLMONITOR monitor = get_monitor();
+    if (monitor == nullptr)
         return;
-    generateWorkspaceBoxes(false);
-    const CBox wsBox = workspaceBoxes[getMonitor()->activeWorkspaceID()];
-    m_vOffset.setValueAndWarp(-wsBox.pos() / wsBox.size() *
-                              pMonitor->vecPixelSize);
+    const Vector2D GAPS = gaps();
+
+    build_overview_layout(false);
+
+    const HTWorkspace ws_layout = overview_layout[get_monitor()->activeWorkspaceID()];
+    offset.setValueAndWarp(
+        Vector2D {ws_layout.col, ws_layout.row} * (-GAPS - monitor->vecPixelSize) - GAPS
+    );
 }
 
-bool CHyprtaskingView::trySwitchToHover() {
-    const PHLMONITOR pMonitor = g_pCompositor->getMonitorFromCursor();
+bool HTView::try_switch_to_hover() {
+    const PHLMONITOR cursor_monitor = g_pCompositor->getMonitorFromCursor();
     // If the cursor monitor is not the view monitor, then we cannot
     // exit to hover
-    if (pMonitor != getMonitor())
+    if (cursor_monitor != get_monitor())
         return false;
 
-    const Vector2D mouseCoords = g_pInputManager->getMouseCoordsInternal();
-    const WORKSPACEID workspaceID = getWorkspaceIDFromGlobal(mouseCoords);
-    PHLWORKSPACE pWorkspace = g_pCompositor->getWorkspaceByID(workspaceID);
+    const Vector2D mouse_coords = g_pInputManager->getMouseCoordsInternal();
+    const WORKSPACEID workspace_id = get_ws_id_from_global(mouse_coords);
+    PHLWORKSPACE cursor_workspace = g_pCompositor->getWorkspaceByID(workspace_id);
 
     // If hovering on new, then create new
-    if (pWorkspace == nullptr && workspaceID != WORKSPACE_INVALID) {
-        pWorkspace =
-            g_pCompositor->createNewWorkspace(workspaceID, pMonitor->ID);
-
-        Debug::log(LOG, "[Hyprtasking] Creating new workspace {}", workspaceID);
+    if (cursor_workspace == nullptr && workspace_id != WORKSPACE_INVALID) {
+        cursor_workspace = g_pCompositor->createNewWorkspace(workspace_id, cursor_monitor->ID);
     }
 
     // Failed to create new or hovering over dead space
-    if (pWorkspace == nullptr)
+    if (cursor_workspace == nullptr)
         return false;
 
-    pMonitor->changeWorkspace(pWorkspace, true);
-    pWorkspace->startAnim(true, false, true);
-    pWorkspace->m_bVisible = true;
+    cursor_monitor->changeWorkspace(cursor_workspace, true);
+    cursor_workspace->startAnim(true, false, true);
+    cursor_workspace->m_bVisible = true;
     return true;
 }
 
-bool CHyprtaskingView::trySwitchToOriginal() {
-    const PHLMONITOR pMonitor = getMonitor();
-    if (pMonitor == nullptr) //???
+bool HTView::try_switch_to_original() {
+    const PHLMONITOR monitor = get_monitor();
+    if (monitor == nullptr) //???
         return false;
 
-    PHLWORKSPACE oWorkspace = m_pOriWorkspace.lock();
+    PHLWORKSPACE original_ws = ori_workspace.lock();
 
     // If original workspace died (rip), then we go next
-    if (oWorkspace == nullptr)
+    if (original_ws == nullptr)
         return false;
 
-    pMonitor->changeWorkspace(oWorkspace, true);
-    oWorkspace->startAnim(true, false, true);
-    oWorkspace->m_bVisible = true;
+    monitor->changeWorkspace(original_ws, true);
+    original_ws->startAnim(true, false, true);
+    original_ws->m_bVisible = true;
     return true;
 }
 
-void CHyprtaskingView::doOverviewExitBehavior(bool overrideHover) {
-    static auto const *PEXIT_BEHAVIOR =
-        (Hyprlang::STRING const *)HyprlandAPI::getConfigValue(
-            PHANDLE, "plugin:hyprtasking:exit_behavior")
-            ->getDataStaticPtr();
-
-    if (overrideHover && trySwitchToHover())
+void HTView::do_exit_behavior(bool override_hover) {
+    if (override_hover && try_switch_to_hover())
         return;
 
-    CVarList exitBehavior{*PEXIT_BEHAVIOR, 0, 's', true};
+    CVarList exit_behavior {HTConfig::exit_behavior(), 0, 's', true};
 
-    for (const auto &behavior : exitBehavior) {
+    for (const auto& behavior : exit_behavior) {
         if (behavior == "hovered") {
-            if (trySwitchToHover())
+            if (try_switch_to_hover())
                 return;
         } else if (behavior == "original") {
-            if (trySwitchToOriginal())
+            if (try_switch_to_original())
                 return;
         } else {
             // if inavlid string or 'interacted', then we default to last
@@ -107,221 +105,205 @@ void CHyprtaskingView::doOverviewExitBehavior(bool overrideHover) {
     }
 }
 
-void CHyprtaskingView::show() {
-    if (m_bActive)
+void HTView::show() {
+    if (active)
         return;
-    const PHLMONITOR pMonitor = getMonitor();
-    if (pMonitor == nullptr)
+    const PHLMONITOR monitor = get_monitor();
+    if (monitor == nullptr)
         return;
 
-    m_bActive = true;
-    m_pOriWorkspace = pMonitor->activeWorkspace;
+    active = true;
+    ori_workspace = monitor->activeWorkspace;
 
-    generateWorkspaceBoxes(false);
-    const CBox wsBox = workspaceBoxes[pMonitor->activeWorkspaceID()];
+    build_overview_layout(false);
+    const HTWorkspace ws_layout = overview_layout[monitor->activeWorkspaceID()];
 
-    m_fScale = wsBox.w / pMonitor->vecPixelSize.x; // 1 / ROWS
-    m_vOffset = {0, 0};
+    scale = ws_layout.box.w / monitor->vecPixelSize.x; // 1 / ROWS
+    offset = {0, 0};
 
-    g_pHyprRenderer->damageMonitor(pMonitor);
-    g_pCompositor->scheduleFrameForMonitor(pMonitor);
+    g_pHyprRenderer->damageMonitor(monitor);
+    g_pCompositor->scheduleFrameForMonitor(monitor);
 }
 
-void CHyprtaskingView::hide() {
-    if (m_bClosing || !m_bActive)
+void HTView::hide() {
+    if (closing || !active)
         return;
-    const PHLMONITOR pMonitor = getMonitor();
-    if (pMonitor == nullptr)
+    const PHLMONITOR monitor = get_monitor();
+    if (monitor == nullptr)
         return;
 
-    m_bClosing = true;
-    m_pOriWorkspace.reset();
+    closing = true;
+    ori_workspace.reset();
 
-    generateWorkspaceBoxes(false);
-    const CBox wsBox = workspaceBoxes[pMonitor->activeWorkspaceID()];
+    build_overview_layout(false);
+    const HTWorkspace ws_layout = overview_layout[monitor->activeWorkspaceID()];
 
-    m_fScale = 1.;
-    m_vOffset = -wsBox.pos() / wsBox.size() * pMonitor->vecPixelSize;
+    const Vector2D GAPS = gaps();
 
-    m_fScale.setCallbackOnEnd([this](void *) {
-        m_bActive = false;
-        m_bClosing = false;
-        const PHLWORKSPACE activeWs = getMonitor()->activeWorkspace;
-        if (activeWs == nullptr)
-            return;
-        const PHLWINDOW activeWindow = activeWs->getLastFocusedWindow();
-        if (activeWindow)
-            g_pCompositor->focusWindow(activeWindow);
+    scale = 1.;
+    offset = Vector2D {ws_layout.col, ws_layout.row} * (-GAPS - monitor->vecPixelSize) - GAPS;
+
+    scale.setCallbackOnEnd([this](void*) {
+        active = false;
+        closing = false;
     });
 
-    g_pHyprRenderer->damageMonitor(pMonitor);
-    g_pCompositor->scheduleFrameForMonitor(pMonitor);
+    const Vector2D mouse_coords = g_pInputManager->getMouseCoordsInternal();
+    const PHLWINDOW hovered_window = g_pCompositor->vectorToWindowUnified(
+        mouse_coords,
+        RESERVED_EXTENTS | INPUT_EXTENTS | ALLOW_FLOATING
+    );
+    if (hovered_window)
+        g_pCompositor->focusWindow(hovered_window);
+
+    g_pHyprRenderer->damageMonitor(monitor);
+    g_pCompositor->scheduleFrameForMonitor(monitor);
 }
 
-Vector2D
-CHyprtaskingView::mapGlobalPositionToWsGlobal(Vector2D pos,
-                                              WORKSPACEID workspaceID) {
-    const PHLMONITOR pMonitor = getMonitor();
-    if (pMonitor == nullptr)
+void HTView::move(std::string arg) {
+    if (closing)
+        return;
+    const PHLMONITOR monitor = get_monitor();
+    if (monitor == nullptr)
+        return;
+    const PHLWORKSPACE active_workspace = monitor->activeWorkspace;
+    if (active_workspace == nullptr)
+        return;
+
+    build_overview_layout();
+    const HTWorkspace ws_layout = overview_layout[active_workspace->m_iID];
+
+    int target_row = ws_layout.row;
+    int target_col = ws_layout.col;
+    if (arg == "up") {
+        target_row--;
+    } else if (arg == "down") {
+        target_row++;
+    } else if (arg == "right") {
+        target_col++;
+    } else if (arg == "left") {
+        target_col--;
+    }
+
+    const Vector2D GAPS = gaps();
+    for (const auto [id, other_layout] : overview_layout) {
+        if (other_layout.row == target_row && other_layout.col == target_col) {
+            PHLWORKSPACE other_workspace = g_pCompositor->getWorkspaceByID(id);
+            if (other_workspace == nullptr && id != WORKSPACE_INVALID)
+                other_workspace = g_pCompositor->createNewWorkspace(id, monitor->ID);
+
+            if (other_workspace == nullptr)
+                break;
+
+            monitor->changeWorkspace(other_workspace, true);
+            other_workspace->startAnim(true, false, true);
+            other_workspace->m_bVisible = true;
+
+            const Vector2D mouse_coords = g_pInputManager->getMouseCoordsInternal();
+            const PHLWINDOW hovered_window = g_pCompositor->vectorToWindowUnified(
+                mouse_coords,
+                RESERVED_EXTENTS | INPUT_EXTENTS | ALLOW_FLOATING
+            );
+            if (hovered_window)
+                g_pCompositor->focusWindow(hovered_window);
+
+            if (!active) {
+                navigating = true;
+                offset =
+                    (Vector2D {target_col, target_row} * (-GAPS - ws_layout.box.size()) - GAPS);
+                offset.setCallbackOnEnd([this](void*) { navigating = false; });
+            }
+            break;
+        }
+    }
+}
+
+Vector2D HTView::global_pos_to_ws_global(Vector2D pos, WORKSPACEID workspace_id) {
+    const PHLMONITOR monitor = get_monitor();
+    if (monitor == nullptr)
         return {};
 
-    CBox workspaceBox = getGlobalWorkspaceBoxFromID(workspaceID);
-    if (workspaceBox.empty())
+    CBox workspace_box = get_global_ws_box_from_id(workspace_id);
+    if (workspace_box.empty())
         return {};
 
-    pos *= pMonitor->scale;
-    pos -= workspaceBox.pos();
-    pos /= m_fScale.value(); // multiply by ROWS
-    pos += pMonitor->vecPosition;
-    pos /= pMonitor->scale;
+    pos *= monitor->scale;
+    pos -= workspace_box.pos();
+    pos /= scale.value(); // multiply by ROWS
+    pos += monitor->vecPosition;
+    pos /= monitor->scale;
     return pos;
 }
 
-Vector2D
-CHyprtaskingView::mapWsGlobalPositionToGlobal(Vector2D pos,
-                                              WORKSPACEID workspaceID) {
-    const PHLMONITOR pMonitor = getMonitor();
-    if (pMonitor == nullptr)
+Vector2D HTView::ws_global_pos_to_global(Vector2D pos, WORKSPACEID workspace_id) {
+    const PHLMONITOR monitor = get_monitor();
+    if (monitor == nullptr)
         return {};
 
-    CBox workspaceBox = getGlobalWorkspaceBoxFromID(workspaceID);
-    if (workspaceBox.empty())
+    CBox workspace_box = get_global_ws_box_from_id(workspace_id);
+    if (workspace_box.empty())
         return {};
 
-    pos *= pMonitor->scale;
-    pos -= pMonitor->vecPosition;
-    pos *= m_fScale.value(); // divide by ROWS
-    pos += workspaceBox.pos();
-    pos /= pMonitor->scale;
+    pos *= monitor->scale;
+    pos -= monitor->vecPosition;
+    pos *= scale.value(); // divide by ROWS
+    pos += workspace_box.pos();
+    pos /= monitor->scale;
     return pos;
 }
 
-WORKSPACEID CHyprtaskingView::getWorkspaceIDFromGlobal(Vector2D pos) {
-    const PHLMONITOR pMonitor = getMonitor();
-    if (pMonitor == nullptr)
+WORKSPACEID HTView::get_ws_id_from_global(Vector2D pos) {
+    const PHLMONITOR monitor = get_monitor();
+    if (monitor == nullptr)
         return WORKSPACE_INVALID;
-    Vector2D relPos = (pos - pMonitor->vecPosition) * pMonitor->scale;
-    for (const auto &[id, box] : workspaceBoxes)
-        if (box.containsPoint(relPos))
+    Vector2D relative_pos = (pos - monitor->vecPosition) * monitor->scale;
+    for (const auto& [id, layout] : overview_layout)
+        if (layout.box.containsPoint(relative_pos))
             return id;
     return WORKSPACE_INVALID;
 }
 
-CBox CHyprtaskingView::getGlobalWorkspaceBoxFromID(WORKSPACEID workspaceID) {
-    const PHLMONITOR pMonitor = getMonitor();
-    if (pMonitor == nullptr)
+CBox HTView::get_global_ws_box_from_id(WORKSPACEID workspace_id) {
+    const PHLMONITOR monitor = get_monitor();
+    if (monitor == nullptr)
         return {};
-    if (workspaceBoxes.count(workspaceID)) {
-        CBox oBox = workspaceBoxes[workspaceID];
+    if (overview_layout.count(workspace_id)) {
+        CBox ws_box = overview_layout[workspace_id].box;
         // NOTE: not scaled by monitor size
-        return {pMonitor->vecPosition + oBox.pos(), oBox.size()};
+        return {monitor->vecPosition + ws_box.pos(), ws_box.size()};
     }
     return {};
 }
 
-CBox CHyprtaskingView::getGlobalWindowBox(PHLWINDOW pWindow) {
-    const PHLMONITOR pMonitor = getMonitor();
-    if (pMonitor == nullptr || pWindow == nullptr)
+CBox HTView::get_global_window_box(PHLWINDOW window) {
+    const PHLMONITOR monitor = get_monitor();
+    if (monitor == nullptr || window == nullptr)
         return {};
-    PHLWORKSPACE pWorkspace = pWindow->m_pWorkspace;
-    if (pWorkspace == nullptr || pWorkspace->m_pMonitor != pMonitor)
+    PHLWORKSPACE workspace = window->m_pWorkspace;
+    if (workspace == nullptr || workspace->m_pMonitor != monitor)
         return {};
 
-    CBox wsWindowBox = {pWindow->m_vRealPosition.value(),
-                        pWindow->m_vRealSize.value()};
+    CBox ws_window_box = {window->m_vRealPosition.value(), window->m_vRealSize.value()};
 
-    Vector2D topLeftNoScale =
-        mapWsGlobalPositionToGlobal(wsWindowBox.pos(), pWorkspace->m_iID);
-    Vector2D bottomRightNoScale = mapWsGlobalPositionToGlobal(
-        wsWindowBox.pos() + wsWindowBox.size(), pWorkspace->m_iID);
+    Vector2D top_left = ws_global_pos_to_global(ws_window_box.pos(), workspace->m_iID);
+    Vector2D bottom_right =
+        ws_global_pos_to_global(ws_window_box.pos() + ws_window_box.size(), workspace->m_iID);
 
-    return {topLeftNoScale, bottomRightNoScale - topLeftNoScale};
+    return {top_left, bottom_right - top_left};
 }
 
-PHLMONITOR CHyprtaskingView::getMonitor() {
-    return g_pCompositor->getMonitorFromID(monitorID);
+PHLMONITOR HTView::get_monitor() {
+    return g_pCompositor->getMonitorFromID(monitor_id);
 }
 
-CHyprtaskingManager::CHyprtaskingManager() {
-    dragWindowOffset.create(
-        {0, 0}, g_pConfigManager->getAnimationPropertyConfig("windowsMove"),
-        AVARDAMAGE_NONE);
+bool HTView::is_active() {
+    return active;
 }
 
-PHTVIEW CHyprtaskingManager::getViewFromMonitor(PHLMONITOR pMonitor) {
-    if (pMonitor == nullptr)
-        return nullptr;
-    for (PHTVIEW pView : m_vViews) {
-        if (pView == nullptr)
-            continue;
-        if (pView->getMonitor() != pMonitor)
-            continue;
-        return pView;
-    }
-    return nullptr;
-}
-PHTVIEW CHyprtaskingManager::getViewFromCursor() {
-    return getViewFromMonitor(g_pCompositor->getMonitorFromCursor());
+bool HTView::is_closing() {
+    return closing;
 }
 
-void CHyprtaskingManager::showAllViews() {
-    for (PHTVIEW pView : m_vViews) {
-        if (pView == nullptr)
-            continue;
-        pView->show();
-    }
-}
-
-void CHyprtaskingManager::hideAllViews() {
-    for (PHTVIEW pView : m_vViews) {
-        if (pView == nullptr)
-            continue;
-        pView->doOverviewExitBehavior();
-        pView->hide();
-    }
-}
-
-void CHyprtaskingManager::showCursorView() {
-    const PHTVIEW pView = getViewFromCursor();
-    if (pView != nullptr)
-        pView->show();
-}
-
-void CHyprtaskingManager::reset() { m_vViews.clear(); }
-
-bool CHyprtaskingManager::hasActiveView() {
-    for (const auto &view : m_vViews) {
-        if (view == nullptr)
-            continue;
-        if (view->m_bActive)
-            return true;
-    }
-    return false;
-}
-
-bool CHyprtaskingManager::cursorViewActive() {
-    const PHTVIEW pView = getViewFromCursor();
-    if (pView == nullptr)
-        return false;
-    return pView->m_bActive;
-}
-
-bool CHyprtaskingManager::shouldRenderWindow(PHLWINDOW pWindow,
-                                             PHLMONITOR pMonitor) {
-    if (pWindow == nullptr || pMonitor == nullptr)
-        return false;
-
-    if (pWindow == g_pInputManager->currentlyDraggedWindow.lock())
-        return false;
-
-    PHLWORKSPACE pWorkspace = pWindow->m_pWorkspace;
-    PHTVIEW pView = getViewFromMonitor(pMonitor);
-    if (pWorkspace == nullptr || pView == nullptr)
-        return false;
-
-    CBox winBox = pView->getGlobalWindowBox(pWindow);
-    if (winBox.empty())
-        return false;
-
-    return !winBox.intersection(pMonitor->logicalBox()).empty();
+bool HTView::is_navigating() {
+    return navigating;
 }

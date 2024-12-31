@@ -1,7 +1,5 @@
 #pragma once
 
-#include <cstdint>
-
 #include <hyprland/src/Compositor.hpp>
 #include <hyprland/src/SharedDefs.hpp>
 #include <hyprland/src/desktop/DesktopTypes.hpp>
@@ -10,81 +8,69 @@
 #include <hyprutils/math/Box.hpp>
 #include <hyprutils/math/Vector2D.hpp>
 
-#include "types.hpp"
+struct HTWorkspace {
+    int row;
+    int col;
+    CBox box;
+};
 
-struct CHyprtaskingView {
+struct HTView {
   private:
-    MONITORID monitorID;
+    MONITORID monitor_id;
+
+    bool closing;
+    bool active;
+    bool navigating;
 
     // Store the bounding boxes of each workspace as rendered. Modified on
     // render and accessed during mouse button events.
     // TODO: is there a better way to do this?
     // NOTE: workspace boxes do not consider monitor scaling
-    std::unordered_map<WORKSPACEID, CBox> workspaceBoxes;
+    std::unordered_map<WORKSPACEID, HTWorkspace> overview_layout;
 
-    void generateWorkspaceBoxes(bool useAnimModifs = true);
+    void build_overview_layout(bool use_anim_modifs = true);
 
-    CAnimatedVariable<Vector2D> m_vOffset;
-    CAnimatedVariable<float> m_fScale;
+    CAnimatedVariable<Vector2D> offset;
+    CAnimatedVariable<float> scale;
 
     // Workspace that the overview was opened from
-    PHLWORKSPACEREF m_pOriWorkspace;
+    PHLWORKSPACEREF ori_workspace;
 
-    bool trySwitchToHover();
-    bool trySwitchToOriginal();
+    bool try_switch_to_hover();
+    bool try_switch_to_original();
+
+    Vector2D gaps();
 
   public:
-    bool m_bClosing;
-    bool m_bActive;
+    HTView(MONITORID in_monitor_id);
 
-    CHyprtaskingView(MONITORID inMonitorID);
+    bool is_active();
+    bool is_closing();
+    bool is_navigating();
 
-    PHLMONITOR getMonitor();
+    PHLMONITOR get_monitor();
 
     void show();
     void hide();
     void render();
 
+    // arg is up, down, left, right;
+    void move(std::string arg);
+
     // Use to switch to the proper workspace depending on behavior before
     // exiting. If overrideHover, we pref hover first over all else
-    void doOverviewExitBehavior(bool overrideHover = false);
+    void do_exit_behavior(bool override_hover = false);
 
     // If return value < WORKSPACEID, then there is nothing there
-    WORKSPACEID getWorkspaceIDFromGlobal(Vector2D pos);
+    WORKSPACEID get_ws_id_from_global(Vector2D pos);
 
-    CBox getGlobalWorkspaceBoxFromID(WORKSPACEID workspaceID);
+    CBox get_global_ws_box_from_id(WORKSPACEID workspace_id);
 
-    CBox getGlobalWindowBox(PHLWINDOW pWindow);
+    CBox get_global_window_box(PHLWINDOW window);
 
-    Vector2D mapGlobalPositionToWsGlobal(Vector2D pos, WORKSPACEID workspaceID);
-    Vector2D mapWsGlobalPositionToGlobal(Vector2D pos, WORKSPACEID workspaceID);
+    Vector2D global_pos_to_ws_global(Vector2D pos, WORKSPACEID workspace_id);
+    Vector2D ws_global_pos_to_global(Vector2D pos, WORKSPACEID workspace_id);
 };
 
-struct CHyprtaskingManager {
-  public:
-    CHyprtaskingManager();
-
-    std::vector<PHTVIEW> m_vViews;
-
-    // So that the window doesn't teleport to the mouse's position
-    CAnimatedVariable<Vector2D> dragWindowOffset;
-
-    PHTVIEW getViewFromMonitor(PHLMONITOR pMonitor);
-    PHTVIEW getViewFromCursor();
-
-    void reset();
-
-    void showAllViews();
-    void hideAllViews();
-    void showCursorView();
-
-    void onMouseButton(bool pressed, uint32_t button);
-    void onMouseMove();
-
-    bool hasActiveView();
-    bool cursorViewActive();
-
-    bool shouldRenderWindow(PHLWINDOW pWindow, PHLMONITOR pMonitor);
-};
-
-inline std::unique_ptr<CHyprtaskingManager> g_pHyprtasking;
+typedef SP<HTView> PHTVIEW;
+typedef WP<HTView> PHTVIEWREF;

@@ -1,25 +1,26 @@
 #pragma once
 
-#include <memory>
-
 #include <hyprland/src/Compositor.hpp>
 #include <hyprland/src/desktop/DesktopTypes.hpp>
 #include <hyprutils/math/Box.hpp>
 
-struct CHyprtaskingView;
-struct CHyprtaskingManager;
+typedef void (*render_workspace_t)(
+    void* thisptr,
+    PHLMONITOR pMonitor,
+    PHLWORKSPACE pWorkspace,
+    timespec* now,
+    const CBox& geometry
+);
 
-typedef std::shared_ptr<CHyprtaskingView> PHTVIEW;
-typedef std::weak_ptr<CHyprtaskingView> PHTVIEWREF;
+typedef bool (*should_render_window_t)(void* thisptr, PHLWINDOW pWindow, PHLMONITOR pMonitor);
 
-typedef void (*tRenderWorkspace)(void *thisptr, PHLMONITOR pMonitor,
-                                 PHLWORKSPACE pWorkspace, timespec *now,
-                                 const CBox &geometry);
-
-typedef bool (*tShouldRenderWindow)(void *thisptr, PHLWINDOW pWindow,
-                                    PHLMONITOR pMonitor);
-
-typedef void (*tRenderWindow)(void *thisptr, PHLWINDOW pWindow,
-                              PHLMONITOR pMonitor, timespec *time,
-                              bool decorate, eRenderPassMode mode,
-                              bool ignorePosition, bool ignoreAllGeometry);
+typedef void (*render_window_t)(
+    void* thisptr,
+    PHLWINDOW pWindow,
+    PHLMONITOR pMonitor,
+    timespec* time,
+    bool decorate,
+    eRenderPassMode mode,
+    bool ignorePosition,
+    bool ignoreAllGeometry
+);

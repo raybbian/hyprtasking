@@ -14,7 +14,7 @@ endif
 
 add_project_arguments(
   [
-    '-Wno-narrowing', '-g'
+    '-Wno-narrowing', '-g', '-Wno-unused-vars'
   ],
   language: 'cpp')
 
