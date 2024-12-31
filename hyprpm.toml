@@ -8,7 +8,8 @@ commit_pins = [
 [hyprtasking]
 description = "A workspace management plugin."
 authors = ["raybbian"]
-output = "libhyprtasking.so"
+output = "build/libhyprtasking.so"
 build = [
-    "make all"
+    "meson setup build",
+    "cd build && meson compile"
 ]
