@@ -158,6 +158,8 @@ void HTView::hide() {
     if (hovered_window)
         g_pCompositor->focusWindow(hovered_window);
 
+    g_pInputManager->unsetCursorImage();
+
     g_pHyprRenderer->damageMonitor(monitor);
     g_pCompositor->scheduleFrameForMonitor(monitor);
 }

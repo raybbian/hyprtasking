@@ -1,9 +1,9 @@
 [repository]
 name = "Hyprtasking"
 authors = ["raybbian"]
-commit_pins = [
-    ["0bd541f2fd902dbfa04c3ea2ccf679395e316887", "dda8c0c6d5cce721752488fd57f09f79cb4c248d"]
-]
+# commit_pins = [
+#     ["0bd541f2fd902dbfa04c3ea2ccf679395e316887", "dda8c0c6d5cce721752488fd57f09f79cb4c248d"]
+# ]
 
 [hyprtasking]
 description = "A workspace management plugin."
