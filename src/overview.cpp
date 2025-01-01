@@ -121,6 +121,8 @@ void HTView::show() {
     scale = ws_layout.box.w / monitor->vecPixelSize.x; // 1 / ROWS
     offset = {0, 0};
 
+    g_pInputManager->setCursorImageUntilUnset("left_ptr");
+
     g_pHyprRenderer->damageMonitor(monitor);
     g_pCompositor->scheduleFrameForMonitor(monitor);
 }
