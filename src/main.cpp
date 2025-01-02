@@ -108,7 +108,6 @@ static void on_mouse_button(void* thisptr, SCallbackInfo& info, std::any args) {
 static void on_mouse_move(void* thisptr, SCallbackInfo& info, std::any args) {
     if (ht_manager == nullptr || !ht_manager->cursor_view_active())
         return;
-    info.cancelled = true;
     ht_manager->on_mouse_move();
 }
 
