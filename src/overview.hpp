@@ -8,12 +8,6 @@
 #include <hyprutils/math/Box.hpp>
 #include <hyprutils/math/Vector2D.hpp>
 
-struct HTWorkspace {
-    int row;
-    int col;
-    CBox box;
-};
-
 struct HTView {
   private:
     MONITORID monitor_id;
@@ -21,6 +15,12 @@ struct HTView {
     bool closing;
     bool active;
     bool navigating;
+
+    struct HTWorkspace {
+        int row;
+        int col;
+        CBox box;
+    };
 
     // Store the bounding boxes of each workspace as rendered. Modified on
     // render and accessed during mouse button events.

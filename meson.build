@@ -1,6 +1,7 @@
 project('hyprtasking', 'cpp',
   version: '0.1',
   default_options: ['buildtype=debug'],
+  meson_version: '>= 1.1'
 )
 
 cpp_compiler = meson.get_compiler('cpp')
@@ -14,7 +15,7 @@ endif
 
 add_project_arguments(
   [
-    '-Wno-narrowing', '-g', '-Wno-unused-vars'
+    '-Wno-narrowing', '-shared', '-fPIC', '--no-gnu-unique'
   ],
   language: 'cpp')
 
@@ -22,6 +23,11 @@ globber = run_command('find', '.', '-name', '*.cpp', check: true)
 src = globber.stdout().strip().split('\n')
 
 hyprland = dependency('hyprland')
+
+incdir = []
+if get_option('local_include')
+  incdir = include_directories('include')
+endif
 
 shared_module(meson.project_name(), src,
   dependencies: [
@@ -35,4 +41,5 @@ shared_module(meson.project_name(), src,
     dependency('xkbcommon'),
   ],
   install: true,
+  include_directories: incdir
 )

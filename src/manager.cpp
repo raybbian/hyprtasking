@@ -1,4 +1,3 @@
-
 #include "manager.hpp"
 
 #include <hyprland/src/Compositor.hpp>
