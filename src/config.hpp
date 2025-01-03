@@ -1,3 +1,5 @@
+#pragma once
+
 #include <hyprland/src/plugins/PluginAPI.hpp>
 #include <hyprutils/math/Vector2D.hpp>
 

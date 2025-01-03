@@ -11,7 +11,6 @@
 #include <hyprutils/math/Box.hpp>
 
 #include "config.hpp"
-#include "globals.hpp"
 
 HTView::HTView(MONITORID in_monitor_id) {
     monitor_id = in_monitor_id;
@@ -38,6 +37,10 @@ HTView::HTView(MONITORID in_monitor_id) {
     offset.setValueAndWarp(
         Vector2D {ws_layout.col, ws_layout.row} * (-GAPS - monitor->vecPixelSize) - GAPS
     );
+}
+
+HTView::~HTView() {
+    overview_images.clear();
 }
 
 bool HTView::try_switch_to_hover() {
@@ -283,7 +286,7 @@ CBox HTView::get_global_window_box(PHLWINDOW window) {
     if (workspace == nullptr || workspace->m_pMonitor != monitor)
         return {};
 
-    CBox ws_window_box = {window->m_vRealPosition.value(), window->m_vRealSize.value()};
+    CBox ws_window_box = window->getFullWindowBoundingBox();
 
     Vector2D top_left = ws_global_pos_to_global(ws_window_box.pos(), workspace->m_iID);
     Vector2D bottom_right =

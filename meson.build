@@ -23,6 +23,8 @@ src = globber.stdout().strip().split('\n')
 
 hyprland = dependency('hyprland')
 
+incdir = include_directories('include')
+
 shared_module(meson.project_name(), src,
   dependencies: [
     dependency('hyprland'),
@@ -35,4 +37,5 @@ shared_module(meson.project_name(), src,
     dependency('xkbcommon'),
   ],
   install: true,
+  include_directories: incdir,
 )

@@ -5,14 +5,9 @@
 #include <hyprland/src/desktop/DesktopTypes.hpp>
 #include <hyprland/src/helpers/AnimatedVariable.hpp>
 #include <hyprland/src/macros.hpp>
+#include <hyprland/src/render/Framebuffer.hpp>
 #include <hyprutils/math/Box.hpp>
 #include <hyprutils/math/Vector2D.hpp>
-
-struct HTWorkspace {
-    int row;
-    int col;
-    CBox box;
-};
 
 struct HTView {
   private:
@@ -22,13 +17,27 @@ struct HTView {
     bool active;
     bool navigating;
 
+    struct HTWorkspace {
+        int row;
+        int col;
+        CBox box;
+    };
+
     // Store the bounding boxes of each workspace as rendered. Modified on
     // render and accessed during mouse button events.
     // TODO: is there a better way to do this?
     // NOTE: workspace boxes do not consider monitor scaling
     std::unordered_map<WORKSPACEID, HTWorkspace> overview_layout;
 
+    struct HTWorkspaceImage {
+        CFramebuffer fb;
+        WORKSPACEID workspace_id;
+    };
+
+    std::vector<HTWorkspaceImage> overview_images;
+
     void build_overview_layout(bool use_anim_modifs = true);
+    void init_overview_images();
 
     CAnimatedVariable<Vector2D> offset;
     CAnimatedVariable<float> scale;
@@ -43,6 +52,7 @@ struct HTView {
 
   public:
     HTView(MONITORID in_monitor_id);
+    ~HTView();
 
     bool is_active();
     bool is_closing();
@@ -52,6 +62,7 @@ struct HTView {
 
     void show();
     void hide();
+    void pre_render();
     void render();
 
     // arg is up, down, left, right;

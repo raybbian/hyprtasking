@@ -16,6 +16,7 @@
 #include <hyprlang.hpp>
 #include <hyprutils/math/Box.hpp>
 #include <hyprutils/math/Vector2D.hpp>
+#include <hyprutils/memory/SharedPtr.hpp>
 
 #include "globals.hpp"
 #include "overview.hpp"
@@ -85,6 +86,15 @@ static bool hook_should_render_window(void* thisptr, PHLWINDOW window, PHLMONITO
     if (!ht_manager->should_render_window(window, monitor))
         return false;
     return ori_result;
+}
+
+static void on_pre_render(void* thisptr, SCallbackInfo& info, std::any args) {
+    const PHLMONITOR monitor = std::any_cast<PHLMONITOR>(args);
+    if (ht_manager == nullptr || monitor == nullptr)
+        return;
+    const PHTVIEW view = ht_manager->get_view_from_monitor(monitor);
+    if ((view != nullptr && view->is_navigating()) || ht_manager->has_active_view())
+        view->pre_render();
 }
 
 static void on_mouse_button(void* thisptr, SCallbackInfo& info, std::any args) {
@@ -174,16 +184,18 @@ static void init_functions() {
 }
 
 static void register_callbacks() {
-    static auto P1 = HyprlandAPI::registerCallbackDynamic(PHANDLE, "mouseButton", on_mouse_button);
-    static auto P2 = HyprlandAPI::registerCallbackDynamic(PHANDLE, "mouseMove", on_mouse_move);
-    static auto P3 = HyprlandAPI::registerCallbackDynamic(PHANDLE, "mouseAxis", cancel_event);
+    static auto P1 = HyprlandAPI::registerCallbackDynamic(PHANDLE, "preRender", on_pre_render);
+
+    static auto P2 = HyprlandAPI::registerCallbackDynamic(PHANDLE, "mouseButton", on_mouse_button);
+    static auto P3 = HyprlandAPI::registerCallbackDynamic(PHANDLE, "mouseMove", on_mouse_move);
+    static auto P4 = HyprlandAPI::registerCallbackDynamic(PHANDLE, "mouseAxis", cancel_event);
 
     // TODO: support touch
-    static auto P4 = HyprlandAPI::registerCallbackDynamic(PHANDLE, "touchDown", cancel_event);
-    static auto P5 = HyprlandAPI::registerCallbackDynamic(PHANDLE, "touchUp", cancel_event);
-    static auto P6 = HyprlandAPI::registerCallbackDynamic(PHANDLE, "touchMove", cancel_event);
+    static auto P5 = HyprlandAPI::registerCallbackDynamic(PHANDLE, "touchDown", cancel_event);
+    static auto P6 = HyprlandAPI::registerCallbackDynamic(PHANDLE, "touchUp", cancel_event);
+    static auto P7 = HyprlandAPI::registerCallbackDynamic(PHANDLE, "touchMove", cancel_event);
 
-    static auto P7 = HyprlandAPI::registerCallbackDynamic(
+    static auto P8 = HyprlandAPI::registerCallbackDynamic(
         PHANDLE,
         "monitorAdded",
         [&](void* thisptr, SCallbackInfo& info, std::any data) { register_monitors(); }
@@ -191,8 +203,8 @@ static void register_callbacks() {
 }
 
 static void add_dispatchers() {
-    HyprlandAPI::addDispatcher(PHANDLE, "hyprtasking:toggle", dispatch_toggle_view);
-    HyprlandAPI::addDispatcher(PHANDLE, "hyprtasking:move", dispatch_move);
+    HyprlandAPI::addDispatcherV2(PHANDLE, "hyprtasking:toggle", dispatch_toggle_view);
+    HyprlandAPI::addDispatcherV2(PHANDLE, "hyprtasking:move", dispatch_move);
 }
 
 static void init_config() {

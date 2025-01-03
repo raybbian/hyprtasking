@@ -1,14 +1,19 @@
+#include <cassert>
 #include <ctime>
 #include <hyprland/src/Compositor.hpp>
 #include <hyprland/src/desktop/DesktopTypes.hpp>
 #include <hyprland/src/managers/input/InputManager.hpp>
 #include <hyprland/src/render/OpenGL.hpp>
 #include <hyprland/src/render/Renderer.hpp>
+#include <hyprland/src/render/pass/ClearPassElement.hpp>
+#include <hyprland/src/render/pass/RendererHintsPassElement.hpp>
+#include <hyprland/src/render/pass/TexPassElement.hpp>
 #include <hyprutils/math/Vector2D.hpp>
 
 #include "config.hpp"
 #include "globals.hpp"
 #include "overview.hpp"
+#include "pass/no_simplify_element.hpp"
 #include "types.hpp"
 
 // Note: box is relative to (0, 0), not monitor
@@ -24,17 +29,14 @@ static void render_window_at_box(PHLWINDOW window, PHLMONITOR monitor, timespec*
         (monitor->vecPosition - window->m_vRealPosition.value() + box.pos() / scale)
         * monitor->scale;
 
-    const bool o_render_modif_enabled = g_pHyprOpenGL->m_RenderData.renderModif.enabled;
+    SRenderModifData modifs {};
+    modifs.modifs.push_back({SRenderModifData::eRenderModifType::RMOD_TYPE_TRANSLATE, transform});
+    modifs.modifs.push_back({SRenderModifData::eRenderModifType::RMOD_TYPE_SCALE, scale});
 
-    g_pHyprOpenGL->m_RenderData.renderModif.modifs.push_back(
-        {SRenderModifData::eRenderModifType::RMOD_TYPE_TRANSLATE, transform}
+    g_pHyprRenderer->m_sRenderPass.add(
+        makeShared<CRendererHintsPassElement>(CRendererHintsPassElement::SData {modifs})
     );
-    g_pHyprOpenGL->m_RenderData.renderModif.modifs.push_back(
-        {SRenderModifData::eRenderModifType::RMOD_TYPE_SCALE, scale}
-    );
-    g_pHyprOpenGL->m_RenderData.renderModif.enabled = true;
 
-    g_pHyprRenderer->damageWindow(window);
     ((render_window_t)render_window)(
         g_pHyprRenderer.get(),
         window,
@@ -46,9 +48,11 @@ static void render_window_at_box(PHLWINDOW window, PHLMONITOR monitor, timespec*
         false
     );
 
-    g_pHyprOpenGL->m_RenderData.renderModif.enabled = o_render_modif_enabled;
-    g_pHyprOpenGL->m_RenderData.renderModif.modifs.pop_back();
-    g_pHyprOpenGL->m_RenderData.renderModif.modifs.pop_back();
+    g_pHyprRenderer->m_sRenderPass.add(makeShared<CRendererHintsPassElement>(
+        CRendererHintsPassElement::SData {SRenderModifData {}}
+    ));
+
+    Debug::log(LOG, "[Hyprtasking] Trying to render drag window");
 }
 
 bool HTManager::should_render_window(PHLWINDOW window, PHLMONITOR monitor) {
@@ -115,18 +119,46 @@ void HTView::build_overview_layout(bool use_anim_modifs) {
         g_pCompositor->setActiveMonitor(last_monitor);
 }
 
-void HTView::render() {
+void HTView::init_overview_images() {
     const PHLMONITOR monitor = get_monitor();
     if (monitor == nullptr)
         return;
 
+    const int ROWS = HTConfig::rows();
+    const Vector2D GAPS = gaps();
+    // const Vector2D final_size = ((monitor->vecPixelSize - GAPS * (ROWS + 1)) / ROWS).round();
+    const Vector2D final_size = monitor->vecPixelSize;
+
+    overview_images.resize(ROWS * ROWS);
+
+    for (const auto& [ws_id, ws_layout] : overview_layout) {
+        int ind = ws_layout.row * ROWS + ws_layout.col;
+
+        overview_images[ind].workspace_id = ws_id;
+
+        if (overview_images[ind].fb.m_vSize != final_size) {
+            overview_images[ind].fb.release();
+            overview_images[ind]
+                .fb.alloc(final_size.x, final_size.y, monitor->output->state->state().drmFormat);
+        }
+    }
+}
+
+void HTView::pre_render() {
+    const PHLMONITOR monitor = get_monitor();
+    if (monitor == nullptr)
+        return;
+
+    static const std::string CLEAR_PASS_ELEMENT_NAME = "CClearPassElement";
+
     timespec time;
     clock_gettime(CLOCK_MONOTONIC, &time);
 
-    g_pHyprRenderer->damageMonitor(monitor);
-    g_pHyprOpenGL->m_RenderData.pCurrentMonData->blurFBShouldRender = true;
-    CBox monitor_box = {{0, 0}, monitor->vecPixelSize};
-    g_pHyprOpenGL->renderRect(&monitor_box, CHyprColor {HTConfig::bg_color()}.stripA());
+    build_overview_layout();
+    init_overview_images();
+
+    const CBox local_mon_box = {{0, 0}, monitor->vecPixelSize};
+    const CBox global_mon_box = {monitor->vecPosition, monitor->vecPixelSize};
 
     // Do a dance with active workspaces: Hyprland will only properly render the
     // current active one so make the workspace active before rendering it, etc
@@ -134,24 +166,26 @@ void HTView::render() {
     start_workspace->startAnim(false, false, true);
     start_workspace->m_bVisible = false;
 
-    build_overview_layout();
+    for (HTWorkspaceImage& image : overview_images) {
+        const WORKSPACEID ws_id = image.workspace_id;
+        const HTWorkspace& ws_layout = overview_layout[ws_id];
 
-    CBox global_mon_box = {monitor->vecPosition, monitor->vecPixelSize};
-    for (const auto& [ws_id, ws_layout] : overview_layout) {
         // Could be nullptr, in which we render only layers
         const PHLWORKSPACE workspace = g_pCompositor->getWorkspaceByID(ws_id);
 
-        // renderModif translation used by renderWorkspace is weird so need
-        // to scale the translation up as well
-        CBox render_box = {{ws_layout.box.pos() / scale.value()}, ws_layout.box.size()};
-
-        // render active one last
-        if (workspace == start_workspace && start_workspace != nullptr)
-            continue;
-
-        CBox global_box = {ws_layout.box.pos() + monitor->vecPosition, ws_layout.box.size()};
+        // If not going to be displayed on the screen, we can skip its rendering
+        const CBox global_box = {ws_layout.box.pos() + monitor->vecPosition, ws_layout.box.size()};
         if (global_box.intersection(global_mon_box).empty())
             continue;
+
+        CRegion fake_damage {0, 0, INT16_MAX, INT16_MAX};
+        // CRegion fake_damage = ws_layout.box;
+        g_pHyprRenderer
+            ->beginRender(monitor, fake_damage, RENDER_MODE_FULL_FAKE, nullptr, &image.fb);
+
+        g_pHyprRenderer->m_sRenderPass.add(makeShared<HTDisableSimplification>());
+
+        const CBox render_box = {{ws_layout.box.pos() / scale.value()}, ws_layout.box.size()};
 
         if (workspace != nullptr) {
             monitor->activeWorkspace = workspace;
@@ -178,24 +212,66 @@ void HTView::render() {
                 render_box
             );
         }
+
+        g_pHyprRenderer->endRender();
     }
 
     monitor->activeWorkspace = start_workspace;
     start_workspace->startAnim(true, false, true);
     start_workspace->m_bVisible = true;
+}
 
-    // Render active workspace
-    if (start_workspace != nullptr) {
-        CBox ws_box = overview_layout[start_workspace->m_iID].box;
-        CBox render_box = {{ws_box.pos() / scale.value()}, ws_box.size()};
+void HTView::render() {
+    const PHLMONITOR monitor = get_monitor();
+    if (monitor == nullptr)
+        return;
 
-        ((render_workspace_t)(render_workspace_hook->m_pOriginal))(
-            g_pHyprRenderer.get(),
-            monitor,
-            start_workspace,
-            &time,
-            render_box
-        );
+    const int ROWS = HTConfig::rows();
+    const Vector2D GAPS = gaps();
+    const Vector2D final_size = (monitor->vecPixelSize - GAPS * (ROWS + 1)) / ROWS;
+
+    timespec time;
+    clock_gettime(CLOCK_MONOTONIC, &time);
+
+    CBox local_mon_box = {{0, 0}, monitor->vecPixelSize};
+    const CBox global_mon_box = {monitor->vecPosition, monitor->vecPixelSize};
+
+    g_pHyprRenderer->damageMonitor(monitor);
+    g_pHyprRenderer->m_sRenderPass.add(makeShared<CClearPassElement>(
+        CClearPassElement::SClearData {CHyprColor {HTConfig::bg_color()}.stripA()}
+    ));
+    g_pHyprRenderer->m_sRenderPass.add(makeShared<HTDisableSimplification>());
+
+    for (HTWorkspaceImage& image : overview_images) {
+        const WORKSPACEID ws_id = image.workspace_id;
+        const HTWorkspace& ws_layout = overview_layout[ws_id];
+
+        // Render active last
+        if (ws_id == monitor->activeWorkspaceID())
+            continue;
+
+        // If not going to be displayed on the screen, we can skip its rendering
+        const CBox global_box = {ws_layout.box.pos() + monitor->vecPosition, ws_layout.box.size()};
+        if (global_box.intersection(global_mon_box).empty())
+            continue;
+
+        g_pHyprRenderer->m_sRenderPass.add(makeShared<CTexPassElement>(
+            CTexPassElement::SRenderData {image.fb.getTexture(), local_mon_box, 1.0, ws_layout.box}
+        ));
+    }
+
+    // Render active
+    for (HTWorkspaceImage& image : overview_images) {
+        const WORKSPACEID ws_id = image.workspace_id;
+        const HTWorkspace& ws_layout = overview_layout[ws_id];
+
+        // Skip non-active
+        if (ws_id != monitor->activeWorkspaceID())
+            continue;
+
+        g_pHyprRenderer->m_sRenderPass.add(makeShared<CTexPassElement>(
+            CTexPassElement::SRenderData {image.fb.getTexture(), local_mon_box, 1.0, ws_layout.box}
+        ));
     }
 
     const PHTVIEW cursor_view = ht_manager->get_view_from_cursor();

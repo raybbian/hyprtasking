@@ -92,9 +92,9 @@ void HTManager::end_window_drag() {
     g_pKeybindManager->changeMouseBindMode(MBIND_INVALID);
     g_pPointerManager->warpTo(mouse_coords);
 
-    // otherwise the window leaves blur (?) artifacts on all
-    // workspaces
-    dragged_window->m_fMovingToWorkspaceAlpha.setValueAndWarp(1.0);
+    // otherwise the window leaves artifacts
+    dragged_window->m_fMovingToWorkspaceAlpha.warp();
+    dragged_window->m_fMovingFromWorkspaceAlpha.warp();
 }
 
 void HTManager::exit_to_workspace() {
