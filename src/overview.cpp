@@ -30,10 +30,10 @@ HTView::HTView(MONITORID in_monitor_id) {
     const PHLMONITOR monitor = get_monitor();
     if (monitor == nullptr)
         return;
+
     const Vector2D GAPS = gaps();
 
     build_overview_layout(false);
-
     const HTWorkspace ws_layout = overview_layout[get_monitor()->activeWorkspaceID()];
     offset.setValueAndWarp(
         Vector2D {ws_layout.col, ws_layout.row} * (-GAPS - monitor->vecPixelSize) - GAPS
@@ -219,76 +219,82 @@ void HTView::move(std::string arg) {
     }
 }
 
-Vector2D HTView::global_pos_to_ws_global(Vector2D pos, WORKSPACEID workspace_id) {
+Vector2D HTView::global_to_local_ws_unscaled(Vector2D pos, WORKSPACEID workspace_id) {
     const PHLMONITOR monitor = get_monitor();
-    if (monitor == nullptr)
+    if (monitor == nullptr || !overview_layout.count(workspace_id))
         return {};
-
-    CBox workspace_box = get_global_ws_box_from_id(workspace_id);
+    CBox workspace_box = overview_layout[workspace_id].box;
     if (workspace_box.empty())
         return {};
-
+    pos -= monitor->vecPosition;
     pos *= monitor->scale;
     pos -= workspace_box.pos();
-    pos /= scale.value(); // multiply by ROWS
-    pos += monitor->vecPosition;
     pos /= monitor->scale;
+    pos /= scale.value();
     return pos;
 }
 
-Vector2D HTView::ws_global_pos_to_global(Vector2D pos, WORKSPACEID workspace_id) {
+Vector2D HTView::global_to_local_ws_scaled(Vector2D pos, WORKSPACEID workspace_id) {
     const PHLMONITOR monitor = get_monitor();
     if (monitor == nullptr)
         return {};
+    pos = global_to_local_ws_unscaled(pos, workspace_id);
+    pos *= monitor->scale;
+    return pos;
+}
 
-    CBox workspace_box = get_global_ws_box_from_id(workspace_id);
+Vector2D HTView::local_ws_unscaled_to_global(Vector2D pos, WORKSPACEID workspace_id) {
+    const PHLMONITOR monitor = get_monitor();
+    if (monitor == nullptr || !overview_layout.count(workspace_id))
+        return {};
+    CBox workspace_box = overview_layout[workspace_id].box;
     if (workspace_box.empty())
         return {};
-
+    pos *= scale.value();
     pos *= monitor->scale;
-    pos -= monitor->vecPosition;
-    pos *= scale.value(); // divide by ROWS
     pos += workspace_box.pos();
     pos /= monitor->scale;
+    pos += monitor->vecPosition;
     return pos;
+}
+
+Vector2D HTView::local_ws_scaled_to_global(Vector2D pos, WORKSPACEID workspace_id) {
+    const PHLMONITOR monitor = get_monitor();
+    pos /= monitor->scale;
+    return local_ws_unscaled_to_global(pos, workspace_id);
 }
 
 WORKSPACEID HTView::get_ws_id_from_global(Vector2D pos) {
     const PHLMONITOR monitor = get_monitor();
     if (monitor == nullptr)
         return WORKSPACE_INVALID;
+    if (!monitor->logicalBox().containsPoint(pos))
+        return WORKSPACE_INVALID;
+
     Vector2D relative_pos = (pos - monitor->vecPosition) * monitor->scale;
     for (const auto& [id, layout] : overview_layout)
         if (layout.box.containsPoint(relative_pos))
             return id;
+
     return WORKSPACE_INVALID;
 }
 
-CBox HTView::get_global_ws_box_from_id(WORKSPACEID workspace_id) {
-    const PHLMONITOR monitor = get_monitor();
-    if (monitor == nullptr)
-        return {};
-    if (overview_layout.count(workspace_id)) {
-        CBox ws_box = overview_layout[workspace_id].box;
-        // NOTE: not scaled by monitor size
-        return {monitor->vecPosition + ws_box.pos(), ws_box.size()};
-    }
-    return {};
-}
-
-CBox HTView::get_global_window_box(PHLWINDOW window) {
+CBox HTView::get_global_window_box(PHLWINDOW window, WORKSPACEID workspace_id) {
     const PHLMONITOR monitor = get_monitor();
     if (monitor == nullptr || window == nullptr)
         return {};
-    PHLWORKSPACE workspace = window->m_pWorkspace;
+    PHLWORKSPACE workspace = g_pCompositor->getWorkspaceByID(workspace_id);
     if (workspace == nullptr || workspace->m_pMonitor != monitor)
         return {};
 
     CBox ws_window_box = {window->m_vRealPosition.value(), window->m_vRealSize.value()};
 
-    Vector2D top_left = ws_global_pos_to_global(ws_window_box.pos(), workspace->m_iID);
-    Vector2D bottom_right =
-        ws_global_pos_to_global(ws_window_box.pos() + ws_window_box.size(), workspace->m_iID);
+    Vector2D top_left =
+        local_ws_unscaled_to_global(ws_window_box.pos() - monitor->vecPosition, workspace->m_iID);
+    Vector2D bottom_right = local_ws_unscaled_to_global(
+        ws_window_box.pos() + ws_window_box.size() - monitor->vecPosition,
+        workspace->m_iID
+    );
 
     return {top_left, bottom_right - top_left};
 }

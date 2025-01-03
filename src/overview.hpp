@@ -64,12 +64,12 @@ struct HTView {
     // If return value < WORKSPACEID, then there is nothing there
     WORKSPACEID get_ws_id_from_global(Vector2D pos);
 
-    CBox get_global_ws_box_from_id(WORKSPACEID workspace_id);
+    CBox get_global_window_box(PHLWINDOW window, WORKSPACEID workspace_id);
 
-    CBox get_global_window_box(PHLWINDOW window);
-
-    Vector2D global_pos_to_ws_global(Vector2D pos, WORKSPACEID workspace_id);
-    Vector2D ws_global_pos_to_global(Vector2D pos, WORKSPACEID workspace_id);
+    Vector2D global_to_local_ws_scaled(Vector2D pos, WORKSPACEID workspace_id);
+    Vector2D global_to_local_ws_unscaled(Vector2D pos, WORKSPACEID workspace_id);
+    Vector2D local_ws_scaled_to_global(Vector2D pos, WORKSPACEID workspace_id);
+    Vector2D local_ws_unscaled_to_global(Vector2D pos, WORKSPACEID workspace_id);
 };
 
 typedef SP<HTView> PHTVIEW;

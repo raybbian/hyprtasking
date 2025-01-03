@@ -63,7 +63,7 @@ bool HTManager::should_render_window(PHLWINDOW window, PHLMONITOR monitor) {
     if (workspace == nullptr || view == nullptr)
         return false;
 
-    CBox window_box = view->get_global_window_box(window);
+    CBox window_box = view->get_global_window_box(window, window->workspaceID());
     if (window_box.empty())
         return false;
 
