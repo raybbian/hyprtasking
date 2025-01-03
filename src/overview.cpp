@@ -63,9 +63,8 @@ bool HTView::try_switch_to_hover() {
     if (cursor_workspace == nullptr)
         return false;
 
-    cursor_monitor->changeWorkspace(cursor_workspace, true);
+    cursor_monitor->changeWorkspace(cursor_workspace);
     cursor_workspace->startAnim(true, false, true);
-    cursor_workspace->m_bVisible = true;
     return true;
 }
 
@@ -80,9 +79,8 @@ bool HTView::try_switch_to_original() {
     if (original_ws == nullptr)
         return false;
 
-    monitor->changeWorkspace(original_ws, true);
+    monitor->changeWorkspace(original_ws);
     original_ws->startAnim(true, false, true);
-    original_ws->m_bVisible = true;
     return true;
 }
 
@@ -124,6 +122,8 @@ void HTView::show() {
     scale = ws_layout.box.w / monitor->vecPixelSize.x; // 1 / ROWS
     offset = {0, 0};
 
+    g_pInputManager->setCursorImageUntilUnset("left_ptr");
+
     g_pHyprRenderer->damageMonitor(monitor);
     g_pCompositor->scheduleFrameForMonitor(monitor);
 }
@@ -158,6 +158,8 @@ void HTView::hide() {
     );
     if (hovered_window)
         g_pCompositor->focusWindow(hovered_window);
+
+    g_pInputManager->unsetCursorImage();
 
     g_pHyprRenderer->damageMonitor(monitor);
     g_pCompositor->scheduleFrameForMonitor(monitor);
@@ -198,9 +200,8 @@ void HTView::move(std::string arg) {
             if (other_workspace == nullptr)
                 break;
 
-            monitor->changeWorkspace(other_workspace, true);
+            monitor->changeWorkspace(other_workspace);
             other_workspace->startAnim(true, false, true);
-            other_workspace->m_bVisible = true;
 
             const Vector2D mouse_coords = g_pInputManager->getMouseCoordsInternal();
             const PHLWINDOW hovered_window = g_pCompositor->vectorToWindowUnified(

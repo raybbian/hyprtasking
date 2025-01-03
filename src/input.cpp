@@ -25,9 +25,8 @@ void HTManager::start_window_drag() {
     if (cursor_workspace == nullptr)
         return;
 
-    cursor_monitor->changeWorkspace(cursor_workspace, true);
+    cursor_monitor->changeWorkspace(cursor_workspace);
     cursor_workspace->startAnim(true, false, true);
-    cursor_workspace->m_bVisible = true;
 
     const Vector2D workspace_coords =
         cursor_view->global_pos_to_ws_global(mouse_coords, workspace_id);
@@ -68,11 +67,11 @@ void HTManager::end_window_drag() {
     // Release on empty dummy workspace, so create and switch to it
     if (cursor_workspace == nullptr && workspace_id != WORKSPACE_INVALID) {
         cursor_workspace = g_pCompositor->createNewWorkspace(workspace_id, cursor_monitor->ID);
+    }
+
+    if (cursor_workspace != nullptr) {
         cursor_monitor->changeWorkspace(cursor_workspace);
-    } else if (cursor_workspace != nullptr) {
-        cursor_monitor->changeWorkspace(cursor_workspace, true);
         cursor_workspace->startAnim(true, false, true);
-        cursor_workspace->m_bVisible = true;
     } else {
         // TODO: drop on invalid behavior?
         cursor_workspace = cursor_monitor->activeWorkspace;
