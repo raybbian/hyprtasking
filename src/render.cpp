@@ -157,7 +157,6 @@ void HTView::pre_render() {
     build_overview_layout();
     init_overview_images();
 
-    const CBox local_mon_box = {{0, 0}, monitor->vecPixelSize};
     const CBox global_mon_box = {monitor->vecPosition, monitor->vecPixelSize};
 
     // Do a dance with active workspaces: Hyprland will only properly render the
