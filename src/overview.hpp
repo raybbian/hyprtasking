@@ -30,9 +30,6 @@ struct HTView {
 
     void build_overview_layout(bool use_anim_modifs = true);
 
-    CAnimatedVariable<Vector2D> offset;
-    CAnimatedVariable<float> scale;
-
     // Workspace that the overview was opened from
     PHLWORKSPACEREF ori_workspace;
 
@@ -53,6 +50,9 @@ struct HTView {
     void show();
     void hide();
     void render();
+
+    CAnimatedVariable<Vector2D> offset;
+    CAnimatedVariable<float> scale;
 
     // arg is up, down, left, right;
     void move(std::string arg);

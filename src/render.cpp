@@ -204,14 +204,11 @@ void HTView::render() {
     const PHLWINDOW dragged_window = g_pInputManager->currentlyDraggedWindow.lock();
     if (dragged_window == nullptr)
         return;
-    // Render the window at the scale of the dragged view
-    const Vector2D window_sz = dragged_window->m_vRealSize.value()
-        * cursor_view->scale.value(); // divide by ROWS (use cursor's view)
-    const CBox window_box = {
-        g_pInputManager->getMouseCoordsInternal() - window_sz / 2.f
-            + ht_manager->dragged_window_offset.value(),
-        window_sz
-    };
+    const Vector2D mouse_coords = g_pInputManager->getMouseCoordsInternal();
+    const CBox window_box = dragged_window->getWindowMainSurfaceBox()
+                                .translate(-mouse_coords)
+                                .scale(cursor_view->scale.value())
+                                .translate(mouse_coords);
     if (!window_box.intersection(monitor->logicalBox()).empty())
         render_window_at_box(dragged_window, monitor, &time, window_box);
 }

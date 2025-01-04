@@ -11,9 +11,6 @@ struct HTManager {
 
     std::vector<PHTVIEW> views;
 
-    // So that the window doesn't teleport to the mouse's position
-    CAnimatedVariable<Vector2D> dragged_window_offset;
-
     PHTVIEW get_view_from_monitor(PHLMONITOR pMonitor);
     PHTVIEW get_view_from_cursor();
 

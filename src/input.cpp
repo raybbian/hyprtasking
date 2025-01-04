@@ -40,14 +40,25 @@ void HTManager::start_window_drag() {
     if (dragged_window == nullptr)
         return;
 
-    const Vector2D real_center = cursor_view->local_ws_unscaled_to_global(
-        dragged_window->m_vRealPosition.value() + dragged_window->m_vRealSize.value() / 2.f
-            - dragged_window->m_pMonitor->vecPosition,
-        workspace_id
-    );
-    // Guide the window to center on the mouse cursor
-    dragged_window_offset.setValueAndWarp(real_center - mouse_coords);
-    dragged_window_offset = {0, 0};
+    if (dragged_window->m_bDraggingTiled) {
+        const Vector2D pre_pos = cursor_view->local_ws_unscaled_to_global(
+            dragged_window->m_vRealPosition.value() - dragged_window->m_pMonitor->vecPosition,
+            workspace_id
+        );
+        const Vector2D post_pos = cursor_view->local_ws_unscaled_to_global(
+            dragged_window->m_vRealPosition.goal() - dragged_window->m_pMonitor->vecPosition,
+            workspace_id
+        );
+        const Vector2D mapped_pre_pos =
+            (pre_pos - mouse_coords) / cursor_view->scale.value() + mouse_coords;
+        const Vector2D mapped_post_pos =
+            (post_pos - mouse_coords) / cursor_view->scale.value() + mouse_coords;
+
+        dragged_window->m_vRealPosition.setValueAndWarp(mapped_pre_pos);
+        dragged_window->m_vRealPosition = mapped_post_pos;
+    } else {
+        g_pInputManager->simulateMouseMovement();
+    }
 }
 
 void HTManager::end_window_drag() {
@@ -87,11 +98,15 @@ void HTManager::end_window_drag() {
         cursor_view->global_to_local_ws_unscaled(mouse_coords, cursor_workspace->m_iID)
         + cursor_monitor->vecPosition;
 
-    // Teleport the tiled dragged window to the mouse cursor on the workspace
-    const Vector2D tp_position = workspace_coords - dragged_window->m_vRealSize.value() / 2.;
-    dragged_window->m_vRealPosition.setValueAndWarp(
-        cursor_monitor->logicalBox().closestPoint(tp_position)
-    );
+    const Vector2D tp_pos =
+        cursor_view->global_to_local_ws_unscaled(
+            (dragged_window->m_vRealPosition.value() - mouse_coords) * cursor_view->scale.value()
+                + mouse_coords,
+            workspace_id
+        )
+        + cursor_monitor->vecPosition;
+
+    dragged_window->m_vRealPosition.setValueAndWarp(tp_pos);
 
     g_pPointerManager->warpTo(workspace_coords);
     g_pKeybindManager->changeMouseBindMode(MBIND_INVALID);
@@ -113,5 +128,5 @@ void HTManager::exit_to_workspace() {
 }
 
 void HTManager::on_mouse_move() {
-    dragged_window_offset.warp();
+    ;
 }
