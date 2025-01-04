@@ -8,11 +8,7 @@
 #include "overview.hpp"
 
 HTManager::HTManager() {
-    dragged_window_offset.create(
-        {0, 0},
-        g_pConfigManager->getAnimationPropertyConfig("windowsMove"),
-        AVARDAMAGE_NONE
-    );
+    ;
 }
 
 PHTVIEW HTManager::get_view_from_monitor(PHLMONITOR pMonitor) {
