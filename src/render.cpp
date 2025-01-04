@@ -1,10 +1,12 @@
 #include <cassert>
 #include <ctime>
 #include <hyprland/src/Compositor.hpp>
+#include <hyprland/src/config/ConfigValue.hpp>
 #include <hyprland/src/desktop/DesktopTypes.hpp>
 #include <hyprland/src/managers/input/InputManager.hpp>
 #include <hyprland/src/render/OpenGL.hpp>
 #include <hyprland/src/render/Renderer.hpp>
+#include <hyprland/src/render/pass/BorderPassElement.hpp>
 #include <hyprland/src/render/pass/ClearPassElement.hpp>
 #include <hyprland/src/render/pass/RendererHintsPassElement.hpp>
 #include <hyprland/src/render/pass/TexPassElement.hpp>
@@ -72,43 +74,60 @@ bool HTManager::should_render_window(PHLWINDOW window, PHLMONITOR monitor) {
     return !window_box.intersection(monitor->logicalBox()).empty();
 }
 
-Vector2D HTView::gaps() {
+CBox HTView::calculate_ws_box(int x, int y, int override) {
     const PHLMONITOR monitor = get_monitor();
     if (monitor == nullptr)
         return {};
-    const Vector2D GAPS = {
-        (double)HTConfig::gap_size(),
-        (double)HTConfig::gap_size() * monitor->vecPixelSize.y / monitor->vecPixelSize.x
-    };
-    return GAPS.round();
+
+    const int ROWS = HTConfig::rows();
+    const double GAP_SIZE = HTConfig::gap_size() * monitor->scale;
+    const Vector2D GAPS = {GAP_SIZE, GAP_SIZE};
+
+    double render_x = monitor->vecPixelSize.x - GAPS.x * (ROWS + 1);
+    double render_y = monitor->vecPixelSize.y - GAPS.y * (ROWS + 1);
+    const double mon_aspect = monitor->vecPixelSize.x / monitor->vecPixelSize.y;
+    Vector2D start_offset {};
+
+    // make correct aspect ratio
+    if (render_y * mon_aspect > render_x) {
+        start_offset.y = (render_y - render_x / mon_aspect) / 2.f;
+        render_y = render_x / mon_aspect;
+    } else if (render_x / mon_aspect > render_y) {
+        start_offset.x = (render_x - render_y * mon_aspect) / 2.f;
+        render_x = render_y * mon_aspect;
+    }
+
+    float use_scale = scale.value();
+    Vector2D use_offset = offset.value();
+    if (override == -1) {
+        use_scale = 1;
+        use_offset = Vector2D {0, 0};
+    } else if (override == 1) {
+        use_scale = (render_x / ROWS) / monitor->vecPixelSize.x;
+        use_offset = Vector2D {0, 0};
+    }
+
+    const Vector2D ws_sz = monitor->vecPixelSize * use_scale;
+    return CBox {Vector2D {x, y} * (ws_sz + GAPS) + GAPS + use_offset + start_offset, ws_sz};
 }
 
-void HTView::build_overview_layout(bool use_anim_modifs) {
-    const int ROWS = HTConfig::rows();
-
+void HTView::build_overview_layout(int override) {
     const PHLMONITOR monitor = get_monitor();
     if (monitor == nullptr)
         return;
 
-    const Vector2D GAPS = gaps();
+    const int ROWS = HTConfig::rows();
 
     const PHLMONITOR last_monitor = g_pCompositor->m_pLastMonitor.lock();
     g_pCompositor->setActiveMonitor(monitor);
 
     overview_layout.clear();
 
-    const float use_scale = use_anim_modifs
-        ? scale.value()
-        : ((monitor->vecPixelSize.x - (ROWS + 1) * GAPS.x) / ROWS) / monitor->vecPixelSize.x;
-
-    const Vector2D use_offset = (use_anim_modifs ? offset.value() : Vector2D {0, 0});
-    const Vector2D ws_sz = monitor->vecPixelSize * use_scale;
-
     for (int i = 0; i < ROWS; i++) {
         for (int j = 0; j < ROWS; j++) {
             int ind = i * ROWS + j + 1;
             const WORKSPACEID ws_id = getWorkspaceIDNameFromString(std::format("r~{}", ind)).id;
-            CBox ws_box = {Vector2D {j, i} * (ws_sz + GAPS) + GAPS + use_offset, ws_sz};
+            const CBox ws_box = calculate_ws_box(j, i, override);
             overview_layout[ws_id] = HTWorkspace {i, j, ws_box};
         }
     }
@@ -123,8 +142,6 @@ void HTView::init_overview_images() {
         return;
 
     const int ROWS = HTConfig::rows();
-    const Vector2D GAPS = gaps();
-    // const Vector2D final_size = ((monitor->vecPixelSize - GAPS * (ROWS + 1)) / ROWS).round();
     const Vector2D final_size = monitor->vecPixelSize;
 
     overview_images.resize(ROWS * ROWS);
@@ -223,9 +240,12 @@ void HTView::render() {
     if (monitor == nullptr)
         return;
 
-    const int ROWS = HTConfig::rows();
-    const Vector2D GAPS = gaps();
-    const Vector2D final_size = (monitor->vecPixelSize - GAPS * (ROWS + 1)) / ROWS;
+    static auto PACTIVECOL = CConfigValue<Hyprlang::CUSTOMTYPE>("general:col.active_border");
+    static auto PINACTIVECOL = CConfigValue<Hyprlang::CUSTOMTYPE>("general:col.inactive_border");
+
+    auto* const ACTIVECOL = (CGradientValueData*)(PACTIVECOL.ptr())->getData();
+    auto* const INACTIVECOL = (CGradientValueData*)(PINACTIVECOL.ptr())->getData();
+    auto const BORDERSIZE = HTConfig::border_size();
 
     timespec time;
     clock_gettime(CLOCK_MONOTONIC, &time);
@@ -238,6 +258,8 @@ void HTView::render() {
         CClearPassElement::SClearData {CHyprColor {HTConfig::bg_color()}.stripA()}
     ));
     g_pHyprRenderer->m_sRenderPass.add(makeShared<HTDisableSimplification>());
+
+    const WORKSPACEID exit_workspace_id = get_exit_workspace_id(false);
 
     for (HTWorkspaceImage& image : overview_images) {
         const WORKSPACEID ws_id = image.workspace_id;
@@ -252,6 +274,13 @@ void HTView::render() {
         if (global_box.intersection(global_mon_box).empty())
             continue;
 
+        CBorderPassElement::SBorderData border_data {};
+        border_data.box = ws_layout.box;
+        border_data.grad1 = exit_workspace_id == ws_id ? *ACTIVECOL : *INACTIVECOL;
+        border_data.hasGrad2 = false;
+        border_data.borderSize = BORDERSIZE;
+
+        g_pHyprRenderer->m_sRenderPass.add(makeShared<CBorderPassElement>(border_data));
         g_pHyprRenderer->m_sRenderPass.add(makeShared<CTexPassElement>(
             CTexPassElement::SRenderData {image.fb.getTexture(), local_mon_box, 1.0, ws_layout.box}
         ));
@@ -266,6 +295,13 @@ void HTView::render() {
         if (ws_id != monitor->activeWorkspaceID())
             continue;
 
+        CBorderPassElement::SBorderData border_data {};
+        border_data.box = ws_layout.box;
+        border_data.grad1 = exit_workspace_id == ws_id ? *ACTIVECOL : *INACTIVECOL;
+        border_data.hasGrad2 = false;
+        border_data.borderSize = BORDERSIZE;
+
+        g_pHyprRenderer->m_sRenderPass.add(makeShared<CBorderPassElement>(border_data));
         g_pHyprRenderer->m_sRenderPass.add(makeShared<CTexPassElement>(
             CTexPassElement::SRenderData {image.fb.getTexture(), local_mon_box, 1.0, ws_layout.box}
         ));

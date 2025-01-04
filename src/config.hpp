@@ -8,6 +8,7 @@ namespace HTConfig {
 int bg_color();
 int gap_size();
 int rows();
+int border_size();
 std::string exit_behavior();
 
 } // namespace HTConfig
