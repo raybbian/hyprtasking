@@ -26,81 +26,69 @@ HTView::HTView(MONITORID in_monitor_id) {
     );
     scale.create(1.f, g_pConfigManager->getAnimationPropertyConfig("windowsMove"), AVARDAMAGE_NONE);
 
-    // Adjust offset to match workspace
-    const PHLMONITOR monitor = get_monitor();
-    if (monitor == nullptr)
-        return;
-
-    const Vector2D GAPS = gaps();
-
-    build_overview_layout(false);
-    const HTWorkspace ws_layout = overview_layout[get_monitor()->activeWorkspaceID()];
-    offset.setValueAndWarp(
-        Vector2D {ws_layout.col, ws_layout.row} * (-GAPS - monitor->vecPixelSize) - GAPS
-    );
+    build_overview_layout(-1);
+    const CBox ws_box = overview_layout[get_monitor()->activeWorkspaceID()].box;
+    offset.setValueAndWarp(-ws_box.pos());
 }
 
-bool HTView::try_switch_to_hover() {
-    const PHLMONITOR cursor_monitor = g_pCompositor->getMonitorFromCursor();
-    // If the cursor monitor is not the view monitor, then we cannot
-    // exit to hover
-    if (cursor_monitor != get_monitor())
-        return false;
-
-    const Vector2D mouse_coords = g_pInputManager->getMouseCoordsInternal();
-    const WORKSPACEID workspace_id = get_ws_id_from_global(mouse_coords);
-    PHLWORKSPACE cursor_workspace = g_pCompositor->getWorkspaceByID(workspace_id);
-
-    // If hovering on new, then create new
-    if (cursor_workspace == nullptr && workspace_id != WORKSPACE_INVALID) {
-        cursor_workspace = g_pCompositor->createNewWorkspace(workspace_id, cursor_monitor->ID);
-    }
-
-    // Failed to create new or hovering over dead space
-    if (cursor_workspace == nullptr)
-        return false;
-
-    cursor_monitor->changeWorkspace(cursor_workspace);
-    cursor_workspace->startAnim(true, false, true);
-    return true;
-}
-
-bool HTView::try_switch_to_original() {
+WORKSPACEID HTView::get_exit_workspace_id(bool override_hover) {
     const PHLMONITOR monitor = get_monitor();
     if (monitor == nullptr) //???
-        return false;
+        return WORKSPACE_INVALID;
 
-    PHLWORKSPACE original_ws = ori_workspace.lock();
+    auto try_get_hover_id = [this, &monitor]() {
+        const PHLMONITOR cursor_monitor = g_pCompositor->getMonitorFromCursor();
+        if (cursor_monitor != monitor)
+            return WORKSPACE_INVALID;
 
-    // If original workspace died (rip), then we go next
-    if (original_ws == nullptr)
-        return false;
+        const Vector2D mouse_coords = g_pInputManager->getMouseCoordsInternal();
+        return get_ws_id_from_global(mouse_coords);
+    };
 
-    monitor->changeWorkspace(original_ws);
-    original_ws->startAnim(true, false, true);
-    return true;
+    auto try_get_original_id = [this]() {
+        const PHLWORKSPACE workspace = ori_workspace.lock();
+        return workspace == nullptr ? WORKSPACE_INVALID : workspace->m_iID;
+    };
+
+    if (override_hover) {
+        const WORKSPACEID hover_ws_id = try_get_hover_id();
+        if (hover_ws_id != WORKSPACE_INVALID)
+            return hover_ws_id;
+    }
+
+    CVarList exit_behavior {HTConfig::exit_behavior(), 0, 's', true};
+    for (const auto& behavior : exit_behavior) {
+        WORKSPACEID switch_to_ws_id = WORKSPACE_INVALID;
+        if (behavior == "hovered") {
+            switch_to_ws_id = try_get_hover_id();
+        } else if (behavior == "original") {
+            switch_to_ws_id = try_get_original_id();
+        } else if (behavior == "interacted") {
+            switch_to_ws_id = monitor->activeWorkspaceID();
+        } else {
+            Debug::log(WARN, "[Hyprtasking] invalid behavior for exit behavior: {}", behavior);
+        }
+
+        if (switch_to_ws_id != WORKSPACE_INVALID)
+            return switch_to_ws_id;
+    }
+    return WORKSPACE_INVALID;
 }
 
 void HTView::do_exit_behavior(bool override_hover) {
-    if (override_hover && try_switch_to_hover())
+    const PHLMONITOR monitor = get_monitor();
+    if (monitor == nullptr) //???
+        return;
+    const WORKSPACEID ws_id = get_exit_workspace_id(override_hover);
+    PHLWORKSPACE workspace = g_pCompositor->getWorkspaceByID(ws_id);
+
+    if (workspace == nullptr && ws_id != WORKSPACE_INVALID)
+        workspace = g_pCompositor->createNewWorkspace(ws_id, monitor->ID);
+    if (workspace == nullptr)
         return;
 
-    CVarList exit_behavior {HTConfig::exit_behavior(), 0, 's', true};
-
-    for (const auto& behavior : exit_behavior) {
-        if (behavior == "hovered") {
-            if (try_switch_to_hover())
-                return;
-        } else if (behavior == "original") {
-            if (try_switch_to_original())
-                return;
-        } else {
-            // if inavlid string or 'interacted', then we default to last
-            // interacted this requires us to do nothing, as we will zoom into
-            // the last focused ws on the monitor
-            break;
-        }
-    }
+    monitor->changeWorkspace(workspace);
+    workspace->startAnim(true, false, true);
 }
 
 void HTView::show() {
@@ -113,9 +101,8 @@ void HTView::show() {
     active = true;
     ori_workspace = monitor->activeWorkspace;
 
-    build_overview_layout(false);
+    build_overview_layout(1);
     const HTWorkspace ws_layout = overview_layout[monitor->activeWorkspaceID()];
-
     scale = ws_layout.box.w / monitor->vecPixelSize.x; // 1 / ROWS
     offset = {0, 0};
 
@@ -135,13 +122,10 @@ void HTView::hide() {
     closing = true;
     ori_workspace.reset();
 
-    build_overview_layout(false);
-    const HTWorkspace ws_layout = overview_layout[monitor->activeWorkspaceID()];
-
-    const Vector2D GAPS = gaps();
-
+    build_overview_layout(-1);
+    const CBox ws_box = overview_layout[monitor->activeWorkspaceID()].box;
     scale = 1.;
-    offset = Vector2D {ws_layout.col, ws_layout.row} * (-GAPS - monitor->vecPixelSize) - GAPS;
+    offset = -ws_box.pos();
 
     scale.setCallbackOnEnd([this](void*) {
         active = false;
@@ -172,7 +156,7 @@ void HTView::move(std::string arg) {
     if (active_workspace == nullptr)
         return;
 
-    build_overview_layout();
+    build_overview_layout(-1);
     const HTWorkspace ws_layout = overview_layout[active_workspace->m_iID];
 
     int target_row = ws_layout.row;
@@ -187,7 +171,6 @@ void HTView::move(std::string arg) {
         target_col--;
     }
 
-    const Vector2D GAPS = gaps();
     for (const auto [id, other_layout] : overview_layout) {
         if (other_layout.row == target_row && other_layout.col == target_col) {
             PHLWORKSPACE other_workspace = g_pCompositor->getWorkspaceByID(id);
@@ -210,8 +193,7 @@ void HTView::move(std::string arg) {
 
             if (!active) {
                 navigating = true;
-                offset =
-                    (Vector2D {target_col, target_row} * (-GAPS - ws_layout.box.size()) - GAPS);
+                offset = -overview_layout[other_workspace->m_iID].box.pos();
                 offset.setCallbackOnEnd([this](void*) { navigating = false; });
             }
             break;

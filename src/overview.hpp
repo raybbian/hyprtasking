@@ -28,15 +28,16 @@ struct HTView {
     // NOTE: workspace boxes do not consider monitor scaling
     std::unordered_map<WORKSPACEID, HTWorkspace> overview_layout;
 
-    void build_overview_layout(bool use_anim_modifs = true);
+    void build_overview_layout(int override = 0);
 
     // Workspace that the overview was opened from
     PHLWORKSPACEREF ori_workspace;
 
-    bool try_switch_to_hover();
-    bool try_switch_to_original();
+    WORKSPACEID get_exit_workspace_id(bool override_hover);
 
-    Vector2D gaps();
+    // Override = -1 if not active, 0 if use anims, 1 if final, hacky but whatever
+    // NOTE: if -1 then, we calculate the boxes as if 0, 0 was the active ws
+    CBox calculate_ws_box(int x, int y, int override);
 
   public:
     HTView(MONITORID in_monitor_id);

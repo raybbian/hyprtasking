@@ -25,6 +25,14 @@ int HTConfig::rows() {
     return **PROWS;
 }
 
+int HTConfig::border_size() {
+    static long* const* PBORDER_SIZE =
+        (Hyprlang::INT* const*)
+            HyprlandAPI::getConfigValue(PHANDLE, "plugin:hyprtasking:border_size")
+                ->getDataStaticPtr();
+    return **PBORDER_SIZE;
+}
+
 std::string HTConfig::exit_behavior() {
     static auto const* PEXIT_BEHAVIOR =
         (Hyprlang::STRING const*)
