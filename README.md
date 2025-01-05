@@ -3,6 +3,7 @@
 A plugin for Hyprland that allows for complete control over your windows and workspaces.
 
 - Supports Hyprland release `v0.46.2`.
+- **IMPORTANT**: Support for Hyprland-git **HAS BEEN DROPPED** until the rendering rewrite is more mature!!
 
 https://github.com/user-attachments/assets/8d6cdfd2-2b17-4240-a117-1dbd2231ed4e
 

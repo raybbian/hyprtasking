@@ -2,7 +2,7 @@
 name = "Hyprtasking"
 authors = ["raybbian"]
 commit_pins = [
-    ["0bd541f2fd902dbfa04c3ea2ccf679395e316887", "08ea7f1aa2933f2a7ad581f9017150bcf665f332"]
+    ["0bd541f2fd902dbfa04c3ea2ccf679395e316887", "b9039bca7d92f535ed47418cca174a2b81604f79"]
 ]
 
 [hyprtasking]
