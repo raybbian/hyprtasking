@@ -80,9 +80,9 @@ CBox HTView::calculate_ws_box(int x, int y, int override) {
     const double GAP_SIZE = HTConfig::gap_size() * monitor->scale;
     const Vector2D GAPS = {GAP_SIZE, GAP_SIZE};
 
-    double render_x = monitor->vecPixelSize.x - GAPS.x * (ROWS + 1);
-    double render_y = monitor->vecPixelSize.y - GAPS.y * (ROWS + 1);
-    const double mon_aspect = monitor->vecPixelSize.x / monitor->vecPixelSize.y;
+    double render_x = monitor->vecTransformedSize.x - GAPS.x * (ROWS + 1);
+    double render_y = monitor->vecTransformedSize.y - GAPS.y * (ROWS + 1);
+    const double mon_aspect = monitor->vecTransformedSize.x / monitor->vecTransformedSize.y;
     Vector2D start_offset {};
 
     // make correct aspect ratio
@@ -100,11 +100,11 @@ CBox HTView::calculate_ws_box(int x, int y, int override) {
         use_scale = 1;
         use_offset = Vector2D {0, 0};
     } else if (override == 1) {
-        use_scale = (render_x / ROWS) / monitor->vecPixelSize.x;
+        use_scale = (render_x / ROWS) / monitor->vecTransformedSize.x;
         use_offset = Vector2D {0, 0};
     }
 
-    const Vector2D ws_sz = monitor->vecPixelSize * use_scale;
+    const Vector2D ws_sz = monitor->vecTransformedSize * use_scale;
     return CBox {Vector2D {x, y} * (ws_sz + GAPS) + GAPS + use_offset + start_offset, ws_sz};
 }
 
@@ -150,7 +150,7 @@ void HTView::render() {
 
     g_pHyprRenderer->damageMonitor(monitor);
     g_pHyprOpenGL->m_RenderData.pCurrentMonData->blurFBShouldRender = true;
-    CBox monitor_box = {{0, 0}, monitor->vecPixelSize};
+    CBox monitor_box = {{0, 0}, monitor->vecTransformedSize};
     g_pHyprOpenGL->renderRect(&monitor_box, CHyprColor {HTConfig::bg_color()}.stripA());
 
     // Do a dance with active workspaces: Hyprland will only properly render the
@@ -163,14 +163,16 @@ void HTView::render() {
 
     const WORKSPACEID exit_workspace_id = get_exit_workspace_id(false);
 
-    CBox global_mon_box = {monitor->vecPosition, monitor->vecPixelSize};
+    CBox global_mon_box = {monitor->vecPosition, monitor->vecTransformedSize};
     for (const auto& [ws_id, ws_layout] : overview_layout) {
         // Could be nullptr, in which we render only layers
         const PHLWORKSPACE workspace = g_pCompositor->getWorkspaceByID(ws_id);
 
         // renderModif translation used by renderWorkspace is weird so need
-        // to scale the translation up as well
+        // to scale the translation up as well. Geometry is also calculated from pixel size and not transformed size??
         CBox render_box = {{ws_layout.box.pos() / scale.value()}, ws_layout.box.size()};
+        if (monitor->transform % 2 == 1)
+            std::swap(render_box.w, render_box.h);
 
         // render active one last
         if (workspace == start_workspace && start_workspace != nullptr)
@@ -195,7 +197,7 @@ void HTView::render() {
                 monitor,
                 workspace,
                 &time,
-                render_box
+                render_box.round()
             );
 
             workspace->startAnim(false, false, true);
@@ -207,7 +209,7 @@ void HTView::render() {
                 monitor,
                 workspace,
                 &time,
-                render_box
+                render_box.round()
             );
         }
     }
@@ -219,7 +221,12 @@ void HTView::render() {
     // Render active workspace
     if (start_workspace != nullptr) {
         CBox ws_box = overview_layout[start_workspace->m_iID].box;
+
+        // renderModif translation used by renderWorkspace is weird so need
+        // to scale the translation up as well. Geometry is also calculated from pixel size and not transformed size??
         CBox render_box = {{ws_box.pos() / scale.value()}, ws_box.size()};
+        if (monitor->transform % 2 == 1)
+            std::swap(render_box.w, render_box.h);
 
         const CGradientValueData border_col =
             exit_workspace_id == start_workspace->m_iID ? *ACTIVECOL : *INACTIVECOL;
@@ -231,7 +238,7 @@ void HTView::render() {
             monitor,
             start_workspace,
             &time,
-            render_box
+            render_box.round()
         );
     }
 

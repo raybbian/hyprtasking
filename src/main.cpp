@@ -124,6 +124,14 @@ static void register_monitors() {
         if (ht_manager->get_view_from_monitor(monitor) != nullptr)
             continue;
         ht_manager->views.emplace_back(new HTView(monitor->ID));
+
+        Debug::log(
+            LOG,
+            "[Hyprtasking] Registering view for monitor {} with resolution {}x{}",
+            monitor->szDescription,
+            monitor->vecTransformedSize.x,
+            monitor->vecTransformedSize.y
+        );
     }
 }
 

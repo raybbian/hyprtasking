@@ -103,7 +103,7 @@ void HTView::show() {
 
     build_overview_layout(1);
     const HTWorkspace ws_layout = overview_layout[monitor->activeWorkspaceID()];
-    scale = ws_layout.box.w / monitor->vecPixelSize.x; // 1 / ROWS
+    scale = ws_layout.box.w / monitor->vecTransformedSize.x; // 1 / ROWS
     offset = {0, 0};
 
     g_pInputManager->setCursorImageUntilUnset("left_ptr");
@@ -282,7 +282,10 @@ CBox HTView::get_global_window_box(PHLWINDOW window, WORKSPACEID workspace_id) {
 }
 
 PHLMONITOR HTView::get_monitor() {
-    return g_pCompositor->getMonitorFromID(monitor_id);
+    const PHLMONITOR monitor = g_pCompositor->getMonitorFromID(monitor_id);
+    if (monitor == nullptr)
+        Debug::log(WARN, "[Hyprtasking] Returning null monitor from get_monitor!");
+    return monitor;
 }
 
 bool HTView::is_active() {
