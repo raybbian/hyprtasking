@@ -208,7 +208,7 @@ void HTView::render() {
                 monitor,
                 workspace,
                 &time,
-                render_box.round()
+                render_box
             );
 
             workspace->startAnim(false, false, true);
@@ -220,7 +220,7 @@ void HTView::render() {
                 monitor,
                 workspace,
                 &time,
-                render_box.round()
+                render_box
             );
         }
     }
@@ -249,7 +249,7 @@ void HTView::render() {
             monitor,
             start_workspace,
             &time,
-            render_box.round()
+            render_box
         );
     }
 
