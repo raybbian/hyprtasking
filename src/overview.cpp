@@ -11,7 +11,6 @@
 #include <hyprutils/math/Box.hpp>
 
 #include "config.hpp"
-#include "globals.hpp"
 
 HTView::HTView(MONITORID in_monitor_id) {
     monitor_id = in_monitor_id;
@@ -26,9 +25,18 @@ HTView::HTView(MONITORID in_monitor_id) {
     );
     scale.create(1.f, g_pConfigManager->getAnimationPropertyConfig("windowsMove"), AVARDAMAGE_NONE);
 
+    init_position();
+}
+
+void HTView::init_position() {
+    // Active workspaces will probably figure out the new config values themselves
+    if (active)
+        return;
+
     build_overview_layout(-1);
     const CBox ws_box = overview_layout[get_monitor()->activeWorkspaceID()].box;
     offset.setValueAndWarp(-ws_box.pos());
+    // scale should already be 1 if not active
 }
 
 WORKSPACEID HTView::get_exit_workspace_id(bool override_hover) {

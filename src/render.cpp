@@ -78,10 +78,21 @@ CBox HTView::calculate_ws_box(int x, int y, int override) {
 
     const int ROWS = HTConfig::rows();
     const double GAP_SIZE = HTConfig::gap_size() * monitor->scale;
-    const Vector2D GAPS = {GAP_SIZE, GAP_SIZE};
+    Vector2D gaps = {GAP_SIZE, GAP_SIZE};
 
-    double render_x = monitor->vecTransformedSize.x - GAPS.x * (ROWS + 1);
-    double render_y = monitor->vecTransformedSize.y - GAPS.y * (ROWS + 1);
+    if (GAP_SIZE > std::min(monitor->vecTransformedSize.x, monitor->vecTransformedSize.y)
+        || GAP_SIZE < 0) {
+        Debug::log(
+            ERR,
+            "[Hyprtasking] Gap size {} induces invalid render dimensions, ignoring",
+            GAP_SIZE
+        );
+
+        gaps = {0, 0};
+    }
+
+    double render_x = monitor->vecTransformedSize.x - gaps.x * (ROWS + 1);
+    double render_y = monitor->vecTransformedSize.y - gaps.y * (ROWS + 1);
     const double mon_aspect = monitor->vecTransformedSize.x / monitor->vecTransformedSize.y;
     Vector2D start_offset {};
 
@@ -105,7 +116,7 @@ CBox HTView::calculate_ws_box(int x, int y, int override) {
     }
 
     const Vector2D ws_sz = monitor->vecTransformedSize * use_scale;
-    return CBox {Vector2D {x, y} * (ws_sz + GAPS) + GAPS + use_offset + start_offset, ws_sz};
+    return CBox {Vector2D {x, y} * (ws_sz + gaps) + gaps + use_offset + start_offset, ws_sz};
 }
 
 void HTView::build_overview_layout(int override) {

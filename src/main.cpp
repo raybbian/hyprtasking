@@ -117,6 +117,14 @@ static void cancel_event(void* thisptr, SCallbackInfo& info, std::any args) {
     info.cancelled = true;
 }
 
+static void on_config_reloaded(void* thisptr, SCallbackInfo& info, std::any args) {
+    if (ht_manager == nullptr)
+        return;
+    for (PHTVIEW& view : ht_manager->views)
+        if (view != nullptr)
+            view->init_position();
+}
+
 static void register_monitors() {
     if (ht_manager == nullptr)
         return;
@@ -190,7 +198,10 @@ static void register_callbacks() {
     static auto P5 = HyprlandAPI::registerCallbackDynamic(PHANDLE, "touchUp", cancel_event);
     static auto P6 = HyprlandAPI::registerCallbackDynamic(PHANDLE, "touchMove", cancel_event);
 
-    static auto P7 = HyprlandAPI::registerCallbackDynamic(
+    static auto P7 =
+        HyprlandAPI::registerCallbackDynamic(PHANDLE, "configReloaded", on_config_reloaded);
+
+    static auto P8 = HyprlandAPI::registerCallbackDynamic(
         PHANDLE,
         "monitorAdded",
         [&](void* thisptr, SCallbackInfo& info, std::any data) { register_monitors(); }

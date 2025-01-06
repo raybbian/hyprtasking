@@ -42,6 +42,8 @@ struct HTView {
   public:
     HTView(MONITORID in_monitor_id);
 
+    void init_position();
+
     bool is_active();
     bool is_closing();
     bool is_navigating();
