@@ -66,7 +66,7 @@ static void hook_render_workspace(
     }
     const PHTVIEW view = ht_manager->get_view_from_monitor(monitor);
     if ((view != nullptr && view->is_navigating()) || ht_manager->has_active_view()) {
-        view->render();
+        view->layout->render();
     } else {
         ((render_workspace_t)(render_workspace_hook
                                   ->m_pOriginal))(thisptr, monitor, workspace, now, geometry);
@@ -120,9 +120,10 @@ static void cancel_event(void* thisptr, SCallbackInfo& info, std::any args) {
 static void on_config_reloaded(void* thisptr, SCallbackInfo& info, std::any args) {
     if (ht_manager == nullptr)
         return;
+    // re-init scale and offset for inactive views
     for (PHTVIEW& view : ht_manager->views)
-        if (view != nullptr)
-            view->init_position();
+        if (view != nullptr && !view->is_active())
+            view->layout->init_position();
 }
 
 static void register_monitors() {

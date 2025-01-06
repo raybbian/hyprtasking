@@ -18,7 +18,7 @@ void HTManager::start_window_drag() {
         return;
 
     const Vector2D mouse_coords = g_pInputManager->getMouseCoordsInternal();
-    const WORKSPACEID workspace_id = cursor_view->get_ws_id_from_global(mouse_coords);
+    const WORKSPACEID workspace_id = cursor_view->layout->get_ws_id_from_global(mouse_coords);
     PHLWORKSPACE cursor_workspace = g_pCompositor->getWorkspaceByID(workspace_id);
 
     // If left click on non-workspace workspace, do nothing
@@ -29,7 +29,7 @@ void HTManager::start_window_drag() {
     cursor_workspace->startAnim(true, false, true);
 
     const Vector2D workspace_coords =
-        cursor_view->global_to_local_ws_unscaled(mouse_coords, workspace_id)
+        cursor_view->layout->global_to_local_ws_unscaled(mouse_coords, workspace_id)
         + cursor_monitor->vecPosition;
 
     g_pPointerManager->warpTo(workspace_coords);
@@ -41,18 +41,18 @@ void HTManager::start_window_drag() {
         return;
 
     if (dragged_window->m_bDraggingTiled) {
-        const Vector2D pre_pos = cursor_view->local_ws_unscaled_to_global(
+        const Vector2D pre_pos = cursor_view->layout->local_ws_unscaled_to_global(
             dragged_window->m_vRealPosition.value() - dragged_window->m_pMonitor->vecPosition,
             workspace_id
         );
-        const Vector2D post_pos = cursor_view->local_ws_unscaled_to_global(
+        const Vector2D post_pos = cursor_view->layout->local_ws_unscaled_to_global(
             dragged_window->m_vRealPosition.goal() - dragged_window->m_pMonitor->vecPosition,
             workspace_id
         );
         const Vector2D mapped_pre_pos =
-            (pre_pos - mouse_coords) / cursor_view->scale.value() + mouse_coords;
+            (pre_pos - mouse_coords) / cursor_view->layout->drag_window_scale() + mouse_coords;
         const Vector2D mapped_post_pos =
-            (post_pos - mouse_coords) / cursor_view->scale.value() + mouse_coords;
+            (post_pos - mouse_coords) / cursor_view->layout->drag_window_scale() + mouse_coords;
 
         dragged_window->m_vRealPosition.setValueAndWarp(mapped_pre_pos);
         dragged_window->m_vRealPosition = mapped_post_pos;
@@ -68,7 +68,7 @@ void HTManager::end_window_drag() {
         return;
 
     const Vector2D mouse_coords = g_pInputManager->getMouseCoordsInternal();
-    const WORKSPACEID workspace_id = cursor_view->get_ws_id_from_global(mouse_coords);
+    const WORKSPACEID workspace_id = cursor_view->layout->get_ws_id_from_global(mouse_coords);
     PHLWORKSPACE cursor_workspace = g_pCompositor->getWorkspaceByID(workspace_id);
 
     const PHLWINDOW dragged_window = g_pInputManager->currentlyDraggedWindow.lock();
@@ -95,15 +95,15 @@ void HTManager::end_window_drag() {
     g_pCompositor->moveWindowToWorkspaceSafe(dragged_window, cursor_workspace);
 
     const Vector2D workspace_coords =
-        cursor_view->global_to_local_ws_unscaled(mouse_coords, cursor_workspace->m_iID)
+        cursor_view->layout->global_to_local_ws_unscaled(mouse_coords, cursor_workspace->m_iID)
         + cursor_monitor->vecPosition;
 
-    const Vector2D tp_pos =
-        cursor_view->global_to_local_ws_unscaled(
-            (dragged_window->m_vRealPosition.value() - mouse_coords) * cursor_view->scale.value()
-                + mouse_coords,
-            workspace_id
-        )
+    const Vector2D tp_pos = cursor_view->layout->global_to_local_ws_unscaled(
+                                (dragged_window->m_vRealPosition.value() - mouse_coords)
+                                        * cursor_view->layout->drag_window_scale()
+                                    + mouse_coords,
+                                workspace_id
+                            )
         + cursor_monitor->vecPosition;
 
     dragged_window->m_vRealPosition.setValueAndWarp(tp_pos);

@@ -11,13 +11,13 @@ HTManager::HTManager() {
     ;
 }
 
-PHTVIEW HTManager::get_view_from_monitor(PHLMONITOR pMonitor) {
-    if (pMonitor == nullptr)
+PHTVIEW HTManager::get_view_from_monitor(PHLMONITOR monitor) {
+    if (monitor == nullptr)
         return nullptr;
     for (PHTVIEW view : views) {
         if (view == nullptr)
             continue;
-        if (view->get_monitor() != pMonitor)
+        if (view->get_monitor() != monitor)
             continue;
         return view;
     }
@@ -26,6 +26,17 @@ PHTVIEW HTManager::get_view_from_monitor(PHLMONITOR pMonitor) {
 
 PHTVIEW HTManager::get_view_from_cursor() {
     return get_view_from_monitor(g_pCompositor->getMonitorFromCursor());
+}
+
+PHTVIEW HTManager::get_view_from_id(VIEWID view_id) {
+    for (PHTVIEW view : views) {
+        if (view == nullptr)
+            continue;
+        if (view->monitor_id != view_id)
+            continue;
+        return view;
+    }
+    return nullptr;
 }
 
 void HTManager::show_all_views() {

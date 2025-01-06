@@ -24,3 +24,5 @@ typedef void (*render_window_t)(
     bool ignorePosition,
     bool ignoreAllGeometry
 );
+
+typedef long VIEWID;

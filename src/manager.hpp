@@ -5,7 +5,7 @@
 
 #include "overview.hpp"
 
-struct HTManager {
+class HTManager {
   public:
     HTManager();
 
@@ -13,6 +13,7 @@ struct HTManager {
 
     PHTVIEW get_view_from_monitor(PHLMONITOR pMonitor);
     PHTVIEW get_view_from_cursor();
+    PHTVIEW get_view_from_id(VIEWID view_id);
 
     void reset();
 

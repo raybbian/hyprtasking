@@ -11,6 +11,7 @@
 #include <hyprutils/math/Box.hpp>
 
 #include "config.hpp"
+#include "layout/grid.hpp"
 
 HTView::HTView(MONITORID in_monitor_id) {
     monitor_id = in_monitor_id;
@@ -18,25 +19,7 @@ HTView::HTView(MONITORID in_monitor_id) {
     closing = false;
     navigating = false;
 
-    offset.create(
-        {0, 0},
-        g_pConfigManager->getAnimationPropertyConfig("windowsMove"),
-        AVARDAMAGE_NONE
-    );
-    scale.create(1.f, g_pConfigManager->getAnimationPropertyConfig("windowsMove"), AVARDAMAGE_NONE);
-
-    init_position();
-}
-
-void HTView::init_position() {
-    // Active workspaces will probably figure out the new config values themselves
-    if (active)
-        return;
-
-    build_overview_layout(-1);
-    const CBox ws_box = overview_layout[get_monitor()->activeWorkspaceID()].box;
-    offset.setValueAndWarp(-ws_box.pos());
-    // scale should already be 1 if not active
+    layout = makeShared<HTLayoutGrid>(monitor_id);
 }
 
 WORKSPACEID HTView::get_exit_workspace_id(bool override_hover) {
@@ -50,7 +33,7 @@ WORKSPACEID HTView::get_exit_workspace_id(bool override_hover) {
             return WORKSPACE_INVALID;
 
         const Vector2D mouse_coords = g_pInputManager->getMouseCoordsInternal();
-        return get_ws_id_from_global(mouse_coords);
+        return layout->get_ws_id_from_global(mouse_coords);
     };
 
     auto try_get_original_id = [this]() {
@@ -109,10 +92,7 @@ void HTView::show() {
     active = true;
     ori_workspace = monitor->activeWorkspace;
 
-    build_overview_layout(1);
-    const HTWorkspace ws_layout = overview_layout[monitor->activeWorkspaceID()];
-    scale = ws_layout.box.w / monitor->vecTransformedSize.x; // 1 / ROWS
-    offset = {0, 0};
+    layout->on_show();
 
     g_pInputManager->setCursorImageUntilUnset("left_ptr");
 
@@ -130,12 +110,7 @@ void HTView::hide() {
     closing = true;
     ori_workspace.reset();
 
-    build_overview_layout(-1);
-    const CBox ws_box = overview_layout[monitor->activeWorkspaceID()].box;
-    scale = 1.;
-    offset = -ws_box.pos();
-
-    scale.setCallbackOnEnd([this](void*) {
+    layout->on_hide([this](void*) {
         active = false;
         closing = false;
     });
@@ -164,23 +139,23 @@ void HTView::move(std::string arg) {
     if (active_workspace == nullptr)
         return;
 
-    build_overview_layout(-1);
-    const HTWorkspace ws_layout = overview_layout[active_workspace->m_iID];
+    layout->build_overview_layout(HT_VIEW_CLOSED);
+    const auto ws_layout = layout->overview_layout[active_workspace->m_iID];
 
-    int target_row = ws_layout.row;
-    int target_col = ws_layout.col;
+    int target_x = ws_layout.x;
+    int target_y = ws_layout.y;
     if (arg == "up") {
-        target_row--;
+        target_y--;
     } else if (arg == "down") {
-        target_row++;
+        target_y++;
     } else if (arg == "right") {
-        target_col++;
+        target_x++;
     } else if (arg == "left") {
-        target_col--;
+        target_x--;
     }
 
-    for (const auto [id, other_layout] : overview_layout) {
-        if (other_layout.row == target_row && other_layout.col == target_col) {
+    for (const auto [id, other_layout] : layout->overview_layout) {
+        if (other_layout.x == target_x && other_layout.y == target_y) {
             PHLWORKSPACE other_workspace = g_pCompositor->getWorkspaceByID(id);
             if (other_workspace == nullptr && id != WORKSPACE_INVALID)
                 other_workspace = g_pCompositor->createNewWorkspace(id, monitor->ID);
@@ -201,92 +176,11 @@ void HTView::move(std::string arg) {
 
             if (!active) {
                 navigating = true;
-                offset = -overview_layout[other_workspace->m_iID].box.pos();
-                offset.setCallbackOnEnd([this](void*) { navigating = false; });
+                layout->on_move(id, [this](void*) { navigating = false; });
             }
             break;
         }
     }
-}
-
-Vector2D HTView::global_to_local_ws_unscaled(Vector2D pos, WORKSPACEID workspace_id) {
-    const PHLMONITOR monitor = get_monitor();
-    if (monitor == nullptr || !overview_layout.count(workspace_id))
-        return {};
-    CBox workspace_box = overview_layout[workspace_id].box;
-    if (workspace_box.empty())
-        return {};
-    pos -= monitor->vecPosition;
-    pos *= monitor->scale;
-    pos -= workspace_box.pos();
-    pos /= monitor->scale;
-    pos /= scale.value();
-    return pos;
-}
-
-Vector2D HTView::global_to_local_ws_scaled(Vector2D pos, WORKSPACEID workspace_id) {
-    const PHLMONITOR monitor = get_monitor();
-    if (monitor == nullptr)
-        return {};
-    pos = global_to_local_ws_unscaled(pos, workspace_id);
-    pos *= monitor->scale;
-    return pos;
-}
-
-Vector2D HTView::local_ws_unscaled_to_global(Vector2D pos, WORKSPACEID workspace_id) {
-    const PHLMONITOR monitor = get_monitor();
-    if (monitor == nullptr || !overview_layout.count(workspace_id))
-        return {};
-    CBox workspace_box = overview_layout[workspace_id].box;
-    if (workspace_box.empty())
-        return {};
-    pos *= scale.value();
-    pos *= monitor->scale;
-    pos += workspace_box.pos();
-    pos /= monitor->scale;
-    pos += monitor->vecPosition;
-    return pos;
-}
-
-Vector2D HTView::local_ws_scaled_to_global(Vector2D pos, WORKSPACEID workspace_id) {
-    const PHLMONITOR monitor = get_monitor();
-    pos /= monitor->scale;
-    return local_ws_unscaled_to_global(pos, workspace_id);
-}
-
-WORKSPACEID HTView::get_ws_id_from_global(Vector2D pos) {
-    const PHLMONITOR monitor = get_monitor();
-    if (monitor == nullptr)
-        return WORKSPACE_INVALID;
-    if (!monitor->logicalBox().containsPoint(pos))
-        return WORKSPACE_INVALID;
-
-    Vector2D relative_pos = (pos - monitor->vecPosition) * monitor->scale;
-    for (const auto& [id, layout] : overview_layout)
-        if (layout.box.containsPoint(relative_pos))
-            return id;
-
-    return WORKSPACE_INVALID;
-}
-
-CBox HTView::get_global_window_box(PHLWINDOW window, WORKSPACEID workspace_id) {
-    const PHLMONITOR monitor = get_monitor();
-    if (monitor == nullptr || window == nullptr)
-        return {};
-    PHLWORKSPACE workspace = g_pCompositor->getWorkspaceByID(workspace_id);
-    if (workspace == nullptr || workspace->m_pMonitor != monitor)
-        return {};
-
-    CBox ws_window_box = {window->m_vRealPosition.value(), window->m_vRealSize.value()};
-
-    Vector2D top_left =
-        local_ws_unscaled_to_global(ws_window_box.pos() - monitor->vecPosition, workspace->m_iID);
-    Vector2D bottom_right = local_ws_unscaled_to_global(
-        ws_window_box.pos() + ws_window_box.size() - monitor->vecPosition,
-        workspace->m_iID
-    );
-
-    return {top_left, bottom_right - top_left};
 }
 
 PHLMONITOR HTView::get_monitor() {
