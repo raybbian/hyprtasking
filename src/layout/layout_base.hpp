@@ -42,6 +42,7 @@ class HTLayoutBase {
 
     PHLMONITOR get_monitor();
     WORKSPACEID get_ws_id_from_global(Vector2D pos);
+    WORKSPACEID get_ws_id_from_xy(int x, int y);
     CBox get_global_window_box(PHLWINDOW window, WORKSPACEID workspace_id);
 
     Vector2D global_to_local_ws_scaled(Vector2D pos, WORKSPACEID workspace_id);

@@ -153,32 +153,20 @@ void HTView::move(std::string arg) {
         target_x--;
     }
 
-    for (const auto [id, other_layout] : layout->overview_layout) {
-        if (other_layout.x == target_x && other_layout.y == target_y) {
-            PHLWORKSPACE other_workspace = g_pCompositor->getWorkspaceByID(id);
-            if (other_workspace == nullptr && id != WORKSPACE_INVALID)
-                other_workspace = g_pCompositor->createNewWorkspace(id, monitor->ID);
+    const WORKSPACEID id = layout->get_ws_id_from_xy(target_x, target_y);
+    PHLWORKSPACE other_workspace = g_pCompositor->getWorkspaceByID(id);
 
-            if (other_workspace == nullptr)
-                break;
+    if (other_workspace == nullptr && id != WORKSPACE_INVALID)
+        other_workspace = g_pCompositor->createNewWorkspace(id, monitor->ID);
+    if (other_workspace == nullptr)
+        return;
 
-            monitor->changeWorkspace(other_workspace);
-            other_workspace->m_vRenderOffset.warp();
+    monitor->changeWorkspace(other_workspace);
+    other_workspace->m_vRenderOffset.warp();
 
-            const Vector2D mouse_coords = g_pInputManager->getMouseCoordsInternal();
-            const PHLWINDOW hovered_window = g_pCompositor->vectorToWindowUnified(
-                mouse_coords,
-                RESERVED_EXTENTS | INPUT_EXTENTS | ALLOW_FLOATING
-            );
-            if (hovered_window)
-                g_pCompositor->focusWindow(hovered_window);
-
-            if (!active) {
-                navigating = true;
-                layout->on_move(id, [this](void*) { navigating = false; });
-            }
-            break;
-        }
+    if (!active) {
+        navigating = true;
+        layout->on_move(id, [this](void*) { navigating = false; });
     }
 }
 

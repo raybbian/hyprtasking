@@ -60,6 +60,14 @@ WORKSPACEID HTLayoutBase::get_ws_id_from_global(Vector2D pos) {
     return WORKSPACE_INVALID;
 }
 
+WORKSPACEID HTLayoutBase::get_ws_id_from_xy(int x, int y) {
+    for (const auto& [id, layout] : overview_layout)
+        if (layout.x == x && layout.y == y)
+            return id;
+
+    return WORKSPACE_INVALID;
+}
+
 CBox HTLayoutBase::get_global_window_box(PHLWINDOW window, WORKSPACEID workspace_id) {
     if (window == nullptr)
         return {};
