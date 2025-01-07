@@ -15,6 +15,8 @@ class HTManager {
     PHTVIEW get_view_from_cursor();
     PHTVIEW get_view_from_id(VIEWID view_id);
 
+    PHLWINDOW get_window_from_cursor();
+
     void reset();
 
     void show_all_views();
@@ -24,7 +26,6 @@ class HTManager {
     void start_window_drag();
     void end_window_drag();
     void exit_to_workspace();
-    // void on_mouse_button(bool pressed, uint32_t button);
     void on_mouse_move();
 
     bool has_active_view();

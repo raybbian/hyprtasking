@@ -78,6 +78,7 @@ Example below:
 ```
 bind = $mainMod, tab, hyprtasking:toggle, all
 bind = $mainMod, space, hyprtasking:toggle, cursor
+bind = $mainMod, x, hyprtasking:killhovered
 
 bind = $mainMod, h, hyprtasking:move, left
 bind = $mainMod, j, hyprtasking:move, down
@@ -108,6 +109,10 @@ plugin {
 
 - `hyprtasking:move, ARG` takes in 1 argument that is one of `up`, `down`, `left`, `right`
     - when dispatched, hyprtasking will switch workspaces with a nice animation
+
+- `hyprtasking:killhovered` behaves similarly to the standard `killactive` dispatcher with focus on hover
+    - when dispatched, hyprtasking will the currently hovered window, useful when the overview is active.
+    - this dispatcher is designed to **replace** killactive, it will work even when the overview is **not active**.
 
 ### Config Options
 

@@ -5,6 +5,7 @@
 #include <hyprland/src/SharedDefs.hpp>
 #include <hyprland/src/desktop/DesktopTypes.hpp>
 #include <hyprland/src/devices/IKeyboard.hpp>
+#include <hyprland/src/macros.hpp>
 #include <hyprland/src/managers/KeybindManager.hpp>
 #include <hyprland/src/managers/LayoutManager.hpp>
 #include <hyprland/src/managers/PointerManager.hpp>
@@ -47,8 +48,16 @@ static SDispatchResult dispatch_move(std::string arg) {
     if (ht_manager == nullptr)
         return {};
     const PHTVIEW cursor_view = ht_manager->get_view_from_cursor();
-    if (cursor_view)
+    if (cursor_view != nullptr)
         cursor_view->move(arg);
+    return {};
+}
+
+static SDispatchResult dispatch_kill_hover(std::string arg) {
+    if (ht_manager == nullptr)
+        return {};
+    const PHLWINDOW hovered_window = ht_manager->get_window_from_cursor();
+    g_pCompositor->closeWindow(hovered_window);
     return {};
 }
 
@@ -216,6 +225,7 @@ static void register_callbacks() {
 static void add_dispatchers() {
     HyprlandAPI::addDispatcher(PHANDLE, "hyprtasking:toggle", dispatch_toggle_view);
     HyprlandAPI::addDispatcher(PHANDLE, "hyprtasking:move", dispatch_move);
+    HyprlandAPI::addDispatcher(PHANDLE, "hyprtasking:killhovered", dispatch_kill_hover);
 }
 
 static void init_config() {
