@@ -130,9 +130,13 @@ static void register_monitors() {
     if (ht_manager == nullptr)
         return;
     for (const PHLMONITOR& monitor : g_pCompositor->m_vMonitors) {
-        if (ht_manager->get_view_from_monitor(monitor) != nullptr)
+        const PHTVIEW view = ht_manager->get_view_from_monitor(monitor);
+        if (view != nullptr) {
+            if (!view->is_active())
+                view->layout->init_position();
             continue;
-        ht_manager->views.emplace_back(new HTView(monitor->ID));
+        }
+        ht_manager->views.push_back(makeShared<HTView>(monitor->ID));
 
         Debug::log(
             LOG,

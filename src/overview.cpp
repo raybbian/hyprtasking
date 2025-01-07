@@ -22,7 +22,7 @@ HTView::HTView(MONITORID in_monitor_id) {
     layout = makeShared<HTLayoutGrid>(monitor_id);
 }
 
-WORKSPACEID HTView::get_exit_workspace_id(bool override_hover) {
+WORKSPACEID HTView::get_exit_workspace_id(bool exit_on_mouse) {
     const PHLMONITOR monitor = get_monitor();
     if (monitor == nullptr) //???
         return WORKSPACE_INVALID;
@@ -41,7 +41,7 @@ WORKSPACEID HTView::get_exit_workspace_id(bool override_hover) {
         return workspace == nullptr ? WORKSPACE_INVALID : workspace->m_iID;
     };
 
-    if (override_hover) {
+    if (exit_on_mouse) {
         const WORKSPACEID hover_ws_id = try_get_hover_id();
         if (hover_ws_id != WORKSPACE_INVALID)
             return hover_ws_id;
@@ -66,11 +66,11 @@ WORKSPACEID HTView::get_exit_workspace_id(bool override_hover) {
     return WORKSPACE_INVALID;
 }
 
-void HTView::do_exit_behavior(bool override_hover) {
+void HTView::do_exit_behavior(bool exit_on_mouse) {
     const PHLMONITOR monitor = get_monitor();
     if (monitor == nullptr) //???
         return;
-    const WORKSPACEID ws_id = get_exit_workspace_id(override_hover);
+    const WORKSPACEID ws_id = get_exit_workspace_id(exit_on_mouse);
     PHLWORKSPACE workspace = g_pCompositor->getWorkspaceByID(ws_id);
 
     if (workspace == nullptr && ws_id != WORKSPACE_INVALID)
@@ -79,7 +79,12 @@ void HTView::do_exit_behavior(bool override_hover) {
         return;
 
     monitor->changeWorkspace(workspace);
-    workspace->startAnim(true, false, true);
+    workspace->m_vRenderOffset.warp();
+
+    // For some reason, this line fixes a bug that happens when you open the overview on one
+    // monitor, drag it to another monitor, drag it back to the open overview, and then try to
+    // exit or move to a different workspace containing windows (which fails).
+    monitor->activeWorkspace = workspace;
 }
 
 void HTView::show() {
@@ -100,12 +105,14 @@ void HTView::show() {
     g_pCompositor->scheduleFrameForMonitor(monitor);
 }
 
-void HTView::hide() {
+void HTView::hide(bool exit_on_mouse) {
     if (closing || !active)
         return;
     const PHLMONITOR monitor = get_monitor();
     if (monitor == nullptr)
         return;
+
+    do_exit_behavior(exit_on_mouse);
 
     closing = true;
     ori_workspace.reset();
@@ -114,14 +121,6 @@ void HTView::hide() {
         active = false;
         closing = false;
     });
-
-    const Vector2D mouse_coords = g_pInputManager->getMouseCoordsInternal();
-    const PHLWINDOW hovered_window = g_pCompositor->vectorToWindowUnified(
-        mouse_coords,
-        RESERVED_EXTENTS | INPUT_EXTENTS | ALLOW_FLOATING
-    );
-    if (hovered_window)
-        g_pCompositor->focusWindow(hovered_window);
 
     g_pInputManager->unsetCursorImage();
 
@@ -164,7 +163,7 @@ void HTView::move(std::string arg) {
                 break;
 
             monitor->changeWorkspace(other_workspace);
-            other_workspace->startAnim(true, false, true);
+            other_workspace->m_vRenderOffset.warp();
 
             const Vector2D mouse_coords = g_pInputManager->getMouseCoordsInternal();
             const PHLWINDOW hovered_window = g_pCompositor->vectorToWindowUnified(

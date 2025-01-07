@@ -25,8 +25,7 @@ void HTManager::start_window_drag() {
     if (cursor_workspace == nullptr)
         return;
 
-    cursor_monitor->changeWorkspace(cursor_workspace);
-    cursor_workspace->startAnim(true, false, true);
+    cursor_monitor->changeWorkspace(cursor_workspace, true);
 
     const Vector2D workspace_coords =
         cursor_view->layout->global_to_local_ws_unscaled(mouse_coords, workspace_id)
@@ -64,8 +63,10 @@ void HTManager::start_window_drag() {
 void HTManager::end_window_drag() {
     const PHLMONITOR cursor_monitor = g_pCompositor->getMonitorFromCursor();
     const PHTVIEW cursor_view = get_view_from_monitor(cursor_monitor);
-    if (cursor_monitor == nullptr || cursor_view == nullptr)
+    if (cursor_monitor == nullptr || cursor_view == nullptr || !cursor_view->is_active()) {
+        g_pKeybindManager->changeMouseBindMode(MBIND_INVALID);
         return;
+    }
 
     const Vector2D mouse_coords = g_pInputManager->getMouseCoordsInternal();
     const WORKSPACEID workspace_id = cursor_view->layout->get_ws_id_from_global(mouse_coords);
@@ -81,16 +82,16 @@ void HTManager::end_window_drag() {
     if (cursor_workspace == nullptr && workspace_id != WORKSPACE_INVALID) {
         cursor_workspace = g_pCompositor->createNewWorkspace(workspace_id, cursor_monitor->ID);
     } else if (workspace_id == WORKSPACE_INVALID) {
-        cursor_workspace = dragged_window->m_pWorkspace;
-    }
-
-    if (cursor_workspace != nullptr) {
-        cursor_monitor->changeWorkspace(cursor_workspace);
-        cursor_workspace->startAnim(true, false, true);
-    } else {
-        // TODO: drop on invalid behavior?
         cursor_workspace = cursor_monitor->activeWorkspace;
     }
+
+    if (cursor_workspace == nullptr) {
+        Debug::log(LOG, "[Hyprtasking] tried to drop on null workspace??");
+        g_pKeybindManager->changeMouseBindMode(MBIND_INVALID);
+        return;
+    }
+
+    cursor_monitor->changeWorkspace(cursor_workspace, true);
 
     g_pCompositor->moveWindowToWorkspaceSafe(dragged_window, cursor_workspace);
 
@@ -102,7 +103,7 @@ void HTManager::end_window_drag() {
                                 (dragged_window->m_vRealPosition.value() - mouse_coords)
                                         * cursor_view->layout->drag_window_scale()
                                     + mouse_coords,
-                                workspace_id
+                                cursor_workspace->m_iID
                             )
         + cursor_monitor->vecPosition;
 
@@ -121,9 +122,7 @@ void HTManager::exit_to_workspace() {
     for (PHTVIEW view : views) {
         if (view == nullptr)
             continue;
-        // Prefer hover over anything else if we close with click
-        view->do_exit_behavior(true);
-        view->hide();
+        view->hide(true);
     }
 }
 

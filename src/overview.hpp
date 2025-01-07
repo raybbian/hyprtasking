@@ -28,7 +28,8 @@ class HTView {
 
     SP<HTLayoutBase> layout;
 
-    WORKSPACEID get_exit_workspace_id(bool override_hover);
+    WORKSPACEID get_exit_workspace_id(bool exit_on_mouse);
+    void do_exit_behavior(bool exit_on_mouse);
 
     bool is_active();
     bool is_closing();
@@ -37,14 +38,10 @@ class HTView {
     PHLMONITOR get_monitor();
 
     void show();
-    void hide();
+    void hide(bool exit_on_mouse);
 
     // arg is up, down, left, right;
     void move(std::string arg);
-
-    // Use to switch to the proper workspace depending on behavior before
-    // exiting. If override_hover, we pref hover first over all else
-    void do_exit_behavior(bool override_hover = false);
 };
 
 typedef SP<HTView> PHTVIEW;

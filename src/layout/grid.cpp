@@ -27,10 +27,7 @@ HTLayoutGrid::HTLayoutGrid(VIEWID new_view_id) : HTLayoutBase(new_view_id) {
 }
 
 void HTLayoutGrid::on_show(std::function<void(void* thisptr)> on_complete) {
-    const PHTVIEW par_view = ht_manager->get_view_from_id(view_id);
-    if (par_view == nullptr)
-        return;
-    const PHLMONITOR monitor = par_view->get_monitor();
+    const PHLMONITOR monitor = get_monitor();
     if (monitor == nullptr)
         return;
 
@@ -44,10 +41,7 @@ void HTLayoutGrid::on_show(std::function<void(void* thisptr)> on_complete) {
 }
 
 void HTLayoutGrid::on_hide(std::function<void(void* thisptr)> on_complete) {
-    const PHTVIEW par_view = ht_manager->get_view_from_id(view_id);
-    if (par_view == nullptr)
-        return;
-    const PHLMONITOR monitor = par_view->get_monitor();
+    const PHLMONITOR monitor = get_monitor();
     if (monitor == nullptr)
         return;
 
@@ -73,10 +67,7 @@ float HTLayoutGrid::drag_window_scale() {
 }
 
 void HTLayoutGrid::init_position() {
-    const PHTVIEW par_view = ht_manager->get_view_from_id(view_id);
-    if (par_view == nullptr)
-        return;
-    const PHLMONITOR monitor = par_view->get_monitor();
+    const PHLMONITOR monitor = get_monitor();
     if (monitor == nullptr)
         return;
 

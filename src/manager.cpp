@@ -6,6 +6,7 @@
 #include <hyprland/src/managers/input/InputManager.hpp>
 
 #include "overview.hpp"
+#include "src/managers/KeybindManager.hpp"
 
 HTManager::HTManager() {
     ;
@@ -51,8 +52,7 @@ void HTManager::hide_all_views() {
     for (PHTVIEW view : views) {
         if (view == nullptr)
             continue;
-        view->do_exit_behavior();
-        view->hide();
+        view->hide(false);
     }
 }
 

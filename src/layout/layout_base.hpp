@@ -14,13 +14,6 @@ enum HTViewStage {
     HT_VIEW_CLOSED,
 };
 
-enum HTMoveDirection {
-    HT_DIR_UP,
-    HT_DIR_DOWN,
-    HT_DIR_LEFT,
-    HT_DIR_RIGHT,
-};
-
 class HTLayoutBase {
   protected:
     VIEWID view_id;
