@@ -18,15 +18,19 @@ class HTView {
     bool active;
     bool navigating;
 
-    // Workspace that the overview was opened from
-    PHLWORKSPACEREF ori_workspace;
-
   public:
     HTView(MONITORID in_monitor_id);
+
+    void change_layout(const std::string& layout_name);
 
     MONITORID monitor_id;
 
     SP<HTLayoutBase> layout;
+
+    // Workspace that the overview was opened from
+    PHLWORKSPACEREF ori_workspace;
+    // Workspace that the overview last interacted with
+    PHLWORKSPACEREF act_workspace;
 
     WORKSPACEID get_exit_workspace_id(bool exit_on_mouse);
     void do_exit_behavior(bool exit_on_mouse);

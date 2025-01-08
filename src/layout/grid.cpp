@@ -26,6 +26,10 @@ HTLayoutGrid::HTLayoutGrid(VIEWID new_view_id) : HTLayoutBase(new_view_id) {
     init_position();
 }
 
+std::string HTLayoutGrid::layout_name() {
+    return "grid";
+}
+
 void HTLayoutGrid::on_show(std::function<void(void* thisptr)> on_complete) {
     const PHLMONITOR monitor = get_monitor();
     if (monitor == nullptr)
@@ -54,12 +58,42 @@ void HTLayoutGrid::on_hide(std::function<void(void* thisptr)> on_complete) {
         offset.setCallbackOnEnd(on_complete);
 }
 
-void HTLayoutGrid::on_move(WORKSPACEID ws_id, std::function<void(void* thisptr)> on_complete) {
-    // NOTE: parent function called build_overview_layout, and this is only allowed when scale = 1
-    offset = -overview_layout[ws_id].box.pos();
+void HTLayoutGrid::on_move(
+    WORKSPACEID old_id,
+    WORKSPACEID new_id,
+    std::function<void(void* thisptr)> on_complete
+) {
+    // prevent the thing from animating
+    g_pCompositor->getWorkspaceByID(old_id)->m_vRenderOffset.warp();
+    g_pCompositor->getWorkspaceByID(new_id)->m_vRenderOffset.warp();
 
+    build_overview_layout(HT_VIEW_CLOSED);
+    offset = -overview_layout[new_id].box.pos();
     if (on_complete != nullptr)
         offset.setCallbackOnEnd(on_complete);
+}
+
+bool HTLayoutGrid::should_render_window(PHLWINDOW window) {
+    bool ori_result = HTLayoutBase::should_render_window(window);
+
+    const PHLMONITOR monitor = get_monitor();
+    if (window == nullptr || monitor == nullptr)
+        return ori_result;
+
+    if (window == g_pInputManager->currentlyDraggedWindow.lock())
+        return false;
+
+    PHLWORKSPACE workspace = window->m_pWorkspace;
+    if (workspace == nullptr)
+        return false;
+
+    CBox window_box = get_global_window_box(window, window->workspaceID());
+    if (window_box.empty())
+        return false;
+    if (window_box.intersection(monitor->logicalBox()).empty())
+        return false;
+
+    return ori_result;
 }
 
 float HTLayoutGrid::drag_window_scale() {
@@ -82,19 +116,13 @@ CBox HTLayoutGrid::calculate_ws_box(int x, int y, HTViewStage stage) {
     if (monitor == nullptr)
         return {};
 
-    const int ROWS = HTConfig::rows();
+    const int ROWS = HTConfig::grid_rows();
     const double GAP_SIZE = HTConfig::gap_size() * monitor->scale;
-    Vector2D gaps = {GAP_SIZE, GAP_SIZE};
+    const Vector2D gaps = {GAP_SIZE, GAP_SIZE};
 
     if (GAP_SIZE > std::min(monitor->vecTransformedSize.x, monitor->vecTransformedSize.y)
-        || GAP_SIZE < 0) {
-        Debug::log(
-            ERR,
-            "[Hyprtasking] Gap size {} induces invalid render dimensions, ignoring",
-            GAP_SIZE
-        );
-        gaps = {0, 0};
-    }
+        || GAP_SIZE < 0)
+        fail_exit("Gap size {} induces invalid render dimensions", GAP_SIZE);
 
     double render_x = monitor->vecTransformedSize.x - gaps.x * (ROWS + 1);
     double render_y = monitor->vecTransformedSize.y - gaps.y * (ROWS + 1);
@@ -129,7 +157,7 @@ void HTLayoutGrid::build_overview_layout(HTViewStage stage) {
     if (monitor == nullptr)
         return;
 
-    const int ROWS = HTConfig::rows();
+    const int ROWS = HTConfig::grid_rows();
 
     const PHLMONITOR last_monitor = g_pCompositor->m_pLastMonitor.lock();
     g_pCompositor->setActiveMonitor(monitor);

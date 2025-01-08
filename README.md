@@ -1,24 +1,24 @@
-# Hyprtasking
+<div align="center">
+  <h1>Hyprtasking</h1>
+  <p>Powerful workspace management plugin, packed with features.</p>
+</div>
 
-A plugin for Hyprland that allows for complete control over your windows and workspaces.
-
-- Supports Hyprland release `v0.46.2`.
-- Support for Hyprland-git **HAS BEEN DROPPED** until the rendering rewrite is more mature!! If you'd still like to use it, build from the `git-archive` branch.
+> [!Important]
+> - Supports Hyprland release `v0.46.2`.
+> - Support for Hyprland-git **HAS BEEN DROPPED** until the rendering rewrite is more mature!! If you'd still like to use it, build from the `git-archive` branch.
 
 https://github.com/user-attachments/assets/8d6cdfd2-2b17-4240-a117-1dbd2231ed4e
 
-> This plugin's current workflow is very similar to that of [hyprexpo](https://github.com/hyprwm/hyprland-plugins/tree/main/hyprexpo). Check it out if you'd like something more polished and performant.
+#### [Jump To Installation](#Installation)
 
-### [Jump To Installation](#Installation)
-
-### [See Configuration](#Configuration)
-
-## Plugin Compatibility
-
-- No clue, open an issue if something goes wrong
+#### [See Configuration](#Configuration)
 
 ## Roadmap
 
+- [ ] Modular Layouts
+    - [x] Grid layout
+    - [x] Linear layout
+    - [ ] Minimap layout
 - [x] Mouse controls
     - [x] Exit into workspace (hover, click)
     - [x] Drag and drop windows
@@ -28,10 +28,10 @@ https://github.com/user-attachments/assets/8d6cdfd2-2b17-4240-a117-1dbd2231ed4e
 - [x] Multi-monitor support (tested)
 - [x] Monitor scaling support (tested)
 - [x] Animation support
-- [ ] Configurability
+- [x] Configurability
     - [x] Overview exit behavior
     - [x] Number of visible workspaces
-    - [ ] Custom workspace layouts
+    - [x] Custom workspace layouts
     - [x] Toggle behavior
     - [x] Toggle keybind
 - [ ] Touch and gesture support
@@ -76,25 +76,33 @@ Then use `hyprctl plugin load` to load the absolute path to the `.so` file.
 Example below:
 
 ```
-bind = $mainMod, tab, hyprtasking:toggle, all
-bind = $mainMod, space, hyprtasking:toggle, cursor
-bind = $mainMod, x, hyprtasking:killhovered
+bind = $mainMod, tab, hyprtasking:toggle, cursor
+bind = $mainMod, space, hyprtasking:toggle, all
 
-bind = $mainMod, h, hyprtasking:move, left
-bind = $mainMod, j, hyprtasking:move, down
-bind = $mainMod, k, hyprtasking:move, up
-bind = $mainMod, l, hyprtasking:move, right
+bind = $mainMod, X, hyprtasking:killhovered
+
+bind = $mainMod, H, hyprtasking:move, left
+bind = $mainMod, J, hyprtasking:move, down
+bind = $mainMod, K, hyprtasking:move, up
+bind = $mainMod, L, hyprtasking:move, right
 
 plugin {
     hyprtasking {
-        rows = 3
-        exit_behavior = original hovered interacted
-        gap_size = 8
-        bg_color = $love
+        layout = linear
+
+        gap_size = 20
+        bg_color = $overlay
         border_size = 4
+        exit_behavior = active hovered interacted original
+
+        gaps {
+            rows = 3
+        }
+        linear {
+            height = 300
+        }
     }
 }
-
 ```
 
 ### Dispatchers
@@ -116,7 +124,7 @@ plugin {
 
 ### Config Options
 
-- `plugin:hyprtasking:rows` (int): The number of rows (and columns) of workspaces to show
+- `plugin:hyprtasking:layout` (str): The layout to use. This is either `'grid'` or `'layout'`.
 
 - `plugin:hyprtasking:gap_size` (int): The width (logical pixels) of the vertical gaps between workspaces
 
@@ -124,9 +132,17 @@ plugin {
 
 - `plugin:hyprtasking:border_size` (int): The width (logical pixels) of the borders around workspaces
 
-- `plugin:hyprtasking:exit_behavior` (str): A space-separated list of `{'hovered', 'interacted', 'original'}`
+- `plugin:hyprtasking:exit_behavior` (str): A space-separated list of `{'hovered', 'active', interacted', 'original'}`
     - When an overview is about to hide, hyprtasking will evaluate these strings in order
         - If the string is `'hovered'`, hyprtasking will attempt to switch to the hovered workspace
-        - If the string is `'interacted'`, hyprtasking will attempt to switch to the last interacted workspace (window drag/drop, overview show/hide)
+        - If the string is `'interacted'`, hyprtasking will attempt to switch to the last interacted workspace (window drag/drop)
         - If the string is `'original'`, hyprtasking will attempt to switch to the workspace in which the overview was shown initially
-    - If hyprtasking fails to do any of the above, it will move to the next string in the list
+        - (Fallback) If the string is `'active'`, hyprtasking will switch to the monitor's active workspace.
+
+#### Grid Layout
+
+- `plugin:hyprtasking:grid:rows` (int): The number of rows (and columns) of workspaces to show
+
+#### Linear Layout
+
+- `plugin:hyprtasking:linear:height` (int): The height of the workspace try in logical pixels.

@@ -51,22 +51,3 @@ void render_window_at_box(PHLWINDOW window, PHLMONITOR monitor, timespec* time, 
     g_pHyprOpenGL->m_RenderData.renderModif.modifs.pop_back();
     g_pHyprOpenGL->m_RenderData.renderModif.modifs.pop_back();
 }
-
-bool HTManager::should_render_window(PHLWINDOW window, PHLMONITOR monitor) {
-    if (window == nullptr || monitor == nullptr)
-        return false;
-
-    if (window == g_pInputManager->currentlyDraggedWindow.lock())
-        return false;
-
-    PHLWORKSPACE workspace = window->m_pWorkspace;
-    PHTVIEW view = get_view_from_monitor(monitor);
-    if (workspace == nullptr || view == nullptr)
-        return false;
-
-    CBox window_box = view->layout->get_global_window_box(window, window->workspaceID());
-    if (window_box.empty())
-        return false;
-
-    return !window_box.intersection(monitor->logicalBox()).empty();
-}

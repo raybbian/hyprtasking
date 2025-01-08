@@ -18,6 +18,7 @@
 #include <hyprutils/math/Box.hpp>
 #include <hyprutils/math/Vector2D.hpp>
 
+#include "config.hpp"
 #include "globals.hpp"
 #include "overview.hpp"
 #include "types.hpp"
@@ -90,32 +91,34 @@ static bool hook_should_render_window(void* thisptr, PHLWINDOW window, PHLMONITO
     );
     if (ht_manager == nullptr || !ht_manager->has_active_view())
         return ori_result;
-    // We deny when the window is the dragged window, or if the window on the overview's box doesn't intersect the monitor
-    if (!ht_manager->should_render_window(window, monitor))
-        return false;
-    return ori_result;
+    const PHTVIEW view = ht_manager->get_view_from_monitor(monitor);
+    if (view == nullptr)
+        return ori_result;
+    return view->layout->should_render_window(window);
 }
 
 static void on_mouse_button(void* thisptr, SCallbackInfo& info, std::any args) {
     if (ht_manager == nullptr)
         return;
-    if (ht_manager->cursor_view_active())
-        info.cancelled = true;
+
+    const PHTVIEW cursor_view = ht_manager->get_view_from_cursor();
+    if (cursor_view == nullptr)
+        return;
 
     const auto e = std::any_cast<IPointer::SButtonEvent>(args);
     const bool pressed = e.state == WL_POINTER_BUTTON_STATE_PRESSED;
 
-    if (pressed && e.button == BTN_LEFT && ht_manager->cursor_view_active()) {
-        ht_manager->start_window_drag();
+    if (pressed && e.button == BTN_LEFT) {
+        info.cancelled = ht_manager->start_window_drag();
     } else if (!pressed && e.button == BTN_LEFT) {
-        ht_manager->end_window_drag();
-    } else if (pressed && e.button == BTN_RIGHT && ht_manager->cursor_view_active()) {
-        ht_manager->exit_to_workspace();
+        info.cancelled = ht_manager->end_window_drag();
+    } else if (pressed && e.button == BTN_RIGHT) {
+        info.cancelled = ht_manager->exit_to_workspace();
     }
 }
 
 static void on_mouse_move(void* thisptr, SCallbackInfo& info, std::any args) {
-    if (ht_manager == nullptr || !ht_manager->cursor_view_active())
+    if (ht_manager == nullptr)
         return;
     ht_manager->on_mouse_move();
 }
@@ -126,13 +129,20 @@ static void cancel_event(void* thisptr, SCallbackInfo& info, std::any args) {
     info.cancelled = true;
 }
 
-static void on_config_reloaded(void* thisptr, SCallbackInfo& info, std::any args) {
-    if (ht_manager == nullptr)
-        return;
-    // re-init scale and offset for inactive views
-    for (PHTVIEW& view : ht_manager->views)
-        if (view != nullptr && !view->is_active())
-            view->layout->init_position();
+static void notify_config_changes() {
+    static long* const* PROWS =
+        (Hyprlang::INT* const*)HyprlandAPI::getConfigValue(PHANDLE, "plugin:hyprtasking:rows")
+            ->getDataStaticPtr();
+    const int ROWS = **PROWS;
+
+    if (ROWS != -1) {
+        HyprlandAPI::addNotification(
+            PHANDLE,
+            "[Hyprtasking] plugin:hyprtasking:rows has moved to plugin:hyprtasking:grid:rows in the config.",
+            CHyprColor {1.0, 0.2, 0.2, 1.0},
+            20000
+        );
+    }
 }
 
 static void register_monitors() {
@@ -157,23 +167,29 @@ static void register_monitors() {
     }
 }
 
-static void fail_notification(const std::string& reason) {
-    HyprlandAPI::addNotification(
-        PHANDLE,
-        "[Hyprtasking] " + reason,
-        CHyprColor {1.0, 0.2, 0.2, 1.0},
-        5000
-    );
+static void on_config_reloaded(void* thisptr, SCallbackInfo& info, std::any args) {
+    notify_config_changes();
+
+    if (ht_manager == nullptr)
+        return;
+
+    // re-init scale and offset for inactive views, change layout if changed
+    for (PHTVIEW& view : ht_manager->views) {
+        if (view == nullptr)
+            continue;
+        view->hide(false);
+        view->change_layout(HTConfig::layout());
+        if (!view->is_active())
+            view->layout->init_position();
+    }
 }
 
 static void init_functions() {
     bool success = true;
 
     static auto FNS1 = HyprlandAPI::findFunctionsByName(PHANDLE, "renderWorkspace");
-    if (FNS1.empty()) {
-        fail_notification("No renderWorkspace!");
-        throw std::runtime_error("[Hyprtasking] No renderWorkspace");
-    }
+    if (FNS1.empty())
+        fail_exit("No renderWorkspace!");
     render_workspace_hook =
         HyprlandAPI::createFunctionHook(PHANDLE, FNS1[0].address, (void*)hook_render_workspace);
     Debug::log(LOG, "[Hyprtasking] Attempting hook {}", FNS1[0].signature);
@@ -184,22 +200,20 @@ static void init_functions() {
         "_ZN13CHyprRenderer18shouldRenderWindowEN9Hyprutils6Memory14CS"
         "haredPointerI7CWindowEENS2_I8CMonitorEE"
     );
+    if (FNS2.empty())
+        fail_exit("No shouldRenderWindow");
     should_render_window_hook =
         HyprlandAPI::createFunctionHook(PHANDLE, FNS2[0].address, (void*)hook_should_render_window);
     Debug::log(LOG, "[Hyprtasking] Attempting hook {}", FNS2[0].signature);
     success = should_render_window_hook->hook() && success;
 
     static auto FNS3 = HyprlandAPI::findFunctionsByName(PHANDLE, "renderWindow");
-    if (FNS3.empty()) {
-        fail_notification("No renderWindow");
-        throw std::runtime_error("[Hyprtasking] No renderWindow");
-    }
+    if (FNS3.empty())
+        fail_exit("No renderWindow");
     render_window = FNS3[0].address;
 
-    if (!success) {
-        fail_notification("Failed initializing hooks");
-        throw std::runtime_error("[Hyprtasking] Failed initializing hooks");
-    }
+    if (!success)
+        fail_exit("Failed initializing hooks");
 }
 
 static void register_callbacks() {
@@ -229,16 +243,23 @@ static void add_dispatchers() {
 }
 
 static void init_config() {
-    HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprtasking:rows", Hyprlang::INT {3});
+    HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprtasking:layout", Hyprlang::STRING {"grid"});
+
     HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprtasking:gap_size", Hyprlang::INT {8});
     HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprtasking:bg_color", Hyprlang::INT {0x000000FF});
     HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprtasking:border_size", Hyprlang::INT {4});
-
     HyprlandAPI::addConfigValue(
         PHANDLE,
         "plugin:hyprtasking:exit_behavior",
-        Hyprlang::STRING {"hovered interacted original"}
+        Hyprlang::STRING {"active hovered interacted original"}
     );
+
+    HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprtasking:grid:rows", Hyprlang::INT {3});
+    HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprtasking:linear:height", Hyprlang::INT {300});
+
+    // Old config value, warning about updates
+    HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprtasking:rows", Hyprlang::INT {-1});
+
     HyprlandAPI::reloadConfig();
 }
 
@@ -247,10 +268,8 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
 
     const std::string HASH = __hyprland_api_get_hash();
 
-    if (HASH != GIT_COMMIT_HASH) {
-        fail_notification("Mismatched headers! Can't proceed.");
-        throw std::runtime_error("[Hyprtasking] Version mismatch");
-    }
+    if (HASH != GIT_COMMIT_HASH)
+        fail_exit("Mismatched headers! Can't proceed.");
 
     if (ht_manager == nullptr)
         ht_manager = std::make_unique<HTManager>();
@@ -265,7 +284,7 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
 
     Debug::log(LOG, "[Hyprtasking] Plugin initialized");
 
-    return {"Hyprtasking", "A workspace management plugin", "raybbian", "1.0"};
+    return {"Hyprtasking", "A workspace management plugin", "raybbian", "0.1"};
 }
 
 APICALL EXPORT void PLUGIN_EXIT() {

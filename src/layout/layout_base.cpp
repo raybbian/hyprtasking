@@ -2,8 +2,10 @@
 
 #include <hyprland/src/config/ConfigManager.hpp>
 #include <hyprland/src/desktop/DesktopTypes.hpp>
+#include <hyprland/src/render/Renderer.hpp>
 
 #include "../globals.hpp"
+#include "../types.hpp"
 
 HTLayoutBase::HTLayoutBase(VIEWID new_view_id) : view_id(new_view_id) {
     ;
@@ -17,8 +19,28 @@ void HTLayoutBase::on_hide(std::function<void(void* thisptr)> on_complete) {
     ;
 }
 
-void HTLayoutBase::on_move(WORKSPACEID ws_id, std::function<void(void* thisptr)> on_complete) {
+void HTLayoutBase::on_move(
+    WORKSPACEID old_id,
+    WORKSPACEID new_id,
+    std::function<void(void* thisptr)> on_complete
+) {
     ;
+}
+
+bool HTLayoutBase::should_manage_mouse() {
+    return true;
+}
+
+bool HTLayoutBase::should_render_window(PHLWINDOW window) {
+    const PHLMONITOR monitor = get_monitor();
+    if (monitor == nullptr || window == nullptr)
+        return false;
+
+    return ((should_render_window_t)(should_render_window_hook->m_pOriginal))(
+        g_pHyprRenderer.get(),
+        window,
+        monitor
+    );
 }
 
 float HTLayoutBase::drag_window_scale() {
@@ -76,19 +98,27 @@ CBox HTLayoutBase::get_global_window_box(PHLWINDOW window, WORKSPACEID workspace
     if (monitor == nullptr)
         return {};
 
-    PHLWORKSPACE workspace = g_pCompositor->getWorkspaceByID(workspace_id);
+    const PHLWORKSPACE workspace = g_pCompositor->getWorkspaceByID(workspace_id);
     if (workspace == nullptr || workspace->m_pMonitor != monitor)
         return {};
 
-    CBox ws_window_box = window->getWindowMainSurfaceBox();
+    const CBox ws_window_box = window->getWindowMainSurfaceBox();
 
-    Vector2D top_left =
+    const Vector2D top_left =
         local_ws_unscaled_to_global(ws_window_box.pos() - monitor->vecPosition, workspace->m_iID);
-    Vector2D bottom_right = local_ws_unscaled_to_global(
+    const Vector2D bottom_right = local_ws_unscaled_to_global(
         ws_window_box.pos() + ws_window_box.size() - monitor->vecPosition,
         workspace->m_iID
     );
 
+    return {top_left, bottom_right - top_left};
+}
+
+CBox HTLayoutBase::get_global_ws_box(WORKSPACEID workspace_id) {
+    const CBox scaled_ws_box = overview_layout[workspace_id].box;
+    const Vector2D top_left = local_ws_scaled_to_global(scaled_ws_box.pos(), workspace_id);
+    const Vector2D bottom_right =
+        local_ws_scaled_to_global(scaled_ws_box.pos() + scaled_ws_box.size(), workspace_id);
     return {top_left, bottom_right - top_left};
 }
 

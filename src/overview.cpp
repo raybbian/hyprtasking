@@ -11,7 +11,9 @@
 #include <hyprutils/math/Box.hpp>
 
 #include "config.hpp"
+#include "globals.hpp"
 #include "layout/grid.hpp"
+#include "layout/linear.hpp"
 
 HTView::HTView(MONITORID in_monitor_id) {
     monitor_id = in_monitor_id;
@@ -19,7 +21,23 @@ HTView::HTView(MONITORID in_monitor_id) {
     closing = false;
     navigating = false;
 
-    layout = makeShared<HTLayoutGrid>(monitor_id);
+    change_layout(HTConfig::layout());
+}
+
+void HTView::change_layout(const std::string& layout_name) {
+    if (layout != nullptr && layout->layout_name() == layout_name)
+        return;
+
+    if (layout_name == "grid") {
+        layout = makeShared<HTLayoutGrid>(monitor_id);
+    } else if (layout_name == "linear") {
+        layout = makeShared<HTLayoutLinear>(monitor_id);
+    } else {
+        fail_exit(
+            "Bad overview layout name {}, supported ones are 'grid' and 'linear'",
+            layout_name
+        );
+    }
 }
 
 WORKSPACEID HTView::get_exit_workspace_id(bool exit_on_mouse) {
@@ -41,6 +59,11 @@ WORKSPACEID HTView::get_exit_workspace_id(bool exit_on_mouse) {
         return workspace == nullptr ? WORKSPACE_INVALID : workspace->m_iID;
     };
 
+    auto try_get_interacted_id = [this]() {
+        const PHLWORKSPACE workspace = act_workspace.lock();
+        return workspace == nullptr ? WORKSPACE_INVALID : workspace->m_iID;
+    };
+
     if (exit_on_mouse) {
         const WORKSPACEID hover_ws_id = try_get_hover_id();
         if (hover_ws_id != WORKSPACE_INVALID)
@@ -55,6 +78,8 @@ WORKSPACEID HTView::get_exit_workspace_id(bool exit_on_mouse) {
         } else if (behavior == "original") {
             switch_to_ws_id = try_get_original_id();
         } else if (behavior == "interacted") {
+            switch_to_ws_id = try_get_interacted_id();
+        } else if (behavior == "active") {
             switch_to_ws_id = monitor->activeWorkspaceID();
         } else {
             Debug::log(WARN, "[Hyprtasking] invalid behavior for exit behavior: {}", behavior);
@@ -63,7 +88,7 @@ WORKSPACEID HTView::get_exit_workspace_id(bool exit_on_mouse) {
         if (switch_to_ws_id != WORKSPACE_INVALID)
             return switch_to_ws_id;
     }
-    return WORKSPACE_INVALID;
+    return monitor->activeWorkspaceID();
 }
 
 void HTView::do_exit_behavior(bool exit_on_mouse) {
@@ -79,12 +104,11 @@ void HTView::do_exit_behavior(bool exit_on_mouse) {
         return;
 
     monitor->changeWorkspace(workspace);
-    workspace->m_vRenderOffset.warp();
-
     // For some reason, this line fixes a bug that happens when you open the overview on one
     // monitor, drag it to another monitor, drag it back to the open overview, and then try to
     // exit or move to a different workspace containing windows (which fails).
     monitor->activeWorkspace = workspace;
+    workspace->m_vRenderOffset.warp();
 }
 
 void HTView::show() {
@@ -138,7 +162,7 @@ void HTView::move(std::string arg) {
     if (active_workspace == nullptr)
         return;
 
-    layout->build_overview_layout(HT_VIEW_CLOSED);
+    layout->build_overview_layout(HT_VIEW_ANIMATING);
     const auto ws_layout = layout->overview_layout[active_workspace->m_iID];
 
     int target_x = ws_layout.x;
@@ -162,12 +186,10 @@ void HTView::move(std::string arg) {
         return;
 
     monitor->changeWorkspace(other_workspace);
-    other_workspace->m_vRenderOffset.warp();
+    monitor->activeWorkspace = other_workspace;
 
-    if (!active) {
-        navigating = true;
-        layout->on_move(id, [this](void*) { navigating = false; });
-    }
+    navigating = true;
+    layout->on_move(active_workspace->m_iID, id, [this](void*) { navigating = false; });
 }
 
 PHLMONITOR HTView::get_monitor() {

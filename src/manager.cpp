@@ -47,6 +47,14 @@ PHLWINDOW HTManager::get_window_from_cursor() {
         return nullptr;
 
     const Vector2D mouse_coords = g_pInputManager->getMouseCoordsInternal();
+
+    if (!cursor_view->is_active() || !cursor_view->layout->should_manage_mouse()) {
+        return g_pCompositor->vectorToWindowUnified(
+            mouse_coords,
+            RESERVED_EXTENTS | INPUT_EXTENTS | ALLOW_FLOATING
+        );
+    }
+
     const WORKSPACEID ws_id = cursor_view->layout->get_ws_id_from_global(mouse_coords);
     const PHLWORKSPACE hovered_workspace = g_pCompositor->getWorkspaceByID(ws_id);
     if (hovered_workspace == nullptr)
@@ -55,7 +63,7 @@ PHLWINDOW HTManager::get_window_from_cursor() {
     const Vector2D ws_coords = cursor_view->layout->global_to_local_ws_unscaled(mouse_coords, ws_id)
         + cursor_monitor->vecPosition;
 
-    const PHLWORKSPACE o_workspace = cursor_monitor->activeWorkspace;
+    const PHLWORKSPACEREF o_workspace = cursor_monitor->activeWorkspace;
     cursor_monitor->changeWorkspace(hovered_workspace, true);
 
     const PHLWINDOW hovered_window = g_pCompositor->vectorToWindowUnified(
@@ -64,7 +72,7 @@ PHLWINDOW HTManager::get_window_from_cursor() {
     );
 
     if (o_workspace != nullptr)
-        cursor_monitor->changeWorkspace(o_workspace, true);
+        cursor_monitor->changeWorkspace(o_workspace.lock(), true);
 
     return hovered_window;
 }

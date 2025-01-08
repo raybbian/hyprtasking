@@ -5,10 +5,14 @@
 
 namespace HTConfig {
 
+std::string layout();
+
 int bg_color();
 int gap_size();
-int rows();
 int border_size();
 std::string exit_behavior();
+
+int grid_rows();
+int linear_height();
 
 } // namespace HTConfig

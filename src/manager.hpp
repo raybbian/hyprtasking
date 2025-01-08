@@ -23,13 +23,11 @@ class HTManager {
     void hide_all_views();
     void show_cursor_view();
 
-    void start_window_drag();
-    void end_window_drag();
-    void exit_to_workspace();
-    void on_mouse_move();
+    bool start_window_drag();
+    bool end_window_drag();
+    bool exit_to_workspace();
+    bool on_mouse_move();
 
     bool has_active_view();
     bool cursor_view_active();
-
-    bool should_render_window(PHLWINDOW pWindow, PHLMONITOR pMonitor);
 };
