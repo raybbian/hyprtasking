@@ -162,7 +162,6 @@ void HTView::move(std::string arg) {
     if (active_workspace == nullptr)
         return;
 
-    layout->build_overview_layout(HT_VIEW_ANIMATING);
     const auto ws_layout = layout->overview_layout[active_workspace->m_iID];
 
     int target_x = ws_layout.x;

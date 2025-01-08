@@ -63,6 +63,12 @@ void HTLayoutGrid::on_move(
     WORKSPACEID new_id,
     std::function<void(void* thisptr)> on_complete
 ) {
+    const PHTVIEW par_view = ht_manager->get_view_from_id(view_id);
+    if (par_view == nullptr)
+        return;
+    if (!par_view->is_active())
+        return;
+
     // prevent the thing from animating
     g_pCompositor->getWorkspaceByID(old_id)->m_vRenderOffset.warp();
     g_pCompositor->getWorkspaceByID(new_id)->m_vRenderOffset.warp();
