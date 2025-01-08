@@ -40,7 +40,7 @@ class HTView {
     void hide(bool exit_on_mouse);
 
     // arg is up, down, left, right;
-    void move(std::string arg);
+    void move(std::string arg, bool move_window);
 };
 
 typedef SP<HTView> PHTVIEW;

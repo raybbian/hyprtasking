@@ -152,7 +152,7 @@ void HTView::hide(bool exit_on_mouse) {
     g_pCompositor->scheduleFrameForMonitor(monitor);
 }
 
-void HTView::move(std::string arg) {
+void HTView::move(std::string arg, bool move_window) {
     if (closing)
         return;
     const PHLMONITOR monitor = get_monitor();
@@ -184,6 +184,12 @@ void HTView::move(std::string arg) {
         other_workspace = g_pCompositor->createNewWorkspace(id, monitor->ID);
     if (other_workspace == nullptr)
         return;
+
+    if (move_window)
+    {
+        PHLWINDOW hovered_window = ht_manager->get_window_from_cursor();
+        g_pCompositor->moveWindowToWorkspaceSafe(hovered_window, other_workspace);
+    }
 
     monitor->changeWorkspace(other_workspace);
 
