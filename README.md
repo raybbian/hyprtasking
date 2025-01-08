@@ -45,6 +45,39 @@ hyprpm add https://github.com/raybbian/hyprtasking
 hyprpm enable hyprtasking
 ```
 
+### Nix
+
+Add hyprtasking to your flake inputs
+```nix
+# flake.nix
+{
+  inputs = {
+    hyprland.url = "github:hyprwm/Hyprland/v0.46.2";
+
+    hyprtasking = {
+      url = "github:raybbian/hyprtasking";
+      inputs.hyprland.follows = "hyprland";
+    };
+  };
+  # ...
+}
+
+```
+
+Include the plugin in the hyprland home manager options
+
+```nix
+# home.nix
+{ inputs, ... }:
+{
+  wayland.windowManager.hyprland = {
+    plugins = [
+      inputs.hyprtasking.packages.${pkgs.system}.hyprtasking
+    ];
+  }
+}
+```
+
 ### Manual
 
 To build, have hyprland headers installed on the system and then:
