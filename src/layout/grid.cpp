@@ -66,7 +66,7 @@ void HTLayoutGrid::on_move(
     const PHTVIEW par_view = ht_manager->get_view_from_id(view_id);
     if (par_view == nullptr)
         return;
-    if (!par_view->is_active())
+    if (par_view->is_active())
         return;
 
     // prevent the thing from animating
