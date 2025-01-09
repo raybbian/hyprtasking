@@ -106,11 +106,6 @@ void HTView::do_exit_behavior(bool exit_on_mouse) {
         return;
 
     monitor->changeWorkspace(workspace);
-    // For some reason, this line fixes a bug that happens when you open the overview on one
-    // monitor, drag it to another monitor, drag it back to the open overview, and then try to
-    // exit or move to a different workspace containing windows (which fails).
-    monitor->activeWorkspace = workspace;
-    workspace->m_vRenderOffset.warp();
 }
 
 void HTView::show() {
@@ -194,7 +189,6 @@ void HTView::move(std::string arg) {
         return;
 
     monitor->changeWorkspace(other_workspace);
-    monitor->activeWorkspace = other_workspace;
 
     navigating = true;
     layout->on_move(active_workspace->m_iID, other_workspace->m_iID, [this](void*) {

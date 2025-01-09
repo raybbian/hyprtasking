@@ -11,6 +11,10 @@ HTLayoutBase::HTLayoutBase(VIEWID new_view_id) : view_id(new_view_id) {
     ;
 }
 
+bool HTLayoutBase::on_mouse_axis(double delta) {
+    return false;
+}
+
 bool HTLayoutBase::should_manage_mouse() {
     return true;
 }

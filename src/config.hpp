@@ -14,5 +14,6 @@ std::string exit_behavior();
 
 int grid_rows();
 int linear_height();
+float linear_scroll_speed();
 
 } // namespace HTConfig

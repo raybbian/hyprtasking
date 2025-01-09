@@ -133,6 +133,7 @@ plugin {
         }
         linear {
             height = 300
+            scroll_speed = 1.1;
         }
     }
 }
@@ -179,3 +180,5 @@ plugin {
 #### Linear Layout
 
 - `plugin:hyprtasking:linear:height` (int): The height of the workspace try in logical pixels.
+
+- `plugin:hyprtasking:linear:scroll_speed` (float): The scroll speed multiplier (use negative value to reverse scrolling).

@@ -41,6 +41,9 @@ class HTLayoutBase {
         std::function<void(void* thisptr)> on_complete = nullptr
     ) = 0;
 
+    // Return true if should cancel
+    virtual bool on_mouse_axis(double delta);
+
     // Should return true if when active, hyprtasking should manage the mouse button actions
     // (warping to appropriate position and smoothing the drag window, if it exists)
     virtual bool should_manage_mouse();
