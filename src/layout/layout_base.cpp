@@ -11,22 +11,6 @@ HTLayoutBase::HTLayoutBase(VIEWID new_view_id) : view_id(new_view_id) {
     ;
 }
 
-void HTLayoutBase::on_show(std::function<void(void* thisptr)> on_complete) {
-    ;
-}
-
-void HTLayoutBase::on_hide(std::function<void(void* thisptr)> on_complete) {
-    ;
-}
-
-void HTLayoutBase::on_move(
-    WORKSPACEID old_id,
-    WORKSPACEID new_id,
-    std::function<void(void* thisptr)> on_complete
-) {
-    ;
-}
-
 bool HTLayoutBase::should_manage_mouse() {
     return true;
 }

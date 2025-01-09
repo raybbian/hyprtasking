@@ -179,8 +179,6 @@ static void on_config_reloaded(void* thisptr, SCallbackInfo& info, std::any args
             continue;
         view->hide(false);
         view->change_layout(HTConfig::layout());
-        if (!view->is_active())
-            view->layout->init_position();
     }
 }
 

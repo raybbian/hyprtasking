@@ -25,8 +25,10 @@ HTView::HTView(MONITORID in_monitor_id) {
 }
 
 void HTView::change_layout(const std::string& layout_name) {
-    if (layout != nullptr && layout->layout_name() == layout_name)
+    if (layout != nullptr && layout->layout_name() == layout_name) {
+        layout->init_position();
         return;
+    }
 
     if (layout_name == "grid") {
         layout = makeShared<HTLayoutGrid>(monitor_id);
@@ -117,6 +119,9 @@ void HTView::show() {
     const PHLMONITOR monitor = get_monitor();
     if (monitor == nullptr)
         return;
+    const PHLWORKSPACE active_workspace = monitor->activeWorkspace;
+    if (active_workspace == nullptr)
+        return;
 
     active = true;
     ori_workspace = monitor->activeWorkspace;
@@ -134,6 +139,9 @@ void HTView::hide(bool exit_on_mouse) {
         return;
     const PHLMONITOR monitor = get_monitor();
     if (monitor == nullptr)
+        return;
+    const PHLWORKSPACE active_workspace = monitor->activeWorkspace;
+    if (active_workspace == nullptr)
         return;
 
     do_exit_behavior(exit_on_mouse);
@@ -162,6 +170,7 @@ void HTView::move(std::string arg) {
     if (active_workspace == nullptr)
         return;
 
+    layout->build_overview_layout(HT_VIEW_CLOSED);
     const auto ws_layout = layout->overview_layout[active_workspace->m_iID];
 
     int target_x = ws_layout.x;
@@ -188,7 +197,9 @@ void HTView::move(std::string arg) {
     monitor->activeWorkspace = other_workspace;
 
     navigating = true;
-    layout->on_move(active_workspace->m_iID, id, [this](void*) { navigating = false; });
+    layout->on_move(active_workspace->m_iID, other_workspace->m_iID, [this](void*) {
+        navigating = false;
+    });
 }
 
 PHLMONITOR HTView::get_monitor() {

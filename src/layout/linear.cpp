@@ -6,6 +6,7 @@
 #include <hyprland/src/managers/LayoutManager.hpp>
 #include <hyprland/src/managers/input/InputManager.hpp>
 #include <hyprutils/math/Box.hpp>
+#include <hyprutils/utils/ScopeGuard.hpp>
 #include <ranges>
 
 #include "../config.hpp"
@@ -13,11 +14,15 @@
 #include "../render.hpp"
 #include "layout_base.hpp"
 
+using Hyprutils::Utils::CScopeGuard;
+
 HTLayoutLinear::HTLayoutLinear(VIEWID new_view_id) : HTLayoutBase(new_view_id) {
     scroll_offset
         .create(0, g_pConfigManager->getAnimationPropertyConfig("windowsMove"), AVARDAMAGE_NONE);
     view_offset
         .create(0, g_pConfigManager->getAnimationPropertyConfig("windowsMove"), AVARDAMAGE_NONE);
+
+    init_position();
 }
 
 std::string HTLayoutLinear::layout_name() {
@@ -25,26 +30,30 @@ std::string HTLayoutLinear::layout_name() {
 }
 
 void HTLayoutLinear::on_show(std::function<void(void* thisptr)> on_complete) {
+    CScopeGuard x([this, &on_complete] {
+        if (on_complete != nullptr)
+            view_offset.setCallbackOnEnd(on_complete);
+    });
+
     const PHLMONITOR monitor = get_monitor();
     if (monitor == nullptr)
         return;
 
     const int HEIGHT = HTConfig::linear_height() * monitor->scale;
     view_offset = HEIGHT;
-
-    if (on_complete != nullptr)
-        view_offset.setCallbackOnEnd(on_complete);
 }
 
 void HTLayoutLinear::on_hide(std::function<void(void* thisptr)> on_complete) {
+    CScopeGuard x([this, &on_complete] {
+        if (on_complete != nullptr)
+            view_offset.setCallbackOnEnd(on_complete);
+    });
+
     const PHLMONITOR monitor = get_monitor();
     if (monitor == nullptr)
         return;
 
     view_offset = 0;
-
-    if (on_complete != nullptr)
-        view_offset.setCallbackOnEnd(on_complete);
 }
 
 void HTLayoutLinear::on_move(
@@ -52,6 +61,11 @@ void HTLayoutLinear::on_move(
     WORKSPACEID new_id,
     std::function<void(void* thisptr)> on_complete
 ) {
+    CScopeGuard x([this, &on_complete] {
+        if (on_complete != nullptr)
+            scroll_offset.setCallbackOnEnd(on_complete);
+    });
+
     const PHLMONITOR monitor = get_monitor();
     if (monitor == nullptr)
         return;
@@ -59,10 +73,8 @@ void HTLayoutLinear::on_move(
     const int GAP_SIZE = HTConfig::gap_size() * monitor->scale;
 
     const PHLWORKSPACE new_ws = g_pCompositor->getWorkspaceByID(new_id);
-    if (new_ws == nullptr) {
-        on_complete(nullptr);
+    if (new_ws == nullptr)
         return;
-    }
 
     build_overview_layout(HT_VIEW_ANIMATING);
 
@@ -75,9 +87,6 @@ void HTLayoutLinear::on_move(
         scroll_offset =
             scroll_offset.value() - (cur_screen_max_x - monitor->vecTransformedSize.x) - GAP_SIZE;
     }
-
-    if (on_complete != nullptr)
-        scroll_offset.setCallbackOnEnd(on_complete);
 }
 
 bool HTLayoutLinear::should_manage_mouse() {
@@ -136,6 +145,8 @@ float HTLayoutLinear::drag_window_scale() {
 }
 
 void HTLayoutLinear::init_position() {
+    build_overview_layout(HT_VIEW_CLOSED);
+
     scroll_offset.setValueAndWarp(0);
     view_offset.setValueAndWarp(0);
 }
@@ -181,6 +192,8 @@ void HTLayoutLinear::build_overview_layout(HTViewStage stage) {
         if (workspace == nullptr)
             continue;
         if (workspace->m_pMonitor != monitor)
+            continue;
+        if (workspace->m_iID < 0)
             continue;
         monitor_workspaces.push_back(workspace->m_iID);
     }
