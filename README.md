@@ -157,7 +157,7 @@ plugin {
 
 ### Config Options
 
-- `plugin:hyprtasking:layout` (str): The layout to use. This is either `'grid'` or `'layout'`.
+- `plugin:hyprtasking:layout` (str): The layout to use. This is either `'grid'` or `'linear'`.
 
 - `plugin:hyprtasking:gap_size` (int): The width (logical pixels) of the vertical gaps between workspaces
 
