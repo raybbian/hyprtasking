@@ -48,6 +48,14 @@ int HTConfig::linear_height() {
     return **PLINEAR_HEIGHT;
 }
 
+float HTConfig::linear_scroll_speed() {
+    static float* const* PSCROLL_SPEED =
+        (Hyprlang::FLOAT* const*)
+            HyprlandAPI::getConfigValue(PHANDLE, "plugin:hyprtasking:linear:scroll_speed")
+                ->getDataStaticPtr();
+    return **PSCROLL_SPEED;
+}
+
 std::string HTConfig::exit_behavior() {
     static auto const* PEXIT_BEHAVIOR =
         (Hyprlang::STRING const*)

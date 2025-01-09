@@ -27,6 +27,7 @@ class HTManager {
     bool end_window_drag();
     bool exit_to_workspace();
     bool on_mouse_move();
+    bool on_mouse_axis(double delta);
 
     bool has_active_view();
     bool cursor_view_active();

@@ -23,6 +23,8 @@ class HTLayoutLinear: public HTLayoutBase {
     virtual void
     on_move(WORKSPACEID old_id, WORKSPACEID new_id, std::function<void(void* thisptr)> on_complete);
 
+    virtual bool on_mouse_axis(double delta);
+
     virtual bool should_manage_mouse();
     virtual bool should_render_window(PHLWINDOW window);
     virtual float drag_window_scale();

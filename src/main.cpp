@@ -123,6 +123,17 @@ static void on_mouse_move(void* thisptr, SCallbackInfo& info, std::any args) {
     ht_manager->on_mouse_move();
 }
 
+static void on_mouse_axis(void* thisptr, SCallbackInfo& info, std::any args) {
+    if (ht_manager == nullptr)
+        return;
+    const auto e = std::any_cast<IPointer::SAxisEvent>(
+        std::any_cast<std::unordered_map<std::string, std::any>>(args)["event"]
+    );
+    if (e.source != WL_POINTER_AXIS_SOURCE_WHEEL)
+        return;
+    info.cancelled = ht_manager->on_mouse_axis(e.delta);
+}
+
 static void cancel_event(void* thisptr, SCallbackInfo& info, std::any args) {
     if (ht_manager == nullptr || !ht_manager->cursor_view_active())
         return;
@@ -217,7 +228,7 @@ static void init_functions() {
 static void register_callbacks() {
     static auto P1 = HyprlandAPI::registerCallbackDynamic(PHANDLE, "mouseButton", on_mouse_button);
     static auto P2 = HyprlandAPI::registerCallbackDynamic(PHANDLE, "mouseMove", on_mouse_move);
-    static auto P3 = HyprlandAPI::registerCallbackDynamic(PHANDLE, "mouseAxis", cancel_event);
+    static auto P3 = HyprlandAPI::registerCallbackDynamic(PHANDLE, "mouseAxis", on_mouse_axis);
 
     // TODO: support touch
     static auto P4 = HyprlandAPI::registerCallbackDynamic(PHANDLE, "touchDown", cancel_event);
@@ -254,6 +265,11 @@ static void init_config() {
 
     HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprtasking:grid:rows", Hyprlang::INT {3});
     HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprtasking:linear:height", Hyprlang::INT {300});
+    HyprlandAPI::addConfigValue(
+        PHANDLE,
+        "plugin:hyprtasking:linear:scroll_speed",
+        Hyprlang::FLOAT {1.f}
+    );
 
     // Old config value, warning about updates
     HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprtasking:rows", Hyprlang::INT {-1});

@@ -78,15 +78,41 @@ void HTLayoutLinear::on_move(
 
     build_overview_layout(HT_VIEW_ANIMATING);
 
-    const float cur_screen_min_x = overview_layout[new_id].box.x;
-    const float cur_screen_max_x = overview_layout[new_id].box.x + overview_layout[new_id].box.w;
+    const float cur_screen_min_x = overview_layout[new_id].box.x - GAP_SIZE;
+    const float cur_screen_max_x =
+        overview_layout[new_id].box.x + overview_layout[new_id].box.w + GAP_SIZE;
 
     if (cur_screen_min_x < 0) {
-        scroll_offset = scroll_offset.value() - cur_screen_min_x + GAP_SIZE;
+        scroll_offset = scroll_offset.value() - cur_screen_min_x;
     } else if (cur_screen_max_x > monitor->vecTransformedSize.x) {
-        scroll_offset =
-            scroll_offset.value() - (cur_screen_max_x - monitor->vecTransformedSize.x) - GAP_SIZE;
+        scroll_offset = scroll_offset.value() - (cur_screen_max_x - monitor->vecTransformedSize.x);
     }
+}
+
+bool HTLayoutLinear::on_mouse_axis(double delta) {
+    if (!should_manage_mouse())
+        return false;
+
+    const PHLMONITOR monitor = get_monitor();
+    if (monitor == nullptr)
+        return false;
+
+    const int GAP_SIZE = HTConfig::gap_size() * monitor->scale;
+
+    double new_offset = scroll_offset.goal() + delta * HTConfig::linear_scroll_speed() * -10.f;
+
+    if (new_offset > 0.)
+        new_offset = 0.;
+
+    const float max_x = new_offset
+        + (overview_layout.size() * (GAP_SIZE + calculate_ws_box(0, 0, HT_VIEW_ANIMATING).w))
+        + GAP_SIZE;
+
+    if (max_x < monitor->vecTransformedSize.x)
+        new_offset = new_offset + (monitor->vecTransformedSize.x - max_x);
+
+    scroll_offset = new_offset;
+    return true;
 }
 
 bool HTLayoutLinear::should_manage_mouse() {
@@ -278,10 +304,6 @@ void HTLayoutLinear::render() {
         };
         if (monitor->transform % 2 == 1)
             std::swap(render_box.w, render_box.h);
-
-        // // render active one last
-        // if (workspace == start_workspace && start_workspace != nullptr)
-        //     continue;
 
         CBox global_box = {ws_layout.box.pos() + monitor->vecPosition, ws_layout.box.size()};
         if (global_box.intersection(global_mon_box).empty())

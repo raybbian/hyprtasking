@@ -181,3 +181,11 @@ bool HTManager::exit_to_workspace() {
 bool HTManager::on_mouse_move() {
     return false;
 }
+
+bool HTManager::on_mouse_axis(double delta) {
+    const PHTVIEW cursor_view = get_view_from_cursor();
+    if (cursor_view == nullptr)
+        return false;
+
+    return cursor_view->layout->on_mouse_axis(delta);
+}
