@@ -165,6 +165,8 @@ void HTView::move(std::string arg, bool move_window) {
     if (active_workspace == nullptr)
         return;
 
+    PHLWINDOW hovered_window = ht_manager->get_window_from_cursor();
+
     layout->build_overview_layout(HT_VIEW_CLOSED);
     const auto ws_layout = layout->overview_layout[active_workspace->m_iID];
 
@@ -189,7 +191,6 @@ void HTView::move(std::string arg, bool move_window) {
         return;
 
     if (move_window) {
-        PHLWINDOW hovered_window = ht_manager->get_window_from_cursor();
         g_pCompositor->moveWindowToWorkspaceSafe(hovered_window, other_workspace);
     }
 
