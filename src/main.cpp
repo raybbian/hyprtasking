@@ -129,8 +129,6 @@ static void on_mouse_axis(void* thisptr, SCallbackInfo& info, std::any args) {
     const auto e = std::any_cast<IPointer::SAxisEvent>(
         std::any_cast<std::unordered_map<std::string, std::any>>(args)["event"]
     );
-    if (e.source != WL_POINTER_AXIS_SOURCE_WHEEL)
-        return;
     info.cancelled = ht_manager->on_mouse_axis(e.delta);
 }
 
