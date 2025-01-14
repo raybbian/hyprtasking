@@ -50,7 +50,16 @@ static SDispatchResult dispatch_move(std::string arg) {
         return {};
     const PHTVIEW cursor_view = ht_manager->get_view_from_cursor();
     if (cursor_view != nullptr)
-        cursor_view->move(arg);
+        cursor_view->move(arg, false);
+    return {};
+}
+
+static SDispatchResult dispatch_move_window(std::string arg) {
+    if (ht_manager == nullptr)
+        return {};
+    const PHTVIEW cursor_view = ht_manager->get_view_from_cursor();
+    if (cursor_view != nullptr)
+        cursor_view->move(arg, true);
     return {};
 }
 
@@ -246,6 +255,7 @@ static void register_callbacks() {
 static void add_dispatchers() {
     HyprlandAPI::addDispatcher(PHANDLE, "hyprtasking:toggle", dispatch_toggle_view);
     HyprlandAPI::addDispatcher(PHANDLE, "hyprtasking:move", dispatch_move);
+    HyprlandAPI::addDispatcher(PHANDLE, "hyprtasking:movewindow", dispatch_move_window);
     HyprlandAPI::addDispatcher(PHANDLE, "hyprtasking:killhovered", dispatch_kill_hover);
 }
 
