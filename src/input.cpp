@@ -13,11 +13,15 @@
 bool HTManager::start_window_drag() {
     const PHLMONITOR cursor_monitor = g_pCompositor->getMonitorFromCursor();
     const PHTVIEW cursor_view = get_view_from_monitor(cursor_monitor);
-    if (cursor_monitor == nullptr || cursor_view == nullptr || !cursor_view->is_active())
+    if (cursor_monitor == nullptr || cursor_view == nullptr || !cursor_view->is_active()
+        || cursor_view->is_closing())
         return false;
 
-    if (!cursor_view->layout->should_manage_mouse())
+    if (!cursor_view->layout->should_manage_mouse()) {
+        // hide all views if should not manage mouse
+        hide_all_views();
         return false;
+    }
 
     const Vector2D mouse_coords = g_pInputManager->getMouseCoordsInternal();
     const WORKSPACEID workspace_id = cursor_view->layout->get_ws_id_from_global(mouse_coords);
@@ -78,7 +82,7 @@ bool HTManager::end_window_drag() {
     }
 
     // Required if dragging and dropping from active to inactive
-    if (!cursor_view->is_active()) {
+    if (!cursor_view->is_active() || cursor_view->is_closing()) {
         g_pKeybindManager->changeMouseBindMode(MBIND_INVALID);
         return false;
     }
