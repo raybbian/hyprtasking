@@ -18,9 +18,9 @@ bool HTManager::start_window_drag() {
         return false;
 
     if (!cursor_view->layout->should_manage_mouse()) {
-        // hide all views if should not manage mouse
+        // hide all views if should not manage mouse but active
         hide_all_views();
-        return false;
+        return true;
     }
 
     const Vector2D mouse_coords = g_pInputManager->getMouseCoordsInternal();
@@ -33,7 +33,7 @@ bool HTManager::start_window_drag() {
 
     cursor_view->act_workspace = cursor_workspace;
 
-    PHLWORKSPACEREF o_workspace = cursor_monitor->activeWorkspace;
+    // PHLWORKSPACEREF o_workspace = cursor_monitor->activeWorkspace;
     cursor_monitor->changeWorkspace(cursor_workspace, true);
 
     const Vector2D workspace_coords =
@@ -67,8 +67,8 @@ bool HTManager::start_window_drag() {
         }
     }
 
-    if (o_workspace != nullptr)
-        cursor_monitor->changeWorkspace(o_workspace.lock(), true);
+    // if (o_workspace != nullptr)
+    //     cursor_monitor->changeWorkspace(o_workspace.lock(), true);
 
     return true;
 }
@@ -132,7 +132,7 @@ bool HTManager::end_window_drag() {
 
     cursor_view->act_workspace = cursor_workspace;
 
-    PHLWORKSPACEREF o_workspace = cursor_monitor->activeWorkspace;
+    // PHLWORKSPACEREF o_workspace = cursor_monitor->activeWorkspace;
     cursor_monitor->changeWorkspace(cursor_workspace, true);
 
     g_pCompositor->moveWindowToWorkspaceSafe(dragged_window, cursor_workspace);
@@ -159,8 +159,8 @@ bool HTManager::end_window_drag() {
     dragged_window->m_fMovingToWorkspaceAlpha->setValueAndWarp(1.0);
     dragged_window->m_fMovingFromWorkspaceAlpha->setValueAndWarp(1.0);
 
-    if (o_workspace != nullptr)
-        cursor_monitor->changeWorkspace(o_workspace.lock(), true);
+    // if (o_workspace != nullptr)
+    //     cursor_monitor->changeWorkspace(o_workspace.lock(), true);
 
     // Do not return true and cancel the event! Mouse release requires some stuff to be done for
     // floating windows to be unfocused properly

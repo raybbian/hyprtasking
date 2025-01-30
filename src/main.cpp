@@ -187,7 +187,7 @@ static void on_config_reloaded(void* thisptr, SCallbackInfo& info, std::any args
         if (view == nullptr)
             continue;
         view->hide(false);
-        view->change_layout(HTConfig::layout());
+        view->change_layout(HTConfig::value<Hyprlang::STRING>("layout"));
     }
 }
 
@@ -252,17 +252,27 @@ static void add_dispatchers() {
 static void init_config() {
     HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprtasking:layout", Hyprlang::STRING {"grid"});
 
-    HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprtasking:gap_size", Hyprlang::INT {8});
+    // general
     HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprtasking:bg_color", Hyprlang::INT {0x000000FF});
-    HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprtasking:border_size", Hyprlang::INT {4});
+    HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprtasking:gap_size", Hyprlang::FLOAT {8.f});
+    HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprtasking:border_size", Hyprlang::FLOAT {4.f});
     HyprlandAPI::addConfigValue(
         PHANDLE,
         "plugin:hyprtasking:exit_behavior",
         Hyprlang::STRING {"active hovered interacted original"}
     );
 
+    // grid specific
     HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprtasking:grid:rows", Hyprlang::INT {3});
-    HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprtasking:linear:height", Hyprlang::INT {300});
+    HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprtasking:grid:cols", Hyprlang::INT {3});
+
+    //linear specifig
+    HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprtasking:linear:blur", Hyprlang::INT {1});
+    HyprlandAPI::addConfigValue(
+        PHANDLE,
+        "plugin:hyprtasking:linear:height",
+        Hyprlang::FLOAT {300.f}
+    );
     HyprlandAPI::addConfigValue(
         PHANDLE,
         "plugin:hyprtasking:linear:scroll_speed",

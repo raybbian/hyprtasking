@@ -136,25 +136,26 @@ CBox HTLayoutGrid::calculate_ws_box(int x, int y, HTViewStage stage) {
     if (monitor == nullptr)
         return {};
 
-    const int ROWS = HTConfig::grid_rows();
-    const double GAP_SIZE = HTConfig::gap_size() * monitor->scale;
+    const int ROWS = HTConfig::value<Hyprlang::INT>("grid:rows");
+    const int COLS = HTConfig::value<Hyprlang::INT>("grid:cols");
+    const double GAP_SIZE = HTConfig::value<Hyprlang::FLOAT>("gap_size") * monitor->scale;
     const Vector2D gaps = {GAP_SIZE, GAP_SIZE};
 
     if (GAP_SIZE > std::min(monitor->vecTransformedSize.x, monitor->vecTransformedSize.y)
         || GAP_SIZE < 0)
         fail_exit("Gap size {} induces invalid render dimensions", GAP_SIZE);
 
-    double render_x = monitor->vecTransformedSize.x - gaps.x * (ROWS + 1);
-    double render_y = monitor->vecTransformedSize.y - gaps.y * (ROWS + 1);
+    double render_x = (monitor->vecTransformedSize.x - gaps.x * (COLS + 1)) / COLS;
+    double render_y = (monitor->vecTransformedSize.y - gaps.y * (ROWS + 1)) / ROWS;
     const double mon_aspect = monitor->vecTransformedSize.x / monitor->vecTransformedSize.y;
     Vector2D start_offset {};
 
     // make correct aspect ratio
     if (render_y * mon_aspect > render_x) {
-        start_offset.y = (render_y - render_x / mon_aspect) / 2.f;
+        start_offset.y = (render_y - render_x / mon_aspect) * ROWS / 2.f;
         render_y = render_x / mon_aspect;
     } else if (render_x / mon_aspect > render_y) {
-        start_offset.x = (render_x - render_y * mon_aspect) / 2.f;
+        start_offset.x = (render_x - render_y * mon_aspect) * COLS / 2.f;
         render_x = render_y * mon_aspect;
     }
 
@@ -164,7 +165,7 @@ CBox HTLayoutGrid::calculate_ws_box(int x, int y, HTViewStage stage) {
         use_scale = 1;
         use_offset = Vector2D {0, 0};
     } else if (stage == HT_VIEW_OPENED) {
-        use_scale = (render_x / ROWS) / monitor->vecTransformedSize.x;
+        use_scale = render_x / monitor->vecTransformedSize.x;
         use_offset = Vector2D {0, 0};
     }
 
@@ -177,7 +178,8 @@ void HTLayoutGrid::build_overview_layout(HTViewStage stage) {
     if (monitor == nullptr)
         return;
 
-    const int ROWS = HTConfig::grid_rows();
+    const int ROWS = HTConfig::value<Hyprlang::INT>("grid:rows");
+    const int COLS = HTConfig::value<Hyprlang::INT>("grid:cols");
 
     const PHLMONITOR last_monitor = g_pCompositor->m_pLastMonitor.lock();
     g_pCompositor->setActiveMonitor(monitor);
@@ -185,8 +187,8 @@ void HTLayoutGrid::build_overview_layout(HTViewStage stage) {
     overview_layout.clear();
 
     for (int y = 0; y < ROWS; y++) {
-        for (int x = 0; x < ROWS; x++) {
-            int ind = y * ROWS + x + 1;
+        for (int x = 0; x < COLS; x++) {
+            int ind = y * COLS + x + 1;
             const WORKSPACEID ws_id = getWorkspaceIDNameFromString(std::format("r~{}", ind)).id;
             const CBox ws_box = calculate_ws_box(x, y, stage);
             overview_layout[ws_id] = HTWorkspace {x, y, ws_box};
@@ -213,7 +215,8 @@ void HTLayoutGrid::render() {
 
     auto* const ACTIVECOL = (CGradientValueData*)(PACTIVECOL.ptr())->getData();
     auto* const INACTIVECOL = (CGradientValueData*)(PINACTIVECOL.ptr())->getData();
-    auto const BORDERSIZE = HTConfig::border_size();
+
+    const float BORDERSIZE = HTConfig::value<Hyprlang::FLOAT>("border_size");
 
     timespec time;
     clock_gettime(CLOCK_MONOTONIC, &time);
@@ -223,7 +226,7 @@ void HTLayoutGrid::render() {
     CBox monitor_box = {{0, 0}, monitor->vecTransformedSize};
 
     CRectPassElement::SRectData data;
-    data.color = CHyprColor {HTConfig::bg_color()}.stripA();
+    data.color = CHyprColor {HTConfig::value<Hyprlang::INT>("bg_color")}.stripA();
     data.box = monitor_box;
     g_pHyprRenderer->m_sRenderPass.add(makeShared<CRectPassElement>(data));
 
@@ -234,8 +237,6 @@ void HTLayoutGrid::render() {
     start_workspace->m_bVisible = false;
 
     build_overview_layout(HT_VIEW_ANIMATING);
-
-    const WORKSPACEID exit_workspace_id = par_view->get_exit_workspace_id(false);
 
     CBox global_mon_box = {monitor->vecPosition, monitor->vecTransformedSize};
     for (const auto& [ws_id, ws_layout] : overview_layout) {
@@ -257,7 +258,7 @@ void HTLayoutGrid::render() {
             continue;
 
         const CGradientValueData border_col =
-            exit_workspace_id == ws_id ? *ACTIVECOL : *INACTIVECOL;
+            monitor->activeWorkspaceID() == ws_id ? *ACTIVECOL : *INACTIVECOL;
         CBox border_box = ws_layout.box;
 
         CBorderPassElement::SBorderData data;
@@ -297,7 +298,7 @@ void HTLayoutGrid::render() {
     start_workspace->startAnim(true, false, true);
     start_workspace->m_bVisible = true;
 
-    // Render active workspace
+    // Render active workspace last so the dragging window is always on top when let go of
     if (start_workspace != nullptr && overview_layout.count(start_workspace->m_iID)) {
         CBox ws_box = overview_layout[start_workspace->m_iID].box;
 
@@ -308,7 +309,7 @@ void HTLayoutGrid::render() {
             std::swap(render_box.w, render_box.h);
 
         const CGradientValueData border_col =
-            exit_workspace_id == start_workspace->m_iID ? *ACTIVECOL : *INACTIVECOL;
+            monitor->activeWorkspaceID() == start_workspace->m_iID ? *ACTIVECOL : *INACTIVECOL;
         CBox border_box = ws_box;
 
         CBorderPassElement::SBorderData data;

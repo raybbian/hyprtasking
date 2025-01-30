@@ -21,7 +21,7 @@ HTView::HTView(MONITORID in_monitor_id) {
     closing = false;
     navigating = false;
 
-    change_layout(HTConfig::layout());
+    change_layout(HTConfig::value<Hyprlang::STRING>("layout"));
 }
 
 void HTView::change_layout(const std::string& layout_name) {
@@ -72,7 +72,7 @@ WORKSPACEID HTView::get_exit_workspace_id(bool exit_on_mouse) {
             return hover_ws_id;
     }
 
-    CVarList exit_behavior {HTConfig::exit_behavior(), 0, 's', true};
+    CVarList exit_behavior {HTConfig::value<Hyprlang::STRING>("exit_behavior"), 0, 's', true};
     for (const auto& behavior : exit_behavior) {
         WORKSPACEID switch_to_ws_id = WORKSPACE_INVALID;
         if (behavior == "hovered") {

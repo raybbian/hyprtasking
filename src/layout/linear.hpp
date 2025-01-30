@@ -7,6 +7,8 @@ class HTLayoutLinear: public HTLayoutBase {
   private:
     PHLANIMVAR<float> scroll_offset;
     PHLANIMVAR<float> view_offset;
+    PHLANIMVAR<float> blur_strength;
+    PHLANIMVAR<float> dim_opacity;
 
     bool rendering_standard_ws;
 
