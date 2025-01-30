@@ -35,6 +35,7 @@ https://github.com/user-attachments/assets/8d6cdfd2-2b17-4240-a117-1dbd2231ed4e
     - [x] Toggle behavior
     - [x] Toggle keybind
 - [ ] Touch and gesture support
+- [ ] Overview layers
     
 ## Installation
 
@@ -109,31 +110,33 @@ Then use `hyprctl plugin load` to load the absolute path to the `.so` file.
 Example below:
 
 ```
-bind = $mainMod, tab, hyprtasking:toggle, cursor
-bind = $mainMod, space, hyprtasking:toggle, all
+bind = SUPER, tab, hyprtasking:toggle, cursor
+bind = SUPER, space, hyprtasking:toggle, all
 
-bind = $mainMod, X, hyprtasking:killhovered
+bind = SUPER, X, hyprtasking:killhovered
 
-bind = $mainMod, H, hyprtasking:move, left
-bind = $mainMod, J, hyprtasking:move, down
-bind = $mainMod, K, hyprtasking:move, up
-bind = $mainMod, L, hyprtasking:move, right
+bind = SUPER, H, hyprtasking:move, left
+bind = SUPER, J, hyprtasking:move, down
+bind = SUPER, K, hyprtasking:move, up
+bind = SUPER, L, hyprtasking:move, right
 
 plugin {
     hyprtasking {
-        layout = linear
+        layout = grid
 
+        bg_color = 0xff26233a
         gap_size = 20
-        bg_color = $overlay
         border_size = 4
-        exit_behavior = active hovered interacted original
+        exit_behavior = active interacted original hovered
 
-        gaps {
+        grid {
             rows = 3
+            cols = 3
         }
         linear {
             height = 300
-            scroll_speed = 1.1;
+            scroll_speed = 1.1
+            blur = 0
         }
     }
 }
@@ -158,27 +161,26 @@ plugin {
 
 ### Config Options
 
-- `plugin:hyprtasking:layout` (str): The layout to use. This is either `'grid'` or `'linear'`.
+All options should are prefixed with `plugin:hyprtasking:`.
 
-- `plugin:hyprtasking:gap_size` (int): The width (logical pixels) of the vertical gaps between workspaces
+| Option | Type | Description | Default |
+| --- | --- | --- | --- |
+| `layout` | `Hyprlang::STRING` | The layout to use, either `grid` or `linear` | `grid` |
+| `bg_color` | `Hyprlang::INT` | The color of the background of the overlay | `0x000000FF` |
+| `gap_size` | `Hyprlang::FLOAT` | The width in logical pixels of the gaps between workspaces | `8.f` |
+| `border_size` | `Hyprlang::FLOAT` | The width in logical pixels of the borders around workspaces | `4.f` |
+| `exit_behavior` | `Hyprlang::STRING` | [Determines which workspace to exit to](#exit-behavior) when closed by keybind | `active hovered interacted original` |
+| `grid:rows` | `Hyprlang::INT` | The number of rows to display on the grid overlay | `3` |
+| `grid:cols` | `Hyprlang::INT` | The number of columns to display on the grid overlay | `3` |
+| `linear:blur` | `Hyprlang::INT` | Whether or not to blur the dimmed area | `0` |
+| `linear:height` | `Hyprlang::FLOAT` | The height of the linear overlay in logical pixels | `300.f` |
+| `linear:scroll_speed` | `Hyprlang::FLOAT` | Scroll speed modifier. Set negative to flip direction | `1.f` |
 
-- `plugin:hyprtasking:bg_color` (color): The background color that does not include 
+#### Exit Behavior
 
-- `plugin:hyprtasking:border_size` (int): The width (logical pixels) of the borders around workspaces
+- When an overview is about to hide, hyprtasking will evaluate these strings in order
+    - If the string is `'hovered'`, hyprtasking will attempt to switch to the hovered workspace
+    - If the string is `'interacted'`, hyprtasking will attempt to switch to the last interacted workspace (window drag/drop)
+    - If the string is `'original'`, hyprtasking will attempt to switch to the workspace in which the overview was shown initially
+    - (Fallback) If the string is `'active'`, hyprtasking will switch to the monitor's active workspace.
 
-- `plugin:hyprtasking:exit_behavior` (str): A space-separated list of `{'hovered', 'active', interacted', 'original'}`
-    - When an overview is about to hide, hyprtasking will evaluate these strings in order
-        - If the string is `'hovered'`, hyprtasking will attempt to switch to the hovered workspace
-        - If the string is `'interacted'`, hyprtasking will attempt to switch to the last interacted workspace (window drag/drop)
-        - If the string is `'original'`, hyprtasking will attempt to switch to the workspace in which the overview was shown initially
-        - (Fallback) If the string is `'active'`, hyprtasking will switch to the monitor's active workspace.
-
-#### Grid Layout
-
-- `plugin:hyprtasking:grid:rows` (int): The number of rows (and columns) of workspaces to show
-
-#### Linear Layout
-
-- `plugin:hyprtasking:linear:height` (int): The height of the workspace try in logical pixels.
-
-- `plugin:hyprtasking:linear:scroll_speed` (float): The scroll speed multiplier (use negative value to reverse scrolling).

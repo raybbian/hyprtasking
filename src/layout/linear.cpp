@@ -219,8 +219,8 @@ CBox HTLayoutLinear::calculate_ws_box(int x, int y, HTViewStage stage) {
     if (monitor == nullptr)
         return {};
 
-    const int HEIGHT = HTConfig::value<Hyprlang::FLOAT>("linear:height") * monitor->scale;
-    const int GAP_SIZE = HTConfig::value<Hyprlang::FLOAT>("gap_size") * monitor->scale;
+    const float HEIGHT = HTConfig::value<Hyprlang::FLOAT>("linear:height") * monitor->scale;
+    const float GAP_SIZE = HTConfig::value<Hyprlang::FLOAT>("gap_size") * monitor->scale;
 
     if (HEIGHT < 0 || HEIGHT > monitor->vecTransformedSize.y)
         fail_exit("Linear layout height {} is taller than monitor size", HEIGHT);
