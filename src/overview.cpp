@@ -144,7 +144,7 @@ void HTView::hide(bool exit_on_mouse) {
     closing = true;
     ori_workspace.reset();
 
-    layout->on_hide([this](void*) {
+    layout->on_hide([this](auto self) {
         active = false;
         closing = false;
     });
@@ -191,7 +191,7 @@ void HTView::move(std::string arg) {
     monitor->changeWorkspace(other_workspace);
 
     navigating = true;
-    layout->on_move(active_workspace->m_iID, other_workspace->m_iID, [this](void*) {
+    layout->on_move(active_workspace->m_iID, other_workspace->m_iID, [this](auto self) {
         navigating = false;
     });
 }

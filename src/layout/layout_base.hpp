@@ -20,6 +20,8 @@ class HTLayoutBase {
     VIEWID view_id;
 
   public:
+    using CallbackFun = Hyprutils::Animation::CBaseAnimatedVariable::CallbackFun;
+
     HTLayoutBase(VIEWID new_view_id);
     virtual ~HTLayoutBase() = default;
 
@@ -33,13 +35,10 @@ class HTLayoutBase {
 
     std::unordered_map<WORKSPACEID, HTWorkspace> overview_layout;
 
-    virtual void on_show(std::function<void(void* thisptr)> on_complete = nullptr) = 0;
-    virtual void on_hide(std::function<void(void* thisptr)> on_complete = nullptr) = 0;
-    virtual void on_move(
-        WORKSPACEID old_id,
-        WORKSPACEID new_id,
-        std::function<void(void* thisptr)> on_complete = nullptr
-    ) = 0;
+    virtual void on_show(CallbackFun on_complete = nullptr) = 0;
+    virtual void on_hide(CallbackFun on_complete = nullptr) = 0;
+    virtual void
+    on_move(WORKSPACEID old_id, WORKSPACEID new_id, CallbackFun on_complete = nullptr) = 0;
 
     // Return true if should cancel
     virtual bool on_mouse_axis(double delta);
@@ -57,6 +56,9 @@ class HTLayoutBase {
     virtual void build_overview_layout(HTViewStage stage);
     // Render the overview
     virtual void render();
+
+    // Prevent simplification from happening in the plugin, remove all clear pass objects
+    void post_render();
 
     PHLMONITOR get_monitor();
     WORKSPACEID get_ws_id_from_global(Vector2D pos);

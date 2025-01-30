@@ -2,6 +2,7 @@
 
 #include <hyprland/src/Compositor.hpp>
 #include <hyprland/src/desktop/DesktopTypes.hpp>
+#include <hyprland/src/render/Renderer.hpp>
 #include <hyprutils/math/Box.hpp>
 
 typedef void (*render_workspace_t)(

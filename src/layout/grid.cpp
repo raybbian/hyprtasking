@@ -2,11 +2,16 @@
 
 #include <ctime>
 #include <hyprland/src/Compositor.hpp>
+#include <hyprland/src/config/ConfigManager.hpp>
 #include <hyprland/src/config/ConfigValue.hpp>
 #include <hyprland/src/desktop/DesktopTypes.hpp>
+#include <hyprland/src/helpers/AnimatedVariable.hpp>
+#include <hyprland/src/managers/AnimationManager.hpp>
 #include <hyprland/src/managers/input/InputManager.hpp>
 #include <hyprland/src/render/OpenGL.hpp>
 #include <hyprland/src/render/Renderer.hpp>
+#include <hyprland/src/render/pass/BorderPassElement.hpp>
+#include <hyprland/src/render/pass/RectPassElement.hpp>
 #include <hyprutils/math/Vector2D.hpp>
 #include <hyprutils/utils/ScopeGuard.hpp>
 
@@ -19,12 +24,18 @@
 using Hyprutils::Utils::CScopeGuard;
 
 HTLayoutGrid::HTLayoutGrid(VIEWID new_view_id) : HTLayoutBase(new_view_id) {
-    offset.create(
+    g_pAnimationManager->createAnimation(
         {0, 0},
+        offset,
         g_pConfigManager->getAnimationPropertyConfig("windowsMove"),
         AVARDAMAGE_NONE
     );
-    scale.create(1.f, g_pConfigManager->getAnimationPropertyConfig("windowsMove"), AVARDAMAGE_NONE);
+    g_pAnimationManager->createAnimation(
+        1.f,
+        scale,
+        g_pConfigManager->getAnimationPropertyConfig("windowsMove"),
+        AVARDAMAGE_NONE
+    );
 
     init_position();
 }
@@ -33,10 +44,10 @@ std::string HTLayoutGrid::layout_name() {
     return "grid";
 }
 
-void HTLayoutGrid::on_show(std::function<void(void* thisptr)> on_complete) {
+void HTLayoutGrid::on_show(CallbackFun on_complete) {
     CScopeGuard x([this, &on_complete] {
         if (on_complete != nullptr)
-            offset.setCallbackOnEnd(on_complete);
+            offset->setCallbackOnEnd(on_complete);
     });
 
     const PHLMONITOR monitor = get_monitor();
@@ -45,14 +56,14 @@ void HTLayoutGrid::on_show(std::function<void(void* thisptr)> on_complete) {
 
     build_overview_layout(HT_VIEW_OPENED);
     const CBox ws_box = overview_layout[monitor->activeWorkspaceID()].box;
-    scale = ws_box.w / monitor->vecTransformedSize.x; // 1 / ROWS
-    offset = {0, 0};
+    *scale = ws_box.w / monitor->vecTransformedSize.x; // 1 / ROWS
+    *offset = {0, 0};
 }
 
-void HTLayoutGrid::on_hide(std::function<void(void* thisptr)> on_complete) {
+void HTLayoutGrid::on_hide(CallbackFun on_complete) {
     CScopeGuard x([this, &on_complete] {
         if (on_complete != nullptr)
-            offset.setCallbackOnEnd(on_complete);
+            offset->setCallbackOnEnd(on_complete);
     });
 
     const PHLMONITOR monitor = get_monitor();
@@ -60,18 +71,14 @@ void HTLayoutGrid::on_hide(std::function<void(void* thisptr)> on_complete) {
         return;
 
     build_overview_layout(HT_VIEW_CLOSED);
-    scale = 1.;
-    offset = -overview_layout[monitor->activeWorkspaceID()].box.pos();
+    *scale = 1.;
+    *offset = -overview_layout[monitor->activeWorkspaceID()].box.pos();
 }
 
-void HTLayoutGrid::on_move(
-    WORKSPACEID old_id,
-    WORKSPACEID new_id,
-    std::function<void(void* thisptr)> on_complete
-) {
+void HTLayoutGrid::on_move(WORKSPACEID old_id, WORKSPACEID new_id, CallbackFun on_complete) {
     CScopeGuard x([this, &on_complete] {
         if (on_complete != nullptr)
-            offset.setCallbackOnEnd(on_complete);
+            offset->setCallbackOnEnd(on_complete);
     });
 
     const PHTVIEW par_view = ht_manager->get_view_from_id(view_id);
@@ -79,12 +86,12 @@ void HTLayoutGrid::on_move(
         return;
 
     // prevent the thing from animating
-    g_pCompositor->getWorkspaceByID(old_id)->m_vRenderOffset.warp();
-    g_pCompositor->getWorkspaceByID(new_id)->m_vRenderOffset.warp();
+    g_pCompositor->getWorkspaceByID(old_id)->m_vRenderOffset->warp();
+    g_pCompositor->getWorkspaceByID(new_id)->m_vRenderOffset->warp();
 
     build_overview_layout(HT_VIEW_CLOSED);
-    scale = 1.;
-    offset = -overview_layout[new_id].box.pos();
+    *scale = 1.;
+    *offset = -overview_layout[new_id].box.pos();
 }
 
 bool HTLayoutGrid::should_render_window(PHLWINDOW window) {
@@ -111,7 +118,7 @@ bool HTLayoutGrid::should_render_window(PHLWINDOW window) {
 }
 
 float HTLayoutGrid::drag_window_scale() {
-    return scale.value();
+    return scale->value();
 }
 
 void HTLayoutGrid::init_position() {
@@ -120,8 +127,8 @@ void HTLayoutGrid::init_position() {
         return;
 
     build_overview_layout(HT_VIEW_CLOSED);
-    offset.setValueAndWarp(-overview_layout[monitor->activeWorkspaceID()].box.pos());
-    scale.setValueAndWarp(1.f);
+    offset->setValueAndWarp(-overview_layout[monitor->activeWorkspaceID()].box.pos());
+    scale->setValueAndWarp(1.f);
 }
 
 CBox HTLayoutGrid::calculate_ws_box(int x, int y, HTViewStage stage) {
@@ -151,8 +158,8 @@ CBox HTLayoutGrid::calculate_ws_box(int x, int y, HTViewStage stage) {
         render_x = render_y * mon_aspect;
     }
 
-    float use_scale = scale.value();
-    Vector2D use_offset = offset.value();
+    float use_scale = scale->value();
+    Vector2D use_offset = offset->value();
     if (stage == HT_VIEW_CLOSED) {
         use_scale = 1;
         use_offset = Vector2D {0, 0};
@@ -191,6 +198,9 @@ void HTLayoutGrid::build_overview_layout(HTViewStage stage) {
 }
 
 void HTLayoutGrid::render() {
+    HTLayoutBase::render();
+    CScopeGuard x([this] { post_render(); });
+
     const PHTVIEW par_view = ht_manager->get_view_from_id(view_id);
     if (par_view == nullptr)
         return;
@@ -211,7 +221,11 @@ void HTLayoutGrid::render() {
     g_pHyprRenderer->damageMonitor(monitor);
     g_pHyprOpenGL->m_RenderData.pCurrentMonData->blurFBShouldRender = true;
     CBox monitor_box = {{0, 0}, monitor->vecTransformedSize};
-    g_pHyprOpenGL->renderRect(&monitor_box, CHyprColor {HTConfig::bg_color()}.stripA());
+
+    CRectPassElement::SRectData data;
+    data.color = CHyprColor {HTConfig::bg_color()}.stripA();
+    data.box = monitor_box;
+    g_pHyprRenderer->m_sRenderPass.add(makeShared<CRectPassElement>(data));
 
     // Do a dance with active workspaces: Hyprland will only properly render the
     // current active one so make the workspace active before rendering it, etc
@@ -230,7 +244,7 @@ void HTLayoutGrid::render() {
 
         // renderModif translation used by renderWorkspace is weird so need
         // to scale the translation up as well. Geometry is also calculated from pixel size and not transformed size??
-        CBox render_box = {{ws_layout.box.pos() / scale.value()}, ws_layout.box.size()};
+        CBox render_box = {{ws_layout.box.pos() / scale->value()}, ws_layout.box.size()};
         if (monitor->transform % 2 == 1)
             std::swap(render_box.w, render_box.h);
 
@@ -246,7 +260,12 @@ void HTLayoutGrid::render() {
             exit_workspace_id == ws_id ? *ACTIVECOL : *INACTIVECOL;
         CBox border_box = ws_layout.box;
 
-        g_pHyprOpenGL->renderBorder(&border_box, border_col, 0, BORDERSIZE);
+        CBorderPassElement::SBorderData data;
+        data.box = border_box;
+        data.grad1 = border_col;
+        data.borderSize = BORDERSIZE;
+        g_pHyprRenderer->m_sRenderPass.add(makeShared<CBorderPassElement>(data));
+
         if (workspace != nullptr) {
             monitor->activeWorkspace = workspace;
             workspace->startAnim(true, false, true);
@@ -284,7 +303,7 @@ void HTLayoutGrid::render() {
 
         // renderModif translation used by renderWorkspace is weird so need
         // to scale the translation up as well. Geometry is also calculated from pixel size and not transformed size??
-        CBox render_box = {{ws_box.pos() / scale.value()}, ws_box.size()};
+        CBox render_box = {{ws_box.pos() / scale->value()}, ws_box.size()};
         if (monitor->transform % 2 == 1)
             std::swap(render_box.w, render_box.h);
 
@@ -292,7 +311,11 @@ void HTLayoutGrid::render() {
             exit_workspace_id == start_workspace->m_iID ? *ACTIVECOL : *INACTIVECOL;
         CBox border_box = ws_box;
 
-        g_pHyprOpenGL->renderBorder(&border_box, border_col, 0, BORDERSIZE);
+        CBorderPassElement::SBorderData data;
+        data.box = border_box;
+        data.grad1 = border_col;
+        data.borderSize = BORDERSIZE;
+        g_pHyprRenderer->m_sRenderPass.add(makeShared<CBorderPassElement>(data));
 
         ((render_workspace_t)(render_workspace_hook->m_pOriginal))(
             g_pHyprRenderer.get(),
@@ -316,4 +339,6 @@ void HTLayoutGrid::render() {
                                 .translate(mouse_coords);
     if (!window_box.intersection(monitor->logicalBox()).empty())
         render_window_at_box(dragged_window, monitor, &time, window_box);
+
+    post_render();
 }

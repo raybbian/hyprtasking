@@ -48,11 +48,11 @@ bool HTManager::start_window_drag() {
     if (dragged_window != nullptr) {
         if (dragged_window->m_bDraggingTiled) {
             const Vector2D pre_pos = cursor_view->layout->local_ws_unscaled_to_global(
-                dragged_window->m_vRealPosition.value() - dragged_window->m_pMonitor->vecPosition,
+                dragged_window->m_vRealPosition->value() - dragged_window->m_pMonitor->vecPosition,
                 workspace_id
             );
             const Vector2D post_pos = cursor_view->layout->local_ws_unscaled_to_global(
-                dragged_window->m_vRealPosition.goal() - dragged_window->m_pMonitor->vecPosition,
+                dragged_window->m_vRealPosition->goal() - dragged_window->m_pMonitor->vecPosition,
                 workspace_id
             );
             const Vector2D mapped_pre_pos =
@@ -60,8 +60,8 @@ bool HTManager::start_window_drag() {
             const Vector2D mapped_post_pos =
                 (post_pos - mouse_coords) / cursor_view->layout->drag_window_scale() + mouse_coords;
 
-            dragged_window->m_vRealPosition.setValueAndWarp(mapped_pre_pos);
-            dragged_window->m_vRealPosition = mapped_post_pos;
+            dragged_window->m_vRealPosition->setValueAndWarp(mapped_pre_pos);
+            *dragged_window->m_vRealPosition = mapped_post_pos;
         } else {
             g_pInputManager->simulateMouseMovement();
         }
@@ -142,13 +142,13 @@ bool HTManager::end_window_drag() {
         + cursor_monitor->vecPosition;
 
     const Vector2D tp_pos = cursor_view->layout->global_to_local_ws_unscaled(
-                                (dragged_window->m_vRealPosition.value() - use_mouse_coords)
+                                (dragged_window->m_vRealPosition->value() - use_mouse_coords)
                                         * cursor_view->layout->drag_window_scale()
                                     + use_mouse_coords,
                                 cursor_workspace->m_iID
                             )
         + cursor_monitor->vecPosition;
-    dragged_window->m_vRealPosition.setValueAndWarp(tp_pos);
+    dragged_window->m_vRealPosition->setValueAndWarp(tp_pos);
 
     g_pPointerManager->warpTo(workspace_coords);
     g_pKeybindManager->changeMouseBindMode(MBIND_INVALID);
@@ -156,7 +156,8 @@ bool HTManager::end_window_drag() {
 
     // otherwise the window leaves blur (?) artifacts on all
     // workspaces
-    dragged_window->m_fMovingToWorkspaceAlpha.setValueAndWarp(1.0);
+    dragged_window->m_fMovingToWorkspaceAlpha->setValueAndWarp(1.0);
+    dragged_window->m_fMovingFromWorkspaceAlpha->setValueAndWarp(1.0);
 
     if (o_workspace != nullptr)
         cursor_monitor->changeWorkspace(o_workspace.lock(), true);

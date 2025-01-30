@@ -1,11 +1,18 @@
-#include "layout_base.hpp"
+#include <any>
+#include <sstream>
 
+#define private public
 #include <hyprland/src/config/ConfigManager.hpp>
 #include <hyprland/src/desktop/DesktopTypes.hpp>
+#include <hyprland/src/managers/input/InputManager.hpp>
 #include <hyprland/src/render/Renderer.hpp>
+#include <hyprland/src/render/pass/ClearPassElement.hpp>
+#undef private
 
 #include "../globals.hpp"
+#include "../pass/pass_element.hpp"
 #include "../types.hpp"
+#include "layout_base.hpp"
 
 HTLayoutBase::HTLayoutBase(VIEWID new_view_id) : view_id(new_view_id) {
     ;
@@ -39,12 +46,27 @@ void HTLayoutBase::init_position() {
     ;
 }
 
-void HTLayoutBase::render() {
+void HTLayoutBase::build_overview_layout(HTViewStage stage) {
     ;
 }
 
-void HTLayoutBase::build_overview_layout(HTViewStage stage) {
-    ;
+void HTLayoutBase::render() {
+    CClearPassElement::SClearData data;
+    data.color = CHyprColor {0};
+    g_pHyprRenderer->m_sRenderPass.add(makeShared<CClearPassElement>(data));
+}
+
+const std::string CLEAR_PASS_ELEMENT_NAME = "CClearPassElement";
+
+void HTLayoutBase::post_render() {
+    bool first = true;
+    std::erase_if(g_pHyprRenderer->m_sRenderPass.m_vPassElements, [&first](const auto& e) {
+        bool res = e->element->passName() == CLEAR_PASS_ELEMENT_NAME && !first;
+        first = false;
+        return res;
+    });
+    g_pHyprRenderer->m_sRenderPass.add(makeShared<HTPassElement>());
+    // g_pHyprOpenGL->setDamage(CRegion {CBox {0, 0, INT32_MAX, INT32_MAX}});
 }
 
 PHLMONITOR HTLayoutBase::get_monitor() {

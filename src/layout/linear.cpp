@@ -3,8 +3,11 @@
 #include <hyprland/src/Compositor.hpp>
 #include <hyprland/src/config/ConfigValue.hpp>
 #include <hyprland/src/helpers/MiscFunctions.hpp>
+#include <hyprland/src/managers/AnimationManager.hpp>
 #include <hyprland/src/managers/LayoutManager.hpp>
 #include <hyprland/src/managers/input/InputManager.hpp>
+#include <hyprland/src/render/pass/BorderPassElement.hpp>
+#include <hyprland/src/render/pass/RectPassElement.hpp>
 #include <hyprutils/math/Box.hpp>
 #include <hyprutils/utils/ScopeGuard.hpp>
 #include <ranges>
@@ -17,10 +20,18 @@
 using Hyprutils::Utils::CScopeGuard;
 
 HTLayoutLinear::HTLayoutLinear(VIEWID new_view_id) : HTLayoutBase(new_view_id) {
-    scroll_offset
-        .create(0, g_pConfigManager->getAnimationPropertyConfig("windowsMove"), AVARDAMAGE_NONE);
-    view_offset
-        .create(0, g_pConfigManager->getAnimationPropertyConfig("windowsMove"), AVARDAMAGE_NONE);
+    g_pAnimationManager->createAnimation(
+        0.f,
+        scroll_offset,
+        g_pConfigManager->getAnimationPropertyConfig("windowsMove"),
+        AVARDAMAGE_NONE
+    );
+    g_pAnimationManager->createAnimation(
+        0.f,
+        view_offset,
+        g_pConfigManager->getAnimationPropertyConfig("windowsMove"),
+        AVARDAMAGE_NONE
+    );
 
     init_position();
 }
@@ -29,10 +40,10 @@ std::string HTLayoutLinear::layout_name() {
     return "linear";
 }
 
-void HTLayoutLinear::on_show(std::function<void(void* thisptr)> on_complete) {
+void HTLayoutLinear::on_show(CallbackFun on_complete) {
     CScopeGuard x([this, &on_complete] {
         if (on_complete != nullptr)
-            view_offset.setCallbackOnEnd(on_complete);
+            view_offset->setCallbackOnEnd(on_complete);
     });
 
     const PHLMONITOR monitor = get_monitor();
@@ -40,30 +51,26 @@ void HTLayoutLinear::on_show(std::function<void(void* thisptr)> on_complete) {
         return;
 
     const int HEIGHT = HTConfig::linear_height() * monitor->scale;
-    view_offset = HEIGHT;
+    *view_offset = HEIGHT;
 }
 
-void HTLayoutLinear::on_hide(std::function<void(void* thisptr)> on_complete) {
+void HTLayoutLinear::on_hide(CallbackFun on_complete) {
     CScopeGuard x([this, &on_complete] {
         if (on_complete != nullptr)
-            view_offset.setCallbackOnEnd(on_complete);
+            view_offset->setCallbackOnEnd(on_complete);
     });
 
     const PHLMONITOR monitor = get_monitor();
     if (monitor == nullptr)
         return;
 
-    view_offset = 0;
+    *view_offset = 0;
 }
 
-void HTLayoutLinear::on_move(
-    WORKSPACEID old_id,
-    WORKSPACEID new_id,
-    std::function<void(void* thisptr)> on_complete
-) {
+void HTLayoutLinear::on_move(WORKSPACEID old_id, WORKSPACEID new_id, CallbackFun on_complete) {
     CScopeGuard x([this, &on_complete] {
         if (on_complete != nullptr)
-            scroll_offset.setCallbackOnEnd(on_complete);
+            scroll_offset->setCallbackOnEnd(on_complete);
     });
 
     const PHLMONITOR monitor = get_monitor();
@@ -83,9 +90,10 @@ void HTLayoutLinear::on_move(
         overview_layout[new_id].box.x + overview_layout[new_id].box.w + GAP_SIZE;
 
     if (cur_screen_min_x < 0) {
-        scroll_offset = scroll_offset.value() - cur_screen_min_x;
+        *scroll_offset = scroll_offset->value() - cur_screen_min_x;
     } else if (cur_screen_max_x > monitor->vecTransformedSize.x) {
-        scroll_offset = scroll_offset.value() - (cur_screen_max_x - monitor->vecTransformedSize.x);
+        *scroll_offset =
+            scroll_offset->value() - (cur_screen_max_x - monitor->vecTransformedSize.x);
     }
 }
 
@@ -105,11 +113,11 @@ bool HTLayoutLinear::on_mouse_axis(double delta) {
 
     // Stay at 0 if not long enough
     if (total_ws_width < monitor->vecTransformedSize.x) {
-        scroll_offset = 0.;
+        *scroll_offset = 0.;
         return true;
     }
 
-    double new_offset = scroll_offset.goal() + delta * HTConfig::linear_scroll_speed() * -10.f;
+    double new_offset = scroll_offset->goal() + delta * HTConfig::linear_scroll_speed() * -10.f;
 
     const float max_x = new_offset
         + (overview_layout.size() * (GAP_SIZE + calculate_ws_box(0, 0, HT_VIEW_ANIMATING).w))
@@ -123,7 +131,7 @@ bool HTLayoutLinear::on_mouse_axis(double delta) {
     if (max_x < monitor->vecTransformedSize.x)
         new_offset = new_offset + (monitor->vecTransformedSize.x - max_x);
 
-    scroll_offset = new_offset;
+    *scroll_offset = new_offset;
     return true;
 }
 
@@ -136,7 +144,7 @@ bool HTLayoutLinear::should_manage_mouse() {
 
     const Vector2D mouse_coords = g_pInputManager->getMouseCoordsInternal();
     CBox scaled_view_box = {
-        Vector2D {0.f, monitor->vecTransformedSize.y - view_offset.value()},
+        Vector2D {0.f, monitor->vecTransformedSize.y - view_offset->value()},
         {(float)monitor->vecTransformedSize.x, (float)HEIGHT}
     };
 
@@ -185,8 +193,8 @@ float HTLayoutLinear::drag_window_scale() {
 void HTLayoutLinear::init_position() {
     build_overview_layout(HT_VIEW_CLOSED);
 
-    scroll_offset.setValueAndWarp(0);
-    view_offset.setValueAndWarp(0);
+    scroll_offset->setValueAndWarp(0);
+    view_offset->setValueAndWarp(0);
 }
 
 CBox HTLayoutLinear::calculate_ws_box(int x, int y, HTViewStage stage) {
@@ -203,7 +211,7 @@ CBox HTLayoutLinear::calculate_ws_box(int x, int y, HTViewStage stage) {
     if (GAP_SIZE < 0 || GAP_SIZE > HEIGHT / 2.f)
         fail_exit("Invalid gap_size {} for linear layout", GAP_SIZE);
 
-    float use_view_offset = view_offset.value();
+    float use_view_offset = view_offset->value();
     if (stage == HT_VIEW_CLOSED)
         use_view_offset = 0;
     else if (stage == HT_VIEW_OPENED)
@@ -213,7 +221,7 @@ CBox HTLayoutLinear::calculate_ws_box(int x, int y, HTViewStage stage) {
     const float ws_width =
         ws_height * monitor->vecTransformedSize.x / monitor->vecTransformedSize.y;
 
-    const float ws_x = scroll_offset.value() + (x * (GAP_SIZE + ws_width) + GAP_SIZE);
+    const float ws_x = scroll_offset->value() + (x * (GAP_SIZE + ws_width) + GAP_SIZE);
     const float ws_y = monitor->vecTransformedSize.y - use_view_offset + GAP_SIZE;
     return CBox {ws_x, ws_y, ws_width, ws_height};
 }
@@ -249,6 +257,9 @@ void HTLayoutLinear::build_overview_layout(HTViewStage stage) {
 }
 
 void HTLayoutLinear::render() {
+    HTLayoutBase::render();
+    CScopeGuard x([this] { post_render(); });
+
     const PHTVIEW par_view = ht_manager->get_view_from_id(view_id);
     if (par_view == nullptr)
         return;
@@ -300,10 +311,14 @@ void HTLayoutLinear::render() {
     rendering_standard_ws = false;
 
     CBox view_box = {
-        {0.f, monitor->vecTransformedSize.y - view_offset.value()},
+        {0.f, monitor->vecTransformedSize.y - view_offset->value()},
         {(float)monitor->vecTransformedSize.x, (float)HEIGHT}
     };
-    g_pHyprOpenGL->renderRectWithBlur(&view_box, CHyprColor {HTConfig::bg_color()}.stripA());
+
+    CRectPassElement::SRectData data;
+    data.color = CHyprColor {HTConfig::bg_color()}.stripA();
+    data.box = view_box;
+    g_pHyprRenderer->m_sRenderPass.add(makeShared<CRectPassElement>(data));
 
     build_overview_layout(HT_VIEW_ANIMATING);
 
@@ -328,7 +343,12 @@ void HTLayoutLinear::render() {
         const CGradientValueData border_col = workspace == big_ws ? *ACTIVECOL : *INACTIVECOL;
         CBox border_box = ws_layout.box;
 
-        g_pHyprOpenGL->renderBorder(&border_box, border_col, 0, BORDERSIZE);
+        CBorderPassElement::SBorderData data;
+        data.box = border_box;
+        data.grad1 = border_col;
+        data.borderSize = BORDERSIZE;
+        g_pHyprRenderer->m_sRenderPass.add(makeShared<CBorderPassElement>(data));
+
         if (workspace != nullptr) {
             monitor->activeWorkspace = workspace;
             workspace->startAnim(true, false, true);
@@ -374,4 +394,6 @@ void HTLayoutLinear::render() {
                                 .translate(mouse_coords);
     if (!window_box.intersection(monitor->logicalBox()).empty())
         render_window_at_box(dragged_window, monitor, &time, window_box);
+
+    post_render();
 }

@@ -1,12 +1,14 @@
 #pragma once
 
+#include <hyprland/src/helpers/AnimatedVariable.hpp>
+
 #include "../types.hpp"
 #include "layout_base.hpp"
 
 class HTLayoutGrid: public HTLayoutBase {
   private:
-    CAnimatedVariable<float> scale;
-    CAnimatedVariable<Vector2D> offset;
+    PHLANIMVAR<float> scale;
+    PHLANIMVAR<Vector2D> offset;
 
     CBox calculate_ws_box(int x, int y, HTViewStage stage);
 
@@ -16,10 +18,9 @@ class HTLayoutGrid: public HTLayoutBase {
 
     virtual std::string layout_name();
 
-    virtual void on_show(std::function<void(void* thisptr)> on_complete);
-    virtual void on_hide(std::function<void(void* thisptr)> on_complete);
-    virtual void
-    on_move(WORKSPACEID old_id, WORKSPACEID new_id, std::function<void(void* thisptr)> on_complete);
+    virtual void on_show(CallbackFun on_complete);
+    virtual void on_hide(CallbackFun on_complete);
+    virtual void on_move(WORKSPACEID old_id, WORKSPACEID new_id, CallbackFun on_complete);
 
     virtual bool should_render_window(PHLWINDOW window);
     virtual float drag_window_scale();

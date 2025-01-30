@@ -22,24 +22,26 @@ add_project_arguments(
 globber = run_command('find', '.', '-name', '*.cpp', check: true)
 src = globber.stdout().strip().split('\n')
 
-hyprland = dependency('hyprland')
-
 incdir = []
+dependencies = [
+  dependency('pixman-1'),
+  dependency('libdrm'),
+  dependency('pangocairo'),
+  dependency('libinput'),
+  dependency('libudev'),
+  dependency('wayland-server'),
+  dependency('xkbcommon'),
+]
+
 if get_option('local_include')
-  incdir = include_directories('include')
+  incdir += include_directories('include')
+  incdir += include_directories('include/hyprland/protocols')
+else
+  dependencies += dependency('hyprland')
 endif
 
 shared_module(meson.project_name(), src,
-  dependencies: [
-    dependency('hyprland'),
-    dependency('pixman-1'),
-    dependency('libdrm'),
-    dependency('pangocairo'),
-    dependency('libinput'),
-    dependency('libudev'),
-    dependency('wayland-server'),
-    dependency('xkbcommon'),
-  ],
+  dependencies: dependencies,
   install: true,
   include_directories: incdir
 )

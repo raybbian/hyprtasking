@@ -5,8 +5,8 @@
 
 class HTLayoutLinear: public HTLayoutBase {
   private:
-    CAnimatedVariable<float> scroll_offset;
-    CAnimatedVariable<float> view_offset;
+    PHLANIMVAR<float> scroll_offset;
+    PHLANIMVAR<float> view_offset;
 
     bool rendering_standard_ws;
 
@@ -18,10 +18,9 @@ class HTLayoutLinear: public HTLayoutBase {
 
     virtual std::string layout_name();
 
-    virtual void on_show(std::function<void(void* thisptr)> on_complete);
-    virtual void on_hide(std::function<void(void* thisptr)> on_complete);
-    virtual void
-    on_move(WORKSPACEID old_id, WORKSPACEID new_id, std::function<void(void* thisptr)> on_complete);
+    virtual void on_show(CallbackFun on_complete);
+    virtual void on_hide(CallbackFun on_complete);
+    virtual void on_move(WORKSPACEID old_id, WORKSPACEID new_id, CallbackFun on_complete);
 
     virtual bool on_mouse_axis(double delta);
 

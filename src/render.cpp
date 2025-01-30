@@ -7,6 +7,7 @@
 #include <hyprland/src/managers/input/InputManager.hpp>
 #include <hyprland/src/render/OpenGL.hpp>
 #include <hyprland/src/render/Renderer.hpp>
+#include <hyprland/src/render/pass/RendererHintsPassElement.hpp>
 #include <hyprutils/math/Vector2D.hpp>
 
 #include "globals.hpp"
@@ -20,20 +21,17 @@ void render_window_at_box(PHLWINDOW window, PHLMONITOR monitor, timespec* time, 
     box.x -= monitor->vecPosition.x;
     box.y -= monitor->vecPosition.y;
 
-    const float scale = box.w / window->m_vRealSize.value().x;
+    const float scale = box.w / window->m_vRealSize->value().x;
     const Vector2D transform =
-        (monitor->vecPosition - window->m_vRealPosition.value() + box.pos() / scale)
+        (monitor->vecPosition - window->m_vRealPosition->value() + box.pos() / scale)
         * monitor->scale;
 
-    const bool o_render_modif_enabled = g_pHyprOpenGL->m_RenderData.renderModif.enabled;
-
-    g_pHyprOpenGL->m_RenderData.renderModif.modifs.push_back(
-        {SRenderModifData::eRenderModifType::RMOD_TYPE_TRANSLATE, transform}
+    SRenderModifData data {};
+    data.modifs.push_back({SRenderModifData::eRenderModifType::RMOD_TYPE_TRANSLATE, transform});
+    data.modifs.push_back({SRenderModifData::eRenderModifType::RMOD_TYPE_SCALE, scale});
+    g_pHyprRenderer->m_sRenderPass.add(
+        makeShared<CRendererHintsPassElement>(CRendererHintsPassElement::SData {data})
     );
-    g_pHyprOpenGL->m_RenderData.renderModif.modifs.push_back(
-        {SRenderModifData::eRenderModifType::RMOD_TYPE_SCALE, scale}
-    );
-    g_pHyprOpenGL->m_RenderData.renderModif.enabled = true;
 
     g_pHyprRenderer->damageWindow(window);
     ((render_window_t)render_window)(
@@ -47,7 +45,7 @@ void render_window_at_box(PHLWINDOW window, PHLMONITOR monitor, timespec* time, 
         false
     );
 
-    g_pHyprOpenGL->m_RenderData.renderModif.enabled = o_render_modif_enabled;
-    g_pHyprOpenGL->m_RenderData.renderModif.modifs.pop_back();
-    g_pHyprOpenGL->m_RenderData.renderModif.modifs.pop_back();
+    g_pHyprRenderer->m_sRenderPass.add(makeShared<CRendererHintsPassElement>(
+        CRendererHintsPassElement::SData {SRenderModifData {}}
+    ));
 }

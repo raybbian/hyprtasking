@@ -244,9 +244,9 @@ static void register_callbacks() {
 }
 
 static void add_dispatchers() {
-    HyprlandAPI::addDispatcher(PHANDLE, "hyprtasking:toggle", dispatch_toggle_view);
-    HyprlandAPI::addDispatcher(PHANDLE, "hyprtasking:move", dispatch_move);
-    HyprlandAPI::addDispatcher(PHANDLE, "hyprtasking:killhovered", dispatch_kill_hover);
+    HyprlandAPI::addDispatcherV2(PHANDLE, "hyprtasking:toggle", dispatch_toggle_view);
+    HyprlandAPI::addDispatcherV2(PHANDLE, "hyprtasking:move", dispatch_move);
+    HyprlandAPI::addDispatcherV2(PHANDLE, "hyprtasking:killhovered", dispatch_kill_hover);
 }
 
 static void init_config() {
