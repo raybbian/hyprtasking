@@ -4,8 +4,7 @@
 </div>
 
 > [!Important]
-> - Supports Hyprland release `v0.46.2`.
-> - Support for Hyprland-git **HAS BEEN DROPPED** until the rendering rewrite is more mature!! If you'd still like to use it, build from the `git-archive` branch.
+> - Supports Hyprland release `v0.46.2-v0.47.0`.
 
 https://github.com/user-attachments/assets/8d6cdfd2-2b17-4240-a117-1dbd2231ed4e
 
