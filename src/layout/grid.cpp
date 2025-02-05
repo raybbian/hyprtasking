@@ -366,6 +366,4 @@ void HTLayoutGrid::render() {
                                 .translate(mouse_coords);
     if (!window_box.intersection(monitor->logicalBox()).empty())
         render_window_at_box(dragged_window, monitor, &time, window_box);
-
-    post_render();
 }
