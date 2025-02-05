@@ -44,6 +44,32 @@ std::string HTLayoutGrid::layout_name() {
     return "grid";
 }
 
+void HTLayoutGrid::close_open_lerp(float perc) {
+    const PHLMONITOR monitor = get_monitor();
+    if (monitor == nullptr)
+        return;
+
+    build_overview_layout(HT_VIEW_OPENED);
+    double open_scale = overview_layout[monitor->activeWorkspaceID()].box.w
+        / monitor->vecTransformedSize.x; // 1 / ROWS
+    Vector2D open_pos = {0, 0};
+
+    build_overview_layout(HT_VIEW_CLOSED);
+    double close_scale = 1.;
+    Vector2D close_pos = -overview_layout[monitor->activeWorkspaceID()].box.pos();
+
+    double new_scale = std::lerp(close_scale, open_scale, perc);
+    Vector2D new_pos = Vector2D {
+        std::lerp(close_pos.x, open_pos.x, perc),
+        std::lerp(close_pos.y, open_pos.y, perc)
+    };
+
+    scale->resetAllCallbacks();
+    offset->resetAllCallbacks();
+    scale->setValueAndWarp(new_scale);
+    offset->setValueAndWarp(new_pos);
+}
+
 void HTLayoutGrid::on_show(CallbackFun on_complete) {
     CScopeGuard x([this, &on_complete] {
         if (on_complete != nullptr)
@@ -82,7 +108,7 @@ void HTLayoutGrid::on_move(WORKSPACEID old_id, WORKSPACEID new_id, CallbackFun o
     });
 
     const PHTVIEW par_view = ht_manager->get_view_from_id(view_id);
-    if (par_view == nullptr || par_view->is_active())
+    if (par_view == nullptr || par_view->active)
         return;
 
     // prevent the thing from animating

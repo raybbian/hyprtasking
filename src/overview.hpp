@@ -13,12 +13,11 @@
 typedef long VIEWID;
 
 class HTView {
-  private:
+  public:
     bool closing;
     bool active;
     bool navigating;
 
-  public:
     HTView(MONITORID in_monitor_id);
 
     void change_layout(const std::string& layout_name);
@@ -34,10 +33,6 @@ class HTView {
 
     WORKSPACEID get_exit_workspace_id(bool exit_on_mouse);
     void do_exit_behavior(bool exit_on_mouse);
-
-    bool is_active();
-    bool is_closing();
-    bool is_navigating();
 
     PHLMONITOR get_monitor();
 

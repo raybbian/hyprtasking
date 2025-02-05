@@ -52,6 +52,20 @@ std::string HTLayoutLinear::layout_name() {
     return "linear";
 }
 
+void HTLayoutLinear::close_open_lerp(float perc) {
+    const PHLMONITOR monitor = get_monitor();
+    if (monitor == nullptr)
+        return;
+    const float HEIGHT = HTConfig::value<Hyprlang::FLOAT>("linear:height") * monitor->scale;
+
+    view_offset->resetAllCallbacks();
+    blur_strength->resetAllCallbacks();
+    dim_opacity->resetAllCallbacks();
+    view_offset->setValueAndWarp(std::lerp(0.0, HEIGHT, perc));
+    blur_strength->setValueAndWarp(std::lerp(0.0, 2.0, perc));
+    dim_opacity->setValueAndWarp(std::lerp(0.0, 0.4, perc));
+}
+
 void HTLayoutLinear::on_show(CallbackFun on_complete) {
     CScopeGuard x([this, &on_complete] {
         if (on_complete != nullptr)

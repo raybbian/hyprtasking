@@ -94,6 +94,8 @@ Then use `hyprctl plugin load` to load the absolute path to the `.so` file.
 ### Opening Overview
 
 - Bind `hyprtasking:toggle, all` to a keybind to open/close the overlay on all monitors. 
+- Bind `hyprtasking:toggle, cursor` to a keybind to open the overlay on one monitor and close on all monitors.
+- Swipe up/down on a touchpad device to open/close the overlay on one monitor.
 - See [below](#Configuration) for configuration options.
 
 ### Interaction
@@ -123,17 +125,25 @@ plugin {
     hyprtasking {
         layout = grid
 
-        bg_color = 0xff26233a
         gap_size = 20
+        bg_color = 0xff26233a
         border_size = 4
         exit_behavior = active interacted original hovered
+
+        gestures {
+            enabled = true
+            open_fingers = 3
+            open_distance = 300
+            open_positive = true
+        }
 
         grid {
             rows = 3
             cols = 3
         }
+
         linear {
-            height = 300
+            height = 400
             scroll_speed = 1.1
             blur = 0
         }
@@ -169,6 +179,10 @@ All options should are prefixed with `plugin:hyprtasking:`.
 | `gap_size` | `Hyprlang::FLOAT` | The width in logical pixels of the gaps between workspaces | `8.f` |
 | `border_size` | `Hyprlang::FLOAT` | The width in logical pixels of the borders around workspaces | `4.f` |
 | `exit_behavior` | `Hyprlang::STRING` | [Determines which workspace to exit to](#exit-behavior) when closed by keybind | `active hovered interacted original` |
+| `gestures:enabled` | `Hyprlang::INT` | Whether or not to enable gestures | `1` |
+| `gestures:open_fingers` | `Hyprlang::INT` | The number of fingers to use for the "open" gesture | `3` |
+| `gestures:open_distance` | `Hyprlang::FLOAT` | How large of a swipe on the touchpad is needed for the "open" gesture | `300.f` |
+| `gestures:open_positive` | `Hyprlang::INT` | `1` if swiping up should open the overlay, `0` otherwise | `1` |
 | `grid:rows` | `Hyprlang::INT` | The number of rows to display on the grid overlay | `3` |
 | `grid:cols` | `Hyprlang::INT` | The number of columns to display on the grid overlay | `3` |
 | `linear:blur` | `Hyprlang::INT` | Whether or not to blur the dimmed area | `0` |

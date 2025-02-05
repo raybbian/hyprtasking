@@ -29,6 +29,12 @@ class HTManager {
     bool on_mouse_move();
     bool on_mouse_axis(double delta);
 
+    bool is_swiping;
+    float swipe_amt;
+    void swipe_start();
+    bool swipe_update(IPointer::SSwipeUpdateEvent e);
+    bool swipe_end();
+
     bool has_active_view();
     bool cursor_view_active();
 };

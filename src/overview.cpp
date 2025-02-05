@@ -109,8 +109,6 @@ void HTView::do_exit_behavior(bool exit_on_mouse) {
 }
 
 void HTView::show() {
-    if (active)
-        return;
     const PHLMONITOR monitor = get_monitor();
     if (monitor == nullptr)
         return;
@@ -119,6 +117,7 @@ void HTView::show() {
         return;
 
     active = true;
+    closing = false;
     ori_workspace = monitor->activeWorkspace;
 
     layout->on_show();
@@ -130,8 +129,6 @@ void HTView::show() {
 }
 
 void HTView::hide(bool exit_on_mouse) {
-    if (closing || !active)
-        return;
     const PHLMONITOR monitor = get_monitor();
     if (monitor == nullptr)
         return;
@@ -201,16 +198,4 @@ PHLMONITOR HTView::get_monitor() {
     if (monitor == nullptr)
         Debug::log(WARN, "[Hyprtasking] Returning null monitor from get_monitor!");
     return monitor;
-}
-
-bool HTView::is_active() {
-    return active;
-}
-
-bool HTView::is_closing() {
-    return closing;
-}
-
-bool HTView::is_navigating() {
-    return navigating;
 }

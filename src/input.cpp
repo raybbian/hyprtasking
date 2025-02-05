@@ -7,14 +7,15 @@
 #include <hyprland/src/managers/PointerManager.hpp>
 #include <hyprland/src/managers/input/InputManager.hpp>
 
+#include "config.hpp"
 #include "manager.hpp"
 #include "overview.hpp"
 
 bool HTManager::start_window_drag() {
     const PHLMONITOR cursor_monitor = g_pCompositor->getMonitorFromCursor();
     const PHTVIEW cursor_view = get_view_from_monitor(cursor_monitor);
-    if (cursor_monitor == nullptr || cursor_view == nullptr || !cursor_view->is_active()
-        || cursor_view->is_closing())
+    if (cursor_monitor == nullptr || cursor_view == nullptr || !cursor_view->active
+        || cursor_view->closing)
         return false;
 
     if (!cursor_view->layout->should_manage_mouse()) {
@@ -82,7 +83,7 @@ bool HTManager::end_window_drag() {
     }
 
     // Required if dragging and dropping from active to inactive
-    if (!cursor_view->is_active() || cursor_view->is_closing()) {
+    if (!cursor_view->active || cursor_view->closing) {
         g_pKeybindManager->changeMouseBindMode(MBIND_INVALID);
         return false;
     }
@@ -172,7 +173,7 @@ bool HTManager::exit_to_workspace() {
     if (cursor_view == nullptr)
         return false;
 
-    if (!cursor_view->is_active() || !cursor_view->layout->should_manage_mouse())
+    if (!cursor_view->active || !cursor_view->layout->should_manage_mouse())
         return false;
 
     for (PHTVIEW view : views) {
@@ -193,4 +194,79 @@ bool HTManager::on_mouse_axis(double delta) {
         return false;
 
     return cursor_view->layout->on_mouse_axis(delta);
+}
+
+void HTManager::swipe_start() {
+    is_swiping = false;
+    swipe_amt = 0.0;
+}
+
+bool HTManager::swipe_update(IPointer::SSwipeUpdateEvent e) {
+    const float OPEN_DISTANCE = HTConfig::value<Hyprlang::FLOAT>("gestures:open_distance");
+    const uint OPEN_FINGERS = HTConfig::value<Hyprlang::INT>("gestures:open_fingers");
+    const int OPEN_POSITIVE = HTConfig::value<Hyprlang::INT>("gestures:open_positive");
+    const int ENABLED = HTConfig::value<Hyprlang::INT>("gestures:enabled");
+
+    if (!ENABLED)
+        return false;
+
+    bool res = false;
+    char swipe_direction = 0;
+    if (std::abs(e.delta.x) > std::abs(e.delta.y)) {
+        swipe_direction = 'h';
+    } else if (std::abs(e.delta.y) > std::abs(e.delta.x)) {
+        swipe_direction = 'v';
+    }
+
+    const PHTVIEW cursor_view = get_view_from_cursor();
+    if (cursor_view == nullptr)
+        return res;
+    if (cursor_view->active || is_swiping)
+        res = true;
+
+    if (swipe_direction != 'v' || e.fingers != OPEN_FINGERS)
+        return res;
+
+    const float deltaY = OPEN_POSITIVE ? e.delta.y : -e.delta.y;
+
+    if (!is_swiping) {
+        if (cursor_view->closing) {
+            return res;
+        } else if (!cursor_view->active && deltaY <= 0) {
+            cursor_view->show();
+            is_swiping = true;
+            swipe_amt = OPEN_DISTANCE;
+        } else if (cursor_view->active && deltaY > 0) {
+            cursor_view->hide(false);
+            is_swiping = true;
+            swipe_amt = 0.0;
+        } else {
+            return res;
+        }
+    }
+
+    swipe_amt += deltaY;
+    const float swipe_perc = 1.0 - std::clamp(swipe_amt / OPEN_DISTANCE, 0.01f, 1.0f);
+    cursor_view->layout->close_open_lerp(swipe_perc);
+
+    return res;
+}
+
+bool HTManager::swipe_end() {
+    const PHTVIEW cursor_view = get_view_from_cursor();
+    if (cursor_view == nullptr || !cursor_view_active() || !is_swiping)
+        return false;
+
+    const float OPEN_DISTANCE = HTConfig::value<Hyprlang::FLOAT>("gestures:open_distance");
+    const float swipe_perc = 1.0 - std::clamp(swipe_amt / OPEN_DISTANCE, 0.01f, 1.0f);
+
+    if (swipe_perc >= 0.5) {
+        cursor_view->show();
+    } else {
+        cursor_view->hide(false);
+    }
+
+    is_swiping = false;
+    swipe_amt = 0.0;
+    return true;
 }

@@ -75,7 +75,7 @@ static void hook_render_workspace(
         return;
     }
     const PHTVIEW view = ht_manager->get_view_from_monitor(monitor);
-    if ((view != nullptr && view->is_navigating()) || ht_manager->has_active_view()) {
+    if ((view != nullptr && view->navigating) || ht_manager->has_active_view()) {
         view->layout->render();
     } else {
         ((render_workspace_t)(render_workspace_hook
@@ -132,6 +132,25 @@ static void on_mouse_axis(void* thisptr, SCallbackInfo& info, std::any args) {
     info.cancelled = ht_manager->on_mouse_axis(e.delta);
 }
 
+static void on_swipe_begin(void* thisptr, SCallbackInfo& info, std::any args) {
+    if (ht_manager == nullptr)
+        return;
+    ht_manager->swipe_start();
+}
+
+static void on_swipe_update(void* thisptr, SCallbackInfo& info, std::any args) {
+    if (ht_manager == nullptr)
+        return;
+    auto e = std::any_cast<IPointer::SSwipeUpdateEvent>(args);
+    info.cancelled = ht_manager->swipe_update(e);
+}
+
+static void on_swipe_end(void* thisptr, SCallbackInfo& info, std::any args) {
+    if (ht_manager == nullptr)
+        return;
+    info.cancelled = ht_manager->swipe_end();
+}
+
 static void cancel_event(void* thisptr, SCallbackInfo& info, std::any args) {
     if (ht_manager == nullptr || !ht_manager->cursor_view_active())
         return;
@@ -160,7 +179,7 @@ static void register_monitors() {
     for (const PHLMONITOR& monitor : g_pCompositor->m_vMonitors) {
         const PHTVIEW view = ht_manager->get_view_from_monitor(monitor);
         if (view != nullptr) {
-            if (!view->is_active())
+            if (!view->active)
                 view->layout->init_position();
             continue;
         }
@@ -233,10 +252,14 @@ static void register_callbacks() {
     static auto P5 = HyprlandAPI::registerCallbackDynamic(PHANDLE, "touchUp", cancel_event);
     static auto P6 = HyprlandAPI::registerCallbackDynamic(PHANDLE, "touchMove", cancel_event);
 
-    static auto P7 =
+    static auto P7 = HyprlandAPI::registerCallbackDynamic(PHANDLE, "swipeBegin", on_swipe_begin);
+    static auto P8 = HyprlandAPI::registerCallbackDynamic(PHANDLE, "swipeUpdate", on_swipe_update);
+    static auto P9 = HyprlandAPI::registerCallbackDynamic(PHANDLE, "swipeEnd", on_swipe_end);
+
+    static auto P10 =
         HyprlandAPI::registerCallbackDynamic(PHANDLE, "configReloaded", on_config_reloaded);
 
-    static auto P8 = HyprlandAPI::registerCallbackDynamic(
+    static auto P11 = HyprlandAPI::registerCallbackDynamic(
         PHANDLE,
         "monitorAdded",
         [&](void* thisptr, SCallbackInfo& info, std::any data) { register_monitors(); }
@@ -260,6 +283,24 @@ static void init_config() {
         PHANDLE,
         "plugin:hyprtasking:exit_behavior",
         Hyprlang::STRING {"active hovered interacted original"}
+    );
+
+    // swipe
+    HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprtasking:gestures:enabled", Hyprlang::INT {1});
+    HyprlandAPI::addConfigValue(
+        PHANDLE,
+        "plugin:hyprtasking:gestures:open_fingers",
+        Hyprlang::INT {3}
+    );
+    HyprlandAPI::addConfigValue(
+        PHANDLE,
+        "plugin:hyprtasking:gestures:open_distance",
+        Hyprlang::FLOAT {300.0}
+    );
+    HyprlandAPI::addConfigValue(
+        PHANDLE,
+        "plugin:hyprtasking:gestures:open_positive",
+        Hyprlang::INT {1}
     );
 
     // grid specific

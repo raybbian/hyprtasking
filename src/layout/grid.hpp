@@ -18,6 +18,7 @@ class HTLayoutGrid: public HTLayoutBase {
 
     virtual std::string layout_name();
 
+    virtual void close_open_lerp(float perc);
     virtual void on_show(CallbackFun on_complete);
     virtual void on_hide(CallbackFun on_complete);
     virtual void on_move(WORKSPACEID old_id, WORKSPACEID new_id, CallbackFun on_complete);

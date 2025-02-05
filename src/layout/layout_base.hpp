@@ -35,6 +35,8 @@ class HTLayoutBase {
 
     std::unordered_map<WORKSPACEID, HTWorkspace> overview_layout;
 
+    // Warp the show/hide animations to perc (from closed to open)
+    virtual void close_open_lerp(float perc) = 0;
     virtual void on_show(CallbackFun on_complete = nullptr) = 0;
     virtual void on_hide(CallbackFun on_complete = nullptr) = 0;
     virtual void

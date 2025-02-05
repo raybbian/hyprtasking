@@ -9,7 +9,8 @@
 #include "overview.hpp"
 
 HTManager::HTManager() {
-    ;
+    is_swiping = false;
+    swipe_amt = 0.0;
 }
 
 PHTVIEW HTManager::get_view_from_monitor(PHLMONITOR monitor) {
@@ -48,7 +49,7 @@ PHLWINDOW HTManager::get_window_from_cursor() {
 
     const Vector2D mouse_coords = g_pInputManager->getMouseCoordsInternal();
 
-    if (!cursor_view->is_active() || !cursor_view->layout->should_manage_mouse()) {
+    if (!cursor_view->active || !cursor_view->layout->should_manage_mouse()) {
         return g_pCompositor->vectorToWindowUnified(
             mouse_coords,
             RESERVED_EXTENTS | INPUT_EXTENTS | ALLOW_FLOATING
@@ -100,6 +101,8 @@ void HTManager::show_cursor_view() {
 }
 
 void HTManager::reset() {
+    is_swiping = false;
+    swipe_amt = 0.0;
     views.clear();
 }
 
@@ -107,7 +110,7 @@ bool HTManager::has_active_view() {
     for (const auto& view : views) {
         if (view == nullptr)
             continue;
-        if (view->is_active())
+        if (view->active)
             return true;
     }
     return false;
@@ -117,5 +120,5 @@ bool HTManager::cursor_view_active() {
     const PHTVIEW view = get_view_from_cursor();
     if (view == nullptr)
         return false;
-    return view->is_active();
+    return view->active;
 }
