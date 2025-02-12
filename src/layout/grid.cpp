@@ -49,9 +49,8 @@ void HTLayoutGrid::close_open_lerp(float perc) {
     if (monitor == nullptr)
         return;
 
-    build_overview_layout(HT_VIEW_OPENED);
-    double open_scale = overview_layout[monitor->activeWorkspaceID()].box.w
-        / monitor->vecTransformedSize.x; // 1 / ROWS
+    double open_scale =
+        calculate_ws_box(0, 0, HT_VIEW_OPENED).w / monitor->vecTransformedSize.x; // 1 / ROWS
     Vector2D open_pos = {0, 0};
 
     build_overview_layout(HT_VIEW_CLOSED);
@@ -80,9 +79,11 @@ void HTLayoutGrid::on_show(CallbackFun on_complete) {
     if (monitor == nullptr)
         return;
 
-    build_overview_layout(HT_VIEW_OPENED);
-    const CBox ws_box = overview_layout[monitor->activeWorkspaceID()].box;
-    *scale = ws_box.w / monitor->vecTransformedSize.x; // 1 / ROWS
+    // teleport to proper spot before open
+    on_hide(nullptr);
+    scale->warp(), offset->warp();
+
+    *scale = calculate_ws_box(0, 0, HT_VIEW_OPENED).w / monitor->vecTransformedSize.x; // 1 / ROWS
     *offset = {0, 0};
 }
 
