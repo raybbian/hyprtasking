@@ -79,10 +79,6 @@ void HTLayoutGrid::on_show(CallbackFun on_complete) {
     if (monitor == nullptr)
         return;
 
-    // teleport to proper spot before open
-    on_hide(nullptr);
-    scale->warp(), offset->warp();
-
     *scale = calculate_ws_box(0, 0, HT_VIEW_OPENED).w / monitor->vecTransformedSize.x; // 1 / ROWS
     *offset = {0, 0};
 }
