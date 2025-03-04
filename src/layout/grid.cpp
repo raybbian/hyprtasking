@@ -263,6 +263,9 @@ void HTLayoutGrid::render() {
 
     CBox global_mon_box = {monitor->vecPosition, monitor->vecTransformedSize};
     for (const auto& [ws_id, ws_layout] : overview_layout) {
+        // Skip if the box is empty
+        if (ws_layout.box.width == 0 && ws_layout.box.height == 0) continue;
+
         // Could be nullptr, in which we render only layers
         const PHLWORKSPACE workspace = g_pCompositor->getWorkspaceByID(ws_id);
 
