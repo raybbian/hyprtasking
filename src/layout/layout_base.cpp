@@ -109,16 +109,16 @@ CBox HTLayoutBase::get_global_window_box(PHLWINDOW window, WORKSPACEID workspace
         return {};
 
     const PHLWORKSPACE workspace = g_pCompositor->getWorkspaceByID(workspace_id);
-    if (workspace == nullptr || workspace->m_pMonitor != monitor)
+    if (workspace == nullptr || workspace->m_monitor != monitor)
         return {};
 
     const CBox ws_window_box = window->getWindowMainSurfaceBox();
 
     const Vector2D top_left =
-        local_ws_unscaled_to_global(ws_window_box.pos() - monitor->vecPosition, workspace->m_iID);
+        local_ws_unscaled_to_global(ws_window_box.pos() - monitor->vecPosition, workspace->m_id);
     const Vector2D bottom_right = local_ws_unscaled_to_global(
         ws_window_box.pos() + ws_window_box.size() - monitor->vecPosition,
-        workspace->m_iID
+        workspace->m_id
     );
 
     return {top_left, bottom_right - top_left};

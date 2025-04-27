@@ -1,6 +1,7 @@
 #include "linear.hpp"
 
 #include <hyprland/src/Compositor.hpp>
+#include <hyprland/src/config/ConfigManager.hpp>
 #include <hyprland/src/config/ConfigValue.hpp>
 #include <hyprland/src/helpers/MiscFunctions.hpp>
 #include <hyprland/src/managers/AnimationManager.hpp>
@@ -265,14 +266,14 @@ void HTLayoutLinear::build_overview_layout(HTViewStage stage) {
     overview_layout.clear();
 
     std::vector<WORKSPACEID> monitor_workspaces;
-    for (PHLWORKSPACE workspace : g_pCompositor->m_vWorkspaces) {
+    for (PHLWORKSPACE workspace : g_pCompositor->m_workspaces) {
         if (workspace == nullptr)
             continue;
-        if (workspace->m_pMonitor != monitor)
+        if (workspace->m_monitor != monitor)
             continue;
-        if (workspace->m_iID < 0)
+        if (workspace->m_id < 0)
             continue;
-        monitor_workspaces.push_back(workspace->m_iID);
+        monitor_workspaces.push_back(workspace->m_id);
     }
     std::sort(monitor_workspaces.begin(), monitor_workspaces.end());
 
@@ -317,14 +318,14 @@ void HTLayoutLinear::render() {
     // current active one so make the workspace active before rendering it, etc
     const PHLWORKSPACE start_workspace = monitor->activeWorkspace;
     start_workspace->startAnim(false, false, true);
-    start_workspace->m_bVisible = false;
+    start_workspace->m_visible = false;
 
     const PHLWORKSPACE big_ws = monitor->activeWorkspace;
 
     rendering_standard_ws = true;
     monitor->activeWorkspace = big_ws;
     big_ws->startAnim(true, false, true);
-    big_ws->m_bVisible = true;
+    big_ws->m_visible = true;
 
     // use pixel size for geometry
     CBox mon_box = {{0, 0}, monitor->vecPixelSize};
@@ -346,7 +347,7 @@ void HTLayoutLinear::render() {
     g_pHyprRenderer->m_sRenderPass.add(makeShared<CRectPassElement>(blur_data));
 
     big_ws->startAnim(false, false, true);
-    big_ws->m_bVisible = false;
+    big_ws->m_visible = false;
     rendering_standard_ws = false;
 
     CBox view_box = {
@@ -391,7 +392,7 @@ void HTLayoutLinear::render() {
         if (workspace != nullptr) {
             monitor->activeWorkspace = workspace;
             workspace->startAnim(true, false, true);
-            workspace->m_bVisible = true;
+            workspace->m_visible = true;
 
             ((render_workspace_t)(render_workspace_hook->m_pOriginal))(
                 g_pHyprRenderer.get(),
@@ -402,7 +403,7 @@ void HTLayoutLinear::render() {
             );
 
             workspace->startAnim(false, false, true);
-            workspace->m_bVisible = false;
+            workspace->m_visible = false;
         } else {
             // If pWorkspace is null, then just render the layers
             ((render_workspace_t)(render_workspace_hook->m_pOriginal))(
@@ -417,7 +418,7 @@ void HTLayoutLinear::render() {
 
     monitor->activeWorkspace = start_workspace;
     start_workspace->startAnim(true, false, true);
-    start_workspace->m_bVisible = true;
+    start_workspace->m_visible = true;
 
     // Render dragged window at mouse cursor
     const PHTVIEW cursor_view = ht_manager->get_view_from_cursor();

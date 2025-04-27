@@ -113,13 +113,13 @@ bool HTManager::end_window_drag() {
     } else if (workspace_id == WORKSPACE_INVALID) {
         cursor_workspace = dragged_window->m_pWorkspace;
         // Ensure that the mouse coords are snapped to inside the workspace box itself
-        use_mouse_coords = cursor_view->layout->get_global_ws_box(cursor_workspace->m_iID)
+        use_mouse_coords = cursor_view->layout->get_global_ws_box(cursor_workspace->m_id)
                                .closestPoint(use_mouse_coords);
 
         Debug::log(
             LOG,
             "[Hyprtasking] Dragging to invalid position, snapping to last ws {}",
-            cursor_workspace->m_iID
+            cursor_workspace->m_id
         );
     }
 
@@ -129,7 +129,7 @@ bool HTManager::end_window_drag() {
         return false;
     }
 
-    Debug::log(LOG, "[Hyprtasking] trying to drop window on ws {}", cursor_workspace->m_iID);
+    Debug::log(LOG, "[Hyprtasking] trying to drop window on ws {}", cursor_workspace->m_id);
 
     cursor_view->act_workspace = cursor_workspace;
 
@@ -139,14 +139,14 @@ bool HTManager::end_window_drag() {
     g_pCompositor->moveWindowToWorkspaceSafe(dragged_window, cursor_workspace);
 
     const Vector2D workspace_coords =
-        cursor_view->layout->global_to_local_ws_unscaled(use_mouse_coords, cursor_workspace->m_iID)
+        cursor_view->layout->global_to_local_ws_unscaled(use_mouse_coords, cursor_workspace->m_id)
         + cursor_monitor->vecPosition;
 
     const Vector2D tp_pos = cursor_view->layout->global_to_local_ws_unscaled(
                                 (dragged_window->m_vRealPosition->value() - use_mouse_coords)
                                         * cursor_view->layout->drag_window_scale()
                                     + use_mouse_coords,
-                                cursor_workspace->m_iID
+                                cursor_workspace->m_id
                             )
         + cursor_monitor->vecPosition;
     dragged_window->m_vRealPosition->setValueAndWarp(tp_pos);

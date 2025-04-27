@@ -58,12 +58,12 @@ WORKSPACEID HTView::get_exit_workspace_id(bool exit_on_mouse) {
 
     auto try_get_original_id = [this]() {
         const PHLWORKSPACE workspace = ori_workspace.lock();
-        return workspace == nullptr ? WORKSPACE_INVALID : workspace->m_iID;
+        return workspace == nullptr ? WORKSPACE_INVALID : workspace->m_id;
     };
 
     auto try_get_interacted_id = [this]() {
         const PHLWORKSPACE workspace = act_workspace.lock();
-        return workspace == nullptr ? WORKSPACE_INVALID : workspace->m_iID;
+        return workspace == nullptr ? WORKSPACE_INVALID : workspace->m_id;
     };
 
     if (exit_on_mouse) {
@@ -163,7 +163,7 @@ void HTView::move(std::string arg) {
         return;
 
     layout->build_overview_layout(HT_VIEW_CLOSED);
-    const auto ws_layout = layout->overview_layout[active_workspace->m_iID];
+    const auto ws_layout = layout->overview_layout[active_workspace->m_id];
 
     int target_x = ws_layout.x;
     int target_y = ws_layout.y;
@@ -188,7 +188,7 @@ void HTView::move(std::string arg) {
     monitor->changeWorkspace(other_workspace);
 
     navigating = true;
-    layout->on_move(active_workspace->m_iID, other_workspace->m_iID, [this](auto self) {
+    layout->on_move(active_workspace->m_id, other_workspace->m_id, [this](auto self) {
         navigating = false;
     });
 }
