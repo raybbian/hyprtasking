@@ -162,10 +162,28 @@ void HTView::move(std::string arg, bool move_window) {
     if (active_workspace == nullptr)
         return;
 
+<<<<<<< Updated upstream
     PHLWINDOW hovered_window = ht_manager->get_window_from_cursor();
 
+||||||| Stash base
+=======
+<<<<<<< Updated upstream
+||||||| Stash base
+    PHLWINDOW hovered_window = ht_manager->get_window_from_cursor();
+
+=======
+    PHLWINDOW hovered_window = ht_manager->get_window_from_cursor();
+    if (hovered_window == nullptr && move_window)
+        return;
+
+    // if moving a window, the up/down/left/right should be relative to the window (and cursor) and not necessarily the active workspace
+    const WORKSPACEID source_ws_id =
+        move_window ? hovered_window->workspaceID() : active_workspace->m_iID;
+
+>>>>>>> Stashed changes
+>>>>>>> Stashed changes
     layout->build_overview_layout(HT_VIEW_CLOSED);
-    const auto ws_layout = layout->overview_layout[active_workspace->m_iID];
+    const auto ws_layout = layout->overview_layout[source_ws_id];
 
     int target_x = ws_layout.x;
     int target_y = ws_layout.y;
