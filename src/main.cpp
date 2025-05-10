@@ -158,15 +158,21 @@ static void cancel_event(void* thisptr, SCallbackInfo& info, std::any args) {
 }
 
 static void notify_config_changes() {
-    static long* const* PROWS =
-        (Hyprlang::INT* const*)HyprlandAPI::getConfigValue(PHANDLE, "plugin:hyprtasking:rows")
-            ->getDataStaticPtr();
-    const int ROWS = **PROWS;
-
+    const int ROWS = HTConfig::value<Hyprlang::INT>("rows");
     if (ROWS != -1) {
         HyprlandAPI::addNotification(
             PHANDLE,
             "[Hyprtasking] plugin:hyprtasking:rows has moved to plugin:hyprtasking:grid:rows in the config.",
+            CHyprColor {1.0, 0.2, 0.2, 1.0},
+            20000
+        );
+    }
+
+    CVarList exit_behavior {HTConfig::value<Hyprlang::STRING>("exit_behavior"), 0, 's', true};
+    if (exit_behavior.size() != 0) {
+        HyprlandAPI::addNotification(
+            PHANDLE,
+            "[Hyprtasking] plugin:hyprtasking:exit_behavior is deprecated. Hyprtasking will always exit to the active workspace, which is changed when interacting with the plugin.",
             CHyprColor {1.0, 0.2, 0.2, 1.0},
             20000
         );
@@ -279,11 +285,6 @@ static void init_config() {
     HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprtasking:bg_color", Hyprlang::INT {0x000000FF});
     HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprtasking:gap_size", Hyprlang::FLOAT {8.f});
     HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprtasking:border_size", Hyprlang::FLOAT {4.f});
-    HyprlandAPI::addConfigValue(
-        PHANDLE,
-        "plugin:hyprtasking:exit_behavior",
-        Hyprlang::STRING {"active hovered interacted original"}
-    );
 
     // swipe
     HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprtasking:gestures:enabled", Hyprlang::INT {1});
@@ -322,6 +323,7 @@ static void init_config() {
 
     // Old config value, warning about updates
     HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprtasking:rows", Hyprlang::INT {-1});
+    HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprtasking:exit_behavior", Hyprlang::STRING {""});
 
     HyprlandAPI::reloadConfig();
 }

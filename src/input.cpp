@@ -32,8 +32,6 @@ bool HTManager::start_window_drag() {
     if (cursor_workspace == nullptr)
         return false;
 
-    cursor_view->act_workspace = cursor_workspace;
-
     // PHLWORKSPACEREF o_workspace = cursor_monitor->activeWorkspace;
     cursor_monitor->changeWorkspace(cursor_workspace, true);
 
@@ -130,8 +128,6 @@ bool HTManager::end_window_drag() {
     }
 
     Debug::log(LOG, "[Hyprtasking] trying to drop window on ws {}", cursor_workspace->m_iID);
-
-    cursor_view->act_workspace = cursor_workspace;
 
     // PHLWORKSPACEREF o_workspace = cursor_monitor->activeWorkspace;
     cursor_monitor->changeWorkspace(cursor_workspace, true);
