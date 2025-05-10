@@ -4,7 +4,9 @@
 </div>
 
 > [!Important]
-> - Supports Hyprland release `v0.46.2-v0.47.2`.
+> - Supports Hyprland release `v0.46.2-v0.48.1`.
+> - The `main` branch will compile for `v0.49.0` but is missing the `movewindow` dispatcher.
+> - The `hyprland-v0.48.1` branch includes the `movewindow` dispatcher but deprecates the `exit_behavior` configuration.
 
 https://github.com/user-attachments/assets/8d6cdfd2-2b17-4240-a117-1dbd2231ed4e
 
@@ -128,7 +130,6 @@ plugin {
         gap_size = 20
         bg_color = 0xff26233a
         border_size = 4
-        exit_behavior = active interacted original hovered
 
         gestures {
             enabled = true
@@ -164,6 +165,9 @@ plugin {
 - `hyprtasking:move, ARG` takes in 1 argument that is one of `up`, `down`, `left`, `right`
     - when dispatched, hyprtasking will switch workspaces with a nice animation
 
+- `hyprtasking:movewindow, ARG` takes in 1 argument that is one of `up`, `down`, `left`, `right`
+    - when dispatched, hyprtasking will 1. move the hovered window to the workspace in the given direction relative to the window, and 2. switch to that workspace.
+
 - `hyprtasking:killhovered` behaves similarly to the standard `killactive` dispatcher with focus on hover
     - when dispatched, hyprtasking will the currently hovered window, useful when the overview is active.
     - this dispatcher is designed to **replace** killactive, it will work even when the overview is **not active**.
@@ -178,7 +182,7 @@ All options should are prefixed with `plugin:hyprtasking:`.
 | `bg_color` | `Hyprlang::INT` | The color of the background of the overlay | `0x000000FF` |
 | `gap_size` | `Hyprlang::FLOAT` | The width in logical pixels of the gaps between workspaces | `8.f` |
 | `border_size` | `Hyprlang::FLOAT` | The width in logical pixels of the borders around workspaces | `4.f` |
-| `exit_behavior` | `Hyprlang::STRING` | [Determines which workspace to exit to](#exit-behavior) when closed by keybind | `active hovered interacted original` |
+| `exit_behavior` (deprecated) | `Hyprlang::STRING` | [Determines which workspace to exit to](#exit-behavior-deprecated) when closed by keybind | `active hovered interacted original` |
 | `gestures:enabled` | `Hyprlang::INT` | Whether or not to enable gestures | `1` |
 | `gestures:open_fingers` | `Hyprlang::INT` | The number of fingers to use for the "open" gesture | `3` |
 | `gestures:open_distance` | `Hyprlang::FLOAT` | How large of a swipe on the touchpad is needed for the "open" gesture | `300.f` |
@@ -189,7 +193,7 @@ All options should are prefixed with `plugin:hyprtasking:`.
 | `linear:height` | `Hyprlang::FLOAT` | The height of the linear overlay in logical pixels | `300.f` |
 | `linear:scroll_speed` | `Hyprlang::FLOAT` | Scroll speed modifier. Set negative to flip direction | `1.f` |
 
-#### Exit Behavior
+#### Exit Behavior (Deprecated)
 
 - When an overview is about to hide, hyprtasking will evaluate these strings in order
     - If the string is `'hovered'`, hyprtasking will attempt to switch to the hovered workspace
