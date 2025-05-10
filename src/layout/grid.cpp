@@ -109,8 +109,8 @@ void HTLayoutGrid::on_move(WORKSPACEID old_id, WORKSPACEID new_id, CallbackFun o
         return;
 
     // prevent the thing from animating
-    g_pCompositor->getWorkspaceByID(old_id)->m_vRenderOffset->warp();
-    g_pCompositor->getWorkspaceByID(new_id)->m_vRenderOffset->warp();
+    g_pCompositor->getWorkspaceByID(old_id)->m_renderOffset->warp();
+    g_pCompositor->getWorkspaceByID(new_id)->m_renderOffset->warp();
 
     build_overview_layout(HT_VIEW_CLOSED);
     *scale = 1.;
@@ -204,7 +204,7 @@ void HTLayoutGrid::build_overview_layout(HTViewStage stage) {
     const int ROWS = HTConfig::value<Hyprlang::INT>("grid:rows");
     const int COLS = HTConfig::value<Hyprlang::INT>("grid:cols");
 
-    const PHLMONITOR last_monitor = g_pCompositor->m_pLastMonitor.lock();
+    const PHLMONITOR last_monitor = g_pCompositor->m_lastMonitor.lock();
     g_pCompositor->setActiveMonitor(monitor);
 
     overview_layout.clear();
@@ -257,7 +257,7 @@ void HTLayoutGrid::render() {
     // current active one so make the workspace active before rendering it, etc
     const PHLWORKSPACE start_workspace = monitor->activeWorkspace;
     start_workspace->startAnim(false, false, true);
-    start_workspace->m_bVisible = false;
+    start_workspace->m_visible = false;
 
     build_overview_layout(HT_VIEW_ANIMATING);
 
@@ -296,7 +296,7 @@ void HTLayoutGrid::render() {
         if (workspace != nullptr) {
             monitor->activeWorkspace = workspace;
             workspace->startAnim(true, false, true);
-            workspace->m_bVisible = true;
+            workspace->m_visible = true;
 
             ((render_workspace_t)(render_workspace_hook->m_pOriginal))(
                 g_pHyprRenderer.get(),
@@ -307,7 +307,7 @@ void HTLayoutGrid::render() {
             );
 
             workspace->startAnim(false, false, true);
-            workspace->m_bVisible = false;
+            workspace->m_visible = false;
         } else {
             // If pWorkspace is null, then just render the layers
             ((render_workspace_t)(render_workspace_hook->m_pOriginal))(
@@ -322,11 +322,11 @@ void HTLayoutGrid::render() {
 
     monitor->activeWorkspace = start_workspace;
     start_workspace->startAnim(true, false, true);
-    start_workspace->m_bVisible = true;
+    start_workspace->m_visible = true;
 
     // Render active workspace last so the dragging window is always on top when let go of
-    if (start_workspace != nullptr && overview_layout.count(start_workspace->m_iID)) {
-        CBox ws_box = overview_layout[start_workspace->m_iID].box;
+    if (start_workspace != nullptr && overview_layout.count(start_workspace->m_id)) {
+        CBox ws_box = overview_layout[start_workspace->m_id].box;
 
         // renderModif translation used by renderWorkspace is weird so need
         // to scale the translation up as well. Geometry is also calculated from pixel size and not transformed size??
@@ -335,7 +335,7 @@ void HTLayoutGrid::render() {
             std::swap(render_box.w, render_box.h);
 
         const CGradientValueData border_col =
-            monitor->activeWorkspaceID() == start_workspace->m_iID ? *ACTIVECOL : *INACTIVECOL;
+            monitor->activeWorkspaceID() == start_workspace->m_id ? *ACTIVECOL : *INACTIVECOL;
         CBox border_box = ws_box;
 
         CBorderPassElement::SBorderData data;

@@ -176,7 +176,7 @@ static void notify_config_changes() {
 static void register_monitors() {
     if (ht_manager == nullptr)
         return;
-    for (const PHLMONITOR& monitor : g_pCompositor->m_vMonitors) {
+    for (const PHLMONITOR& monitor : g_pCompositor->m_monitors) {
         const PHTVIEW view = ht_manager->get_view_from_monitor(monitor);
         if (view != nullptr) {
             if (!view->active)
