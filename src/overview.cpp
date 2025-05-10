@@ -108,7 +108,7 @@ void HTView::hide(bool exit_on_mouse) {
     g_pCompositor->scheduleFrameForMonitor(monitor);
 }
 
-void HTView::move(std::string arg) {
+void HTView::move(std::string arg, bool move_window) {
     if (closing)
         return;
     const PHLMONITOR monitor = get_monitor();
@@ -118,8 +118,16 @@ void HTView::move(std::string arg) {
     if (active_workspace == nullptr)
         return;
 
+    PHLWINDOW hovered_window = ht_manager->get_window_from_cursor();
+    if (hovered_window == nullptr && move_window)
+        return;
+
+    // if moving a window, the up/down/left/right should be relative to the window (and cursor) and not necessarily the active workspace
+    const WORKSPACEID source_ws_id =
+        move_window ? hovered_window->workspaceID() : active_workspace->m_iID;
+
     layout->build_overview_layout(HT_VIEW_CLOSED);
-    const auto ws_layout = layout->overview_layout[active_workspace->m_iID];
+    const auto ws_layout = layout->overview_layout[source_ws_id];
 
     int target_x = ws_layout.x;
     int target_y = ws_layout.y;
@@ -140,6 +148,10 @@ void HTView::move(std::string arg) {
         other_workspace = g_pCompositor->createNewWorkspace(id, monitor->ID);
     if (other_workspace == nullptr)
         return;
+
+    if (move_window) {
+        g_pCompositor->moveWindowToWorkspaceSafe(hovered_window, other_workspace);
+    }
 
     monitor->changeWorkspace(other_workspace);
 
