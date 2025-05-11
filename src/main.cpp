@@ -71,7 +71,7 @@ static void hook_render_workspace(
 ) {
     if (ht_manager == nullptr) {
         ((render_workspace_t)(render_workspace_hook
-                                  ->m_pOriginal))(thisptr, monitor, workspace, now, geometry);
+                                  ->m_original))(thisptr, monitor, workspace, now, geometry);
         return;
     }
     const PHTVIEW view = ht_manager->get_view_from_monitor(monitor);
@@ -79,12 +79,12 @@ static void hook_render_workspace(
         view->layout->render();
     } else {
         ((render_workspace_t)(render_workspace_hook
-                                  ->m_pOriginal))(thisptr, monitor, workspace, now, geometry);
+                                  ->m_original))(thisptr, monitor, workspace, now, geometry);
     }
 }
 
 static bool hook_should_render_window(void* thisptr, PHLWINDOW window, PHLMONITOR monitor) {
-    bool ori_result = ((should_render_window_t)(should_render_window_hook->m_pOriginal))(
+    bool ori_result = ((should_render_window_t)(should_render_window_hook->m_original))(
         thisptr,
         window,
         monitor
@@ -183,14 +183,14 @@ static void register_monitors() {
                 view->layout->init_position();
             continue;
         }
-        ht_manager->views.push_back(makeShared<HTView>(monitor->ID));
+        ht_manager->views.push_back(makeShared<HTView>(monitor->m_id));
 
         Debug::log(
             LOG,
             "[Hyprtasking] Registering view for monitor {} with resolution {}x{}",
-            monitor->szDescription,
-            monitor->vecTransformedSize.x,
-            monitor->vecTransformedSize.y
+            monitor->m_description,
+            monitor->m_transformedSize.x,
+            monitor->m_transformedSize.y
         );
     }
 }
