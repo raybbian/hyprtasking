@@ -82,7 +82,7 @@ WORKSPACEID HTView::get_exit_workspace_id(bool exit_on_mouse) {
         } else if (behavior == "interacted") {
             switch_to_ws_id = try_get_interacted_id();
         } else if (behavior == "active") {
-            switch_to_ws_id = monitor->m_activeWorkspace;
+            switch_to_ws_id = monitor->m_activeWorkspace->m_id;
         } else {
             Debug::log(WARN, "[Hyprtasking] invalid behavior for exit behavior: {}", behavior);
         }
@@ -90,7 +90,7 @@ WORKSPACEID HTView::get_exit_workspace_id(bool exit_on_mouse) {
         if (switch_to_ws_id != WORKSPACE_INVALID)
             return switch_to_ws_id;
     }
-    return monitor->m_activeWorkspace;
+    return monitor->m_activeWorkspace->m_id;
 }
 
 void HTView::do_exit_behavior(bool exit_on_mouse) {

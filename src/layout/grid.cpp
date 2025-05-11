@@ -55,7 +55,7 @@ void HTLayoutGrid::close_open_lerp(float perc) {
 
     build_overview_layout(HT_VIEW_CLOSED);
     double close_scale = 1.;
-    Vector2D close_pos = -overview_layout[monitor->m_activeWorkspace].box.pos();
+    Vector2D close_pos = -overview_layout[monitor->m_activeWorkspace->m_id].box.pos();
 
     double new_scale = std::lerp(close_scale, open_scale, perc);
     Vector2D new_pos = Vector2D {
@@ -95,7 +95,7 @@ void HTLayoutGrid::on_hide(CallbackFun on_complete) {
 
     build_overview_layout(HT_VIEW_CLOSED);
     *scale = 1.;
-    *offset = -overview_layout[monitor->m_activeWorkspace].box.pos();
+    *offset = -overview_layout[monitor->m_activeWorkspace->m_id].box.pos();
 }
 
 void HTLayoutGrid::on_move(WORKSPACEID old_id, WORKSPACEID new_id, CallbackFun on_complete) {
@@ -150,7 +150,7 @@ void HTLayoutGrid::init_position() {
         return;
 
     build_overview_layout(HT_VIEW_CLOSED);
-    offset->setValueAndWarp(-overview_layout[monitor->m_activeWorkspace].box.pos());
+    offset->setValueAndWarp(-overview_layout[monitor->m_activeWorkspace->m_id].box.pos());
     scale->setValueAndWarp(1.f);
 }
 
@@ -284,7 +284,7 @@ void HTLayoutGrid::render() {
             continue;
 
         const CGradientValueData border_col =
-            monitor->m_activeWorkspace == ws_id ? *ACTIVECOL : *INACTIVECOL;
+            monitor->m_activeWorkspace->m_id == ws_id ? *ACTIVECOL : *INACTIVECOL;
         CBox border_box = ws_layout.box;
 
         CBorderPassElement::SBorderData data;
@@ -335,7 +335,7 @@ void HTLayoutGrid::render() {
             std::swap(render_box.w, render_box.h);
 
         const CGradientValueData border_col =
-            monitor->m_activeWorkspace == start_workspace->m_id ? *ACTIVECOL : *INACTIVECOL;
+            monitor->m_activeWorkspace->m_id == start_workspace->m_id ? *ACTIVECOL : *INACTIVECOL;
         CBox border_box = ws_box;
 
         CBorderPassElement::SBorderData data;
