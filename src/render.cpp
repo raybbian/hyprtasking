@@ -18,18 +18,18 @@ void render_window_at_box(PHLWINDOW window, PHLMONITOR monitor, timespec* time, 
     if (!window || !monitor || !time)
         return;
 
-    box.x -= monitor->vecPosition.x;
-    box.y -= monitor->vecPosition.y;
+    box.x -= monitor->m_position.x;
+    box.y -= monitor->m_position.y;
 
-    const float scale = box.w / window->m_vRealSize->value().x;
+    const float scale = box.w / window->m_realSize->value().x;
     const Vector2D transform =
-        (monitor->vecPosition - window->m_vRealPosition->value() + box.pos() / scale)
-        * monitor->scale;
+        (monitor->m_position - window->m_realPosition->value() + box.pos() / scale)
+        * monitor->m_scale;
 
     SRenderModifData data {};
     data.modifs.push_back({SRenderModifData::eRenderModifType::RMOD_TYPE_TRANSLATE, transform});
     data.modifs.push_back({SRenderModifData::eRenderModifType::RMOD_TYPE_SCALE, scale});
-    g_pHyprRenderer->m_sRenderPass.add(
+    g_pHyprRenderer->m_renderPass.add(
         makeShared<CRendererHintsPassElement>(CRendererHintsPassElement::SData {data})
     );
 
@@ -45,7 +45,7 @@ void render_window_at_box(PHLWINDOW window, PHLMONITOR monitor, timespec* time, 
         false
     );
 
-    g_pHyprRenderer->m_sRenderPass.add(makeShared<CRendererHintsPassElement>(
+    g_pHyprRenderer->m_renderPass.add(makeShared<CRendererHintsPassElement>(
         CRendererHintsPassElement::SData {SRenderModifData {}}
     ));
 }

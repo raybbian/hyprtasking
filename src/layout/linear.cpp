@@ -57,7 +57,7 @@ void HTLayoutLinear::close_open_lerp(float perc) {
     const PHLMONITOR monitor = get_monitor();
     if (monitor == nullptr)
         return;
-    const float HEIGHT = HTConfig::value<Hyprlang::FLOAT>("linear:height") * monitor->scale;
+    const float HEIGHT = HTConfig::value<Hyprlang::FLOAT>("linear:height") * monitor->m_scale;
 
     view_offset->resetAllCallbacks();
     blur_strength->resetAllCallbacks();
@@ -77,7 +77,7 @@ void HTLayoutLinear::on_show(CallbackFun on_complete) {
     if (monitor == nullptr)
         return;
 
-    const float HEIGHT = HTConfig::value<Hyprlang::FLOAT>("linear:height") * monitor->scale;
+    const float HEIGHT = HTConfig::value<Hyprlang::FLOAT>("linear:height") * monitor->m_scale;
     *view_offset = HEIGHT;
     *blur_strength = 2.0;
     *dim_opacity = 0.4;
@@ -108,7 +108,7 @@ void HTLayoutLinear::on_move(WORKSPACEID old_id, WORKSPACEID new_id, CallbackFun
     if (monitor == nullptr)
         return;
 
-    const float GAP_SIZE = HTConfig::value<Hyprlang::FLOAT>("gap_size") * monitor->scale;
+    const float GAP_SIZE = HTConfig::value<Hyprlang::FLOAT>("gap_size") * monitor->m_scale;
 
     const PHLWORKSPACE new_ws = g_pCompositor->getWorkspaceByID(new_id);
     if (new_ws == nullptr)
@@ -122,9 +122,9 @@ void HTLayoutLinear::on_move(WORKSPACEID old_id, WORKSPACEID new_id, CallbackFun
 
     if (cur_screen_min_x < 0) {
         *scroll_offset = scroll_offset->value() - cur_screen_min_x;
-    } else if (cur_screen_max_x > monitor->vecTransformedSize.x) {
+    } else if (cur_screen_max_x > monitor->m_transformedSize.x) {
         *scroll_offset =
-            scroll_offset->value() - (cur_screen_max_x - monitor->vecTransformedSize.x);
+            scroll_offset->value() - (cur_screen_max_x - monitor->m_transformedSize.x);
     }
 }
 
@@ -136,14 +136,14 @@ bool HTLayoutLinear::on_mouse_axis(double delta) {
     if (monitor == nullptr)
         return false;
 
-    const float GAP_SIZE = HTConfig::value<Hyprlang::FLOAT>("gap_size") * monitor->scale;
+    const float GAP_SIZE = HTConfig::value<Hyprlang::FLOAT>("gap_size") * monitor->m_scale;
 
     const float total_ws_width =
         (overview_layout.size() * (GAP_SIZE + calculate_ws_box(0, 0, HT_VIEW_ANIMATING).w))
         + GAP_SIZE;
 
     // Stay at 0 if not long enough
-    if (total_ws_width < monitor->vecTransformedSize.x) {
+    if (total_ws_width < monitor->m_transformedSize.x) {
         *scroll_offset = 0.;
         return true;
     }
@@ -160,8 +160,8 @@ bool HTLayoutLinear::on_mouse_axis(double delta) {
         new_offset = 0.;
 
     // Snap to right
-    if (max_x < monitor->vecTransformedSize.x)
-        new_offset = new_offset + (monitor->vecTransformedSize.x - max_x);
+    if (max_x < monitor->m_transformedSize.x)
+        new_offset = new_offset + (monitor->m_transformedSize.x - max_x);
 
     *scroll_offset = new_offset;
     return true;
@@ -172,16 +172,16 @@ bool HTLayoutLinear::should_manage_mouse() {
     if (monitor == nullptr)
         return 1;
 
-    const float HEIGHT = HTConfig::value<Hyprlang::FLOAT>("linear:height") * monitor->scale;
+    const float HEIGHT = HTConfig::value<Hyprlang::FLOAT>("linear:height") * monitor->m_scale;
 
     const Vector2D mouse_coords = g_pInputManager->getMouseCoordsInternal();
     CBox scaled_view_box = {
-        Vector2D {0.f, monitor->vecTransformedSize.y - view_offset->value()},
-        {(float)monitor->vecTransformedSize.x, (float)HEIGHT}
+        Vector2D {0.f, monitor->m_transformedSize.y - view_offset->value()},
+        {(float)monitor->m_transformedSize.x, (float)HEIGHT}
     };
 
-    return scaled_view_box.scale(1 / monitor->scale)
-        .translate(monitor->vecPosition)
+    return scaled_view_box.scale(1 / monitor->m_scale)
+        .translate(monitor->m_position)
         .containsPoint(mouse_coords);
 }
 
@@ -192,13 +192,13 @@ bool HTLayoutLinear::should_render_window(PHLWINDOW window) {
     if (window == nullptr || monitor == nullptr)
         return ori_result;
 
-    if (window == g_pInputManager->currentlyDraggedWindow.lock())
+    if (window == g_pInputManager->m_currentlyDraggedWindow.lock())
         return false;
 
     if (rendering_standard_ws)
         return ori_result;
 
-    PHLWORKSPACE workspace = window->m_pWorkspace;
+    PHLWORKSPACE workspace = window->m_workspace;
     if (workspace == nullptr)
         return false;
 
@@ -217,7 +217,7 @@ float HTLayoutLinear::drag_window_scale() {
         return 1;
 
     if (should_manage_mouse())
-        return calculate_ws_box(0, 0, HT_VIEW_OPENED).w / monitor->vecTransformedSize.x;
+        return calculate_ws_box(0, 0, HT_VIEW_OPENED).w / monitor->m_transformedSize.x;
 
     return 1;
 }
@@ -234,10 +234,10 @@ CBox HTLayoutLinear::calculate_ws_box(int x, int y, HTViewStage stage) {
     if (monitor == nullptr)
         return {};
 
-    const float HEIGHT = HTConfig::value<Hyprlang::FLOAT>("linear:height") * monitor->scale;
-    const float GAP_SIZE = HTConfig::value<Hyprlang::FLOAT>("gap_size") * monitor->scale;
+    const float HEIGHT = HTConfig::value<Hyprlang::FLOAT>("linear:height") * monitor->m_scale;
+    const float GAP_SIZE = HTConfig::value<Hyprlang::FLOAT>("gap_size") * monitor->m_scale;
 
-    if (HEIGHT < 0 || HEIGHT > monitor->vecTransformedSize.y)
+    if (HEIGHT < 0 || HEIGHT > monitor->m_transformedSize.y)
         fail_exit("Linear layout height {} is taller than monitor size", HEIGHT);
 
     if (GAP_SIZE < 0 || GAP_SIZE > HEIGHT / 2.f)
@@ -251,10 +251,10 @@ CBox HTLayoutLinear::calculate_ws_box(int x, int y, HTViewStage stage) {
 
     const float ws_height = HEIGHT - 2 * GAP_SIZE;
     const float ws_width =
-        ws_height * monitor->vecTransformedSize.x / monitor->vecTransformedSize.y;
+        ws_height * monitor->m_transformedSize.x / monitor->m_transformedSize.y;
 
     const float ws_x = scroll_offset->value() + (x * (GAP_SIZE + ws_width) + GAP_SIZE);
-    const float ws_y = monitor->vecTransformedSize.y - use_view_offset + GAP_SIZE;
+    const float ws_y = monitor->m_transformedSize.y - use_view_offset + GAP_SIZE;
     return CBox {ws_x, ws_y, ws_width, ws_height};
 }
 
@@ -306,31 +306,31 @@ void HTLayoutLinear::render() {
     auto* const INACTIVECOL = (CGradientValueData*)(PINACTIVECOL.ptr())->getData();
 
     const float BORDERSIZE = HTConfig::value<Hyprlang::FLOAT>("border_size");
-    const float HEIGHT = HTConfig::value<Hyprlang::FLOAT>("linear:height") * monitor->scale;
+    const float HEIGHT = HTConfig::value<Hyprlang::FLOAT>("linear:height") * monitor->m_scale;
 
     timespec time;
     clock_gettime(CLOCK_MONOTONIC, &time);
 
     g_pHyprRenderer->damageMonitor(monitor);
-    g_pHyprOpenGL->m_RenderData.pCurrentMonData->blurFBShouldRender = true;
+    g_pHyprOpenGL->m_renderData.pCurrentMonData->blurFBShouldRender = true;
 
     // Do a dance with active workspaces: Hyprland will only properly render the
     // current active one so make the workspace active before rendering it, etc
-    const PHLWORKSPACE start_workspace = monitor->activeWorkspace;
+    const PHLWORKSPACE start_workspace = monitor->m_activeWorkspace;
     start_workspace->startAnim(false, false, true);
     start_workspace->m_visible = false;
 
-    const PHLWORKSPACE big_ws = monitor->activeWorkspace;
+    const PHLWORKSPACE big_ws = monitor->m_activeWorkspace;
 
     rendering_standard_ws = true;
-    monitor->activeWorkspace = big_ws;
+    monitor->m_activeWorkspace = big_ws;
     big_ws->startAnim(true, false, true);
     big_ws->m_visible = true;
 
     // use pixel size for geometry
-    CBox mon_box = {{0, 0}, monitor->vecPixelSize};
+    CBox mon_box = {{0, 0}, monitor->m_pixelSize};
     // Render the current workspace on the screen
-    ((render_workspace_t)(render_workspace_hook->m_pOriginal))(
+    ((render_workspace_t)(render_workspace_hook->m_original))(
         g_pHyprRenderer.get(),
         monitor,
         big_ws,
@@ -344,25 +344,25 @@ void HTLayoutLinear::render() {
     blur_data.box = mon_box;
     blur_data.blur = (bool)HTConfig::value<Hyprlang::INT>("linear:blur");
     blur_data.blurA = blur_strength->value();
-    g_pHyprRenderer->m_sRenderPass.add(makeShared<CRectPassElement>(blur_data));
+    g_pHyprRenderer->m_renderPass.add(makeShared<CRectPassElement>(blur_data));
 
     big_ws->startAnim(false, false, true);
     big_ws->m_visible = false;
     rendering_standard_ws = false;
 
     CBox view_box = {
-        {0.f, monitor->vecTransformedSize.y - view_offset->value()},
-        {(float)monitor->vecTransformedSize.x, (float)HEIGHT}
+        {0.f, monitor->m_transformedSize.y - view_offset->value()},
+        {(float)monitor->m_transformedSize.x, (float)HEIGHT}
     };
 
     CRectPassElement::SRectData data;
     data.color = CHyprColor {HTConfig::value<Hyprlang::INT>("bg_color")}.stripA();
     data.box = view_box;
-    g_pHyprRenderer->m_sRenderPass.add(makeShared<CRectPassElement>(data));
+    g_pHyprRenderer->m_renderPass.add(makeShared<CRectPassElement>(data));
 
     build_overview_layout(HT_VIEW_ANIMATING);
 
-    CBox global_mon_box = {monitor->vecPosition, monitor->vecTransformedSize};
+    CBox global_mon_box = {monitor->m_position, monitor->m_transformedSize};
     for (const auto& [ws_id, ws_layout] : overview_layout) {
         // Could be nullptr, in which we render only layers
         const PHLWORKSPACE workspace = g_pCompositor->getWorkspaceByID(ws_id);
@@ -370,13 +370,13 @@ void HTLayoutLinear::render() {
         // renderModif translation used by renderWorkspace is weird so need
         // to scale the translation up as well. Geometry is also calculated from pixel size and not transformed size??
         CBox render_box = {
-            {ws_layout.box.pos() / (ws_layout.box.w / monitor->vecTransformedSize.x)},
+            {ws_layout.box.pos() / (ws_layout.box.w / monitor->m_transformedSize.x)},
             ws_layout.box.size()
         };
-        if (monitor->transform % 2 == 1)
+        if (monitor->m_transform % 2 == 1)
             std::swap(render_box.w, render_box.h);
 
-        CBox global_box = {ws_layout.box.pos() + monitor->vecPosition, ws_layout.box.size()};
+        CBox global_box = {ws_layout.box.pos() + monitor->m_position, ws_layout.box.size()};
         if (global_box.intersection(global_mon_box).empty())
             continue;
 
@@ -387,14 +387,14 @@ void HTLayoutLinear::render() {
         data.box = border_box;
         data.grad1 = border_col;
         data.borderSize = BORDERSIZE;
-        g_pHyprRenderer->m_sRenderPass.add(makeShared<CBorderPassElement>(data));
+        g_pHyprRenderer->m_renderPass.add(makeShared<CBorderPassElement>(data));
 
         if (workspace != nullptr) {
-            monitor->activeWorkspace = workspace;
+            monitor->m_activeWorkspace = workspace;
             workspace->startAnim(true, false, true);
             workspace->m_visible = true;
 
-            ((render_workspace_t)(render_workspace_hook->m_pOriginal))(
+            ((render_workspace_t)(render_workspace_hook->m_original))(
                 g_pHyprRenderer.get(),
                 monitor,
                 workspace,
@@ -406,7 +406,7 @@ void HTLayoutLinear::render() {
             workspace->m_visible = false;
         } else {
             // If pWorkspace is null, then just render the layers
-            ((render_workspace_t)(render_workspace_hook->m_pOriginal))(
+            ((render_workspace_t)(render_workspace_hook->m_original))(
                 g_pHyprRenderer.get(),
                 monitor,
                 workspace,
@@ -416,7 +416,7 @@ void HTLayoutLinear::render() {
         }
     }
 
-    monitor->activeWorkspace = start_workspace;
+    monitor->m_activeWorkspace = start_workspace;
     start_workspace->startAnim(true, false, true);
     start_workspace->m_visible = true;
 
@@ -424,7 +424,7 @@ void HTLayoutLinear::render() {
     const PHTVIEW cursor_view = ht_manager->get_view_from_cursor();
     if (cursor_view == nullptr)
         return;
-    const PHLWINDOW dragged_window = g_pInputManager->currentlyDraggedWindow.lock();
+    const PHLWINDOW dragged_window = g_pInputManager->m_currentlyDraggedWindow.lock();
     if (dragged_window == nullptr)
         return;
     const Vector2D mouse_coords = g_pInputManager->getMouseCoordsInternal();
