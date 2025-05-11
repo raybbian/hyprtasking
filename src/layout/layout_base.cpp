@@ -31,7 +31,7 @@ bool HTLayoutBase::should_render_window(PHLWINDOW window) {
     if (monitor == nullptr || window == nullptr)
         return false;
 
-    return ((should_render_window_t)(should_render_window_hook->m_pOriginal))(
+    return ((should_render_window_t)(should_render_window_hook->m_original))(
         g_pHyprRenderer.get(),
         window,
         monitor
@@ -53,19 +53,19 @@ void HTLayoutBase::build_overview_layout(HTViewStage stage) {
 void HTLayoutBase::render() {
     CClearPassElement::SClearData data;
     data.color = CHyprColor {0};
-    g_pHyprRenderer->m_sRenderPass.add(makeShared<CClearPassElement>(data));
+    g_pHyprRenderer->m_renderPass.add(makeShared<CClearPassElement>(data));
 }
 
 const std::string CLEAR_PASS_ELEMENT_NAME = "CClearPassElement";
 
 void HTLayoutBase::post_render() {
     bool first = true;
-    std::erase_if(g_pHyprRenderer->m_sRenderPass.m_vPassElements, [&first](const auto& e) {
+    std::erase_if(g_pHyprRenderer->m_renderPass.m_passElements, [&first](const auto& e) {
         bool res = e->element->passName() == CLEAR_PASS_ELEMENT_NAME && !first;
         first = false;
         return res;
     });
-    g_pHyprRenderer->m_sRenderPass.add(makeShared<HTPassElement>());
+    g_pHyprRenderer->m_renderPass.add(makeShared<HTPassElement>());
     // g_pHyprOpenGL->setDamage(CRegion {CBox {0, 0, INT32_MAX, INT32_MAX}});
 }
 
@@ -84,7 +84,7 @@ WORKSPACEID HTLayoutBase::get_ws_id_from_global(Vector2D pos) {
     if (!monitor->logicalBox().containsPoint(pos))
         return WORKSPACE_INVALID;
 
-    Vector2D relative_pos = (pos - monitor->vecPosition) * monitor->scale;
+    Vector2D relative_pos = (pos - monitor->m_position) * monitor->m_scale;
     for (const auto& [id, layout] : overview_layout)
         if (layout.box.containsPoint(relative_pos))
             return id;
@@ -115,9 +115,9 @@ CBox HTLayoutBase::get_global_window_box(PHLWINDOW window, WORKSPACEID workspace
     const CBox ws_window_box = window->getWindowMainSurfaceBox();
 
     const Vector2D top_left =
-        local_ws_unscaled_to_global(ws_window_box.pos() - monitor->vecPosition, workspace->m_id);
+        local_ws_unscaled_to_global(ws_window_box.pos() - monitor->m_position, workspace->m_id);
     const Vector2D bottom_right = local_ws_unscaled_to_global(
-        ws_window_box.pos() + ws_window_box.size() - monitor->vecPosition,
+        ws_window_box.pos() + ws_window_box.size() - monitor->m_position,
         workspace->m_id
     );
 
@@ -140,11 +140,11 @@ Vector2D HTLayoutBase::global_to_local_ws_unscaled(Vector2D pos, WORKSPACEID wor
     CBox workspace_box = overview_layout[workspace_id].box;
     if (workspace_box.empty())
         return {};
-    pos -= monitor->vecPosition;
-    pos *= monitor->scale;
+    pos -= monitor->m_position;
+    pos *= monitor->m_scale;
     pos -= workspace_box.pos();
-    pos /= monitor->scale;
-    pos /= workspace_box.w / monitor->vecTransformedSize.x;
+    pos /= monitor->m_scale;
+    pos /= workspace_box.w / monitor->m_transformedSize.x;
     return pos;
 }
 
@@ -154,7 +154,7 @@ Vector2D HTLayoutBase::global_to_local_ws_scaled(Vector2D pos, WORKSPACEID works
         return {};
 
     pos = global_to_local_ws_unscaled(pos, workspace_id);
-    pos *= monitor->scale;
+    pos *= monitor->m_scale;
     return pos;
 }
 
@@ -166,11 +166,11 @@ Vector2D HTLayoutBase::local_ws_unscaled_to_global(Vector2D pos, WORKSPACEID wor
     CBox workspace_box = overview_layout[workspace_id].box;
     if (workspace_box.empty())
         return {};
-    pos *= workspace_box.w / monitor->vecTransformedSize.x;
-    pos *= monitor->scale;
+    pos *= workspace_box.w / monitor->m_transformedSize.x;
+    pos *= monitor->m_scale;
     pos += workspace_box.pos();
-    pos /= monitor->scale;
-    pos += monitor->vecPosition;
+    pos /= monitor->m_scale;
+    pos += monitor->m_position;
     return pos;
 }
 
@@ -179,6 +179,6 @@ Vector2D HTLayoutBase::local_ws_scaled_to_global(Vector2D pos, WORKSPACEID works
     if (monitor == nullptr)
         return {};
 
-    pos /= monitor->scale;
+    pos /= monitor->m_scale;
     return local_ws_unscaled_to_global(pos, workspace_id);
 }

@@ -82,7 +82,7 @@ WORKSPACEID HTView::get_exit_workspace_id(bool exit_on_mouse) {
         } else if (behavior == "interacted") {
             switch_to_ws_id = try_get_interacted_id();
         } else if (behavior == "active") {
-            switch_to_ws_id = monitor->activeWorkspaceID();
+            switch_to_ws_id = monitor->m_activeWorkspace;
         } else {
             Debug::log(WARN, "[Hyprtasking] invalid behavior for exit behavior: {}", behavior);
         }
@@ -90,7 +90,7 @@ WORKSPACEID HTView::get_exit_workspace_id(bool exit_on_mouse) {
         if (switch_to_ws_id != WORKSPACE_INVALID)
             return switch_to_ws_id;
     }
-    return monitor->activeWorkspaceID();
+    return monitor->m_activeWorkspace;
 }
 
 void HTView::do_exit_behavior(bool exit_on_mouse) {
@@ -101,7 +101,7 @@ void HTView::do_exit_behavior(bool exit_on_mouse) {
     PHLWORKSPACE workspace = g_pCompositor->getWorkspaceByID(ws_id);
 
     if (workspace == nullptr && ws_id != WORKSPACE_INVALID)
-        workspace = g_pCompositor->createNewWorkspace(ws_id, monitor->ID);
+        workspace = g_pCompositor->createNewWorkspace(ws_id, monitor->m_id);
     if (workspace == nullptr)
         return;
 
@@ -112,13 +112,13 @@ void HTView::show() {
     const PHLMONITOR monitor = get_monitor();
     if (monitor == nullptr)
         return;
-    const PHLWORKSPACE active_workspace = monitor->activeWorkspace;
+    const PHLWORKSPACE active_workspace = monitor->m_activeWorkspace;
     if (active_workspace == nullptr)
         return;
 
     active = true;
     closing = false;
-    ori_workspace = monitor->activeWorkspace;
+    ori_workspace = monitor->m_activeWorkspace;
 
     layout->on_show();
 
@@ -132,7 +132,7 @@ void HTView::hide(bool exit_on_mouse) {
     const PHLMONITOR monitor = get_monitor();
     if (monitor == nullptr)
         return;
-    const PHLWORKSPACE active_workspace = monitor->activeWorkspace;
+    const PHLWORKSPACE active_workspace = monitor->m_activeWorkspace;
     if (active_workspace == nullptr)
         return;
 
@@ -158,7 +158,7 @@ void HTView::move(std::string arg) {
     const PHLMONITOR monitor = get_monitor();
     if (monitor == nullptr)
         return;
-    const PHLWORKSPACE active_workspace = monitor->activeWorkspace;
+    const PHLWORKSPACE active_workspace = monitor->m_activeWorkspace;
     if (active_workspace == nullptr)
         return;
 
@@ -181,7 +181,7 @@ void HTView::move(std::string arg) {
     PHLWORKSPACE other_workspace = g_pCompositor->getWorkspaceByID(id);
 
     if (other_workspace == nullptr && id != WORKSPACE_INVALID)
-        other_workspace = g_pCompositor->createNewWorkspace(id, monitor->ID);
+        other_workspace = g_pCompositor->createNewWorkspace(id, monitor->m_id);
     if (other_workspace == nullptr)
         return;
 
