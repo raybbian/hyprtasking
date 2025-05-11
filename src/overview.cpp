@@ -124,10 +124,10 @@ void HTView::move(std::string arg, bool move_window) {
 
     // if moving a window, the up/down/left/right should be relative to the window (and cursor) and not necessarily the active workspace
     const WORKSPACEID source_ws_id =
-        move_window ? hovered_window->workspaceID() : active_workspace->m_iID;
+        move_window ? hovered_window->workspaceID() : active_workspace->m_id;
 
     layout->build_overview_layout(HT_VIEW_CLOSED);
-    const auto ws_layout = layout->overview_layout[active_workspace->m_id];
+    const auto ws_layout = layout->overview_layout[source_ws_id];
 
     int target_x = ws_layout.x;
     int target_y = ws_layout.y;
