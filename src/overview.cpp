@@ -1,6 +1,5 @@
 #include "overview.hpp"
 
-#include <ctime>
 #include <hyprland/src/Compositor.hpp>
 #include <hyprland/src/SharedDefs.hpp>
 #include <hyprland/src/desktop/DesktopTypes.hpp>
@@ -42,10 +41,10 @@ void HTView::change_layout(const std::string& layout_name) {
     }
 }
 
-WORKSPACEID HTView::get_exit_workspace_id(bool exit_on_mouse) {
+void HTView::do_exit_behavior(bool exit_on_mouse) {
     const PHLMONITOR monitor = get_monitor();
     if (monitor == nullptr) //???
-        return WORKSPACE_INVALID;
+        return;
 
     auto try_get_hover_id = [this, &monitor]() {
         const PHLMONITOR cursor_monitor = g_pCompositor->getMonitorFromCursor();
@@ -56,48 +55,7 @@ WORKSPACEID HTView::get_exit_workspace_id(bool exit_on_mouse) {
         return layout->get_ws_id_from_global(mouse_coords);
     };
 
-    auto try_get_original_id = [this]() {
-        const PHLWORKSPACE workspace = ori_workspace.lock();
-        return workspace == nullptr ? WORKSPACE_INVALID : workspace->m_id;
-    };
-
-    auto try_get_interacted_id = [this]() {
-        const PHLWORKSPACE workspace = act_workspace.lock();
-        return workspace == nullptr ? WORKSPACE_INVALID : workspace->m_id;
-    };
-
-    if (exit_on_mouse) {
-        const WORKSPACEID hover_ws_id = try_get_hover_id();
-        if (hover_ws_id != WORKSPACE_INVALID)
-            return hover_ws_id;
-    }
-
-    CVarList exit_behavior {HTConfig::value<Hyprlang::STRING>("exit_behavior"), 0, 's', true};
-    for (const auto& behavior : exit_behavior) {
-        WORKSPACEID switch_to_ws_id = WORKSPACE_INVALID;
-        if (behavior == "hovered") {
-            switch_to_ws_id = try_get_hover_id();
-        } else if (behavior == "original") {
-            switch_to_ws_id = try_get_original_id();
-        } else if (behavior == "interacted") {
-            switch_to_ws_id = try_get_interacted_id();
-        } else if (behavior == "active") {
-            switch_to_ws_id = monitor->m_activeWorkspace->m_id;
-        } else {
-            Debug::log(WARN, "[Hyprtasking] invalid behavior for exit behavior: {}", behavior);
-        }
-
-        if (switch_to_ws_id != WORKSPACE_INVALID)
-            return switch_to_ws_id;
-    }
-    return monitor->m_activeWorkspace->m_id;
-}
-
-void HTView::do_exit_behavior(bool exit_on_mouse) {
-    const PHLMONITOR monitor = get_monitor();
-    if (monitor == nullptr) //???
-        return;
-    const WORKSPACEID ws_id = get_exit_workspace_id(exit_on_mouse);
+    const WORKSPACEID ws_id = exit_on_mouse ? try_get_hover_id() : monitor->m_activeWorkspace->m_id;
     PHLWORKSPACE workspace = g_pCompositor->getWorkspaceByID(ws_id);
 
     if (workspace == nullptr && ws_id != WORKSPACE_INVALID)
@@ -118,7 +76,6 @@ void HTView::show() {
 
     active = true;
     closing = false;
-    ori_workspace = monitor->m_activeWorkspace;
 
     layout->on_show();
 
@@ -139,7 +96,6 @@ void HTView::hide(bool exit_on_mouse) {
     do_exit_behavior(exit_on_mouse);
 
     closing = true;
-    ori_workspace.reset();
 
     layout->on_hide([this](auto self) {
         active = false;
@@ -152,7 +108,7 @@ void HTView::hide(bool exit_on_mouse) {
     g_pCompositor->scheduleFrameForMonitor(monitor);
 }
 
-void HTView::move(std::string arg) {
+void HTView::move(std::string arg, bool move_window) {
     if (closing)
         return;
     const PHLMONITOR monitor = get_monitor();
@@ -161,6 +117,14 @@ void HTView::move(std::string arg) {
     const PHLWORKSPACE active_workspace = monitor->m_activeWorkspace;
     if (active_workspace == nullptr)
         return;
+
+    PHLWINDOW hovered_window = ht_manager->get_window_from_cursor();
+    if (hovered_window == nullptr && move_window)
+        return;
+
+    // if moving a window, the up/down/left/right should be relative to the window (and cursor) and not necessarily the active workspace
+    const WORKSPACEID source_ws_id =
+        move_window ? hovered_window->workspaceID() : active_workspace->m_iID;
 
     layout->build_overview_layout(HT_VIEW_CLOSED);
     const auto ws_layout = layout->overview_layout[active_workspace->m_id];
@@ -184,6 +148,10 @@ void HTView::move(std::string arg) {
         other_workspace = g_pCompositor->createNewWorkspace(id, monitor->m_id);
     if (other_workspace == nullptr)
         return;
+
+    if (move_window) {
+        g_pCompositor->moveWindowToWorkspaceSafe(hovered_window, other_workspace);
+    }
 
     monitor->changeWorkspace(other_workspace);
 

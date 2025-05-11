@@ -26,12 +26,6 @@ class HTView {
 
     SP<HTLayoutBase> layout;
 
-    // Workspace that the overview was opened from
-    PHLWORKSPACEREF ori_workspace;
-    // Workspace that the overview last interacted with
-    PHLWORKSPACEREF act_workspace;
-
-    WORKSPACEID get_exit_workspace_id(bool exit_on_mouse);
     void do_exit_behavior(bool exit_on_mouse);
 
     PHLMONITOR get_monitor();
@@ -40,7 +34,7 @@ class HTView {
     void hide(bool exit_on_mouse);
 
     // arg is up, down, left, right;
-    void move(std::string arg);
+    void move(std::string arg, bool move_window);
 };
 
 typedef SP<HTView> PHTVIEW;
