@@ -4,9 +4,7 @@
 </div>
 
 > [!Important]
-> - Supports Hyprland release `v0.46.2-v0.48.1`.
-> - The `main` branch will compile for `v0.49.0` but is missing the `movewindow` dispatcher.
-> - The `hyprland-v0.48.1` branch includes the `movewindow` dispatcher but deprecates the `exit_behavior` configuration.
+> - Supports Hyprland release `v0.46.2-v0.49.0`.
 
 https://github.com/user-attachments/assets/8d6cdfd2-2b17-4240-a117-1dbd2231ed4e
 
