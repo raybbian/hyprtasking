@@ -123,8 +123,7 @@ void HTLayoutLinear::on_move(WORKSPACEID old_id, WORKSPACEID new_id, CallbackFun
     if (cur_screen_min_x < 0) {
         *scroll_offset = scroll_offset->value() - cur_screen_min_x;
     } else if (cur_screen_max_x > monitor->m_transformedSize.x) {
-        *scroll_offset =
-            scroll_offset->value() - (cur_screen_max_x - monitor->m_transformedSize.x);
+        *scroll_offset = scroll_offset->value() - (cur_screen_max_x - monitor->m_transformedSize.x);
     }
 }
 
@@ -250,8 +249,7 @@ CBox HTLayoutLinear::calculate_ws_box(int x, int y, HTViewStage stage) {
         use_view_offset = HEIGHT;
 
     const float ws_height = HEIGHT - 2 * GAP_SIZE;
-    const float ws_width =
-        ws_height * monitor->m_transformedSize.x / monitor->m_transformedSize.y;
+    const float ws_width = ws_height * monitor->m_transformedSize.x / monitor->m_transformedSize.y;
 
     const float ws_x = scroll_offset->value() + (x * (GAP_SIZE + ws_width) + GAP_SIZE);
     const float ws_y = monitor->m_transformedSize.y - use_view_offset + GAP_SIZE;
@@ -271,7 +269,7 @@ void HTLayoutLinear::build_overview_layout(HTViewStage stage) {
             continue;
         if (workspace->m_monitor != monitor)
             continue;
-        if (workspace->m_id < 0)
+        if (workspace->m_isSpecialWorkspace)
             continue;
         monitor_workspaces.push_back(workspace->m_id);
     }
