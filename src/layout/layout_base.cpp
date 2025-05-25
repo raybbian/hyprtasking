@@ -18,6 +18,21 @@ HTLayoutBase::HTLayoutBase(VIEWID new_view_id) : view_id(new_view_id) {
     ;
 }
 
+WORKSPACEID HTLayoutBase::get_ws_id_in_direction(int x, int y, std::string& direction) {
+    if (direction == "up") {
+        y--;
+    } else if (direction == "down") {
+        y++;
+    } else if (direction == "right") {
+        x++;
+    } else if (direction == "left") {
+        x--;
+    } else {
+        return WORKSPACE_INVALID;
+    }
+    return get_ws_id_from_xy(x, y);
+}
+
 bool HTLayoutBase::on_mouse_axis(double delta) {
     return false;
 }

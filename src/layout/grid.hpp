@@ -23,6 +23,8 @@ class HTLayoutGrid: public HTLayoutBase {
     virtual void on_hide(CallbackFun on_complete);
     virtual void on_move(WORKSPACEID old_id, WORKSPACEID new_id, CallbackFun on_complete);
 
+    virtual WORKSPACEID get_ws_id_in_direction(int x, int y, std::string& direction);
+
     virtual bool should_render_window(PHLWINDOW window);
     virtual float drag_window_scale();
     virtual void init_position();

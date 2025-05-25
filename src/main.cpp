@@ -93,11 +93,8 @@ static void hook_render_workspace(
 }
 
 static bool hook_should_render_window(void* thisptr, PHLWINDOW window, PHLMONITOR monitor) {
-    bool ori_result = ((should_render_window_t)(should_render_window_hook->m_original))(
-        thisptr,
-        window,
-        monitor
-    );
+    bool ori_result =
+        ((should_render_window_t)(should_render_window_hook->m_original))(thisptr, window, monitor);
     if (ht_manager == nullptr || !ht_manager->has_active_view())
         return ori_result;
     const PHTVIEW view = ht_manager->get_view_from_monitor(monitor);
@@ -129,7 +126,7 @@ static void on_mouse_button(void* thisptr, SCallbackInfo& info, std::any args) {
 static void on_mouse_move(void* thisptr, SCallbackInfo& info, std::any args) {
     if (ht_manager == nullptr)
         return;
-    ht_manager->on_mouse_move();
+    info.cancelled = ht_manager->on_mouse_move();
 }
 
 static void on_mouse_axis(void* thisptr, SCallbackInfo& info, std::any args) {
@@ -317,6 +314,7 @@ static void init_config() {
     // grid specific
     HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprtasking:grid:rows", Hyprlang::INT {3});
     HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprtasking:grid:cols", Hyprlang::INT {3});
+    HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprtasking:grid:loop", Hyprlang::INT {0});
 
     //linear specifig
     HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprtasking:linear:blur", Hyprlang::INT {1});

@@ -139,6 +139,7 @@ plugin {
         grid {
             rows = 3
             cols = 3
+            loop = 0
         }
 
         linear {
@@ -187,6 +188,7 @@ All options should are prefixed with `plugin:hyprtasking:`.
 | `gestures:open_positive` | `Hyprlang::INT` | `1` if swiping up should open the overlay, `0` otherwise | `1` |
 | `grid:rows` | `Hyprlang::INT` | The number of rows to display on the grid overlay | `3` |
 | `grid:cols` | `Hyprlang::INT` | The number of columns to display on the grid overlay | `3` |
+| `grid:loop` | `Hyprlang::INT` | When enabled, moving right at the far right of the grid will wrap around to the leftmost workspace, etc. | `0` |
 | `linear:blur` | `Hyprlang::INT` | Whether or not to blur the dimmed area | `0` |
 | `linear:height` | `Hyprlang::FLOAT` | The height of the linear overlay in logical pixels | `300.f` |
 | `linear:scroll_speed` | `Hyprlang::FLOAT` | Scroll speed modifier. Set negative to flip direction | `1.f` |

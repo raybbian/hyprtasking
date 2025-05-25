@@ -42,6 +42,9 @@ class HTLayoutBase {
     virtual void
     on_move(WORKSPACEID old_id, WORKSPACEID new_id, CallbackFun on_complete = nullptr) = 0;
 
+    // Get the workspace up/down left/right relative to the workspace at (x, y)
+    virtual WORKSPACEID get_ws_id_in_direction(int x, int y, std::string& direction);
+
     // Return true if should cancel
     virtual bool on_mouse_axis(double delta);
 

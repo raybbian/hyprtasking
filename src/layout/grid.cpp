@@ -44,6 +44,30 @@ std::string HTLayoutGrid::layout_name() {
     return "grid";
 }
 
+WORKSPACEID HTLayoutGrid::get_ws_id_in_direction(int x, int y, std::string& direction) {
+    const int LOOP = HTConfig::value<Hyprlang::INT>("grid:loop");
+    const int ROWS = HTConfig::value<Hyprlang::INT>("grid:rows");
+    const int COLS = HTConfig::value<Hyprlang::INT>("grid:cols");
+
+    if (direction == "up") {
+        y--;
+    } else if (direction == "down") {
+        y++;
+    } else if (direction == "right") {
+        x++;
+    } else if (direction == "left") {
+        x--;
+    } else {
+        return WORKSPACE_INVALID;
+    }
+
+    if (LOOP) {
+        x = (x + COLS) % COLS;
+        y = (y + ROWS) % ROWS;
+    }
+    return get_ws_id_from_xy(x, y);
+}
+
 void HTLayoutGrid::close_open_lerp(float perc) {
     const PHLMONITOR monitor = get_monitor();
     if (monitor == nullptr)
@@ -264,7 +288,8 @@ void HTLayoutGrid::render() {
     CBox global_mon_box = {monitor->m_position, monitor->m_transformedSize};
     for (const auto& [ws_id, ws_layout] : overview_layout) {
         // Skip if the box is empty
-        if (ws_layout.box.width == 0 && ws_layout.box.height == 0) continue;
+        if (ws_layout.box.width == 0 && ws_layout.box.height == 0)
+            continue;
 
         // Could be nullptr, in which we render only layers
         const PHLWORKSPACE workspace = g_pCompositor->getWorkspaceByID(ws_id);

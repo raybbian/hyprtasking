@@ -129,19 +129,7 @@ void HTView::move(std::string arg, bool move_window) {
     layout->build_overview_layout(HT_VIEW_CLOSED);
     const auto ws_layout = layout->overview_layout[source_ws_id];
 
-    int target_x = ws_layout.x;
-    int target_y = ws_layout.y;
-    if (arg == "up") {
-        target_y--;
-    } else if (arg == "down") {
-        target_y++;
-    } else if (arg == "right") {
-        target_x++;
-    } else if (arg == "left") {
-        target_x--;
-    }
-
-    const WORKSPACEID id = layout->get_ws_id_from_xy(target_x, target_y);
+    const WORKSPACEID id = layout->get_ws_id_in_direction(ws_layout.x, ws_layout.y, arg);
     PHLWORKSPACE other_workspace = g_pCompositor->getWorkspaceByID(id);
 
     if (other_workspace == nullptr && id != WORKSPACE_INVALID)
