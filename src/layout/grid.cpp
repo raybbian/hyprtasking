@@ -235,8 +235,11 @@ void HTLayoutGrid::build_overview_layout(HTViewStage stage) {
 
     for (int y = 0; y < ROWS; y++) {
         for (int x = 0; x < COLS; x++) {
-            int ind = y * COLS + x + 1;
-            const WORKSPACEID ws_id = getWorkspaceIDNameFromString(std::format("r~{}", ind)).id;
+            const WORKSPACEID ws_id = (view_id * ROWS + y) * COLS + x + 1;
+            const PHLWORKSPACE workspace = g_pCompositor->getWorkspaceByID(ws_id);
+            if (workspace != nullptr && workspace->monitorID() != view_id) {
+                g_pCompositor->moveWorkspaceToMonitor(workspace, monitor);
+            }
             const CBox ws_box = calculate_ws_box(x, y, stage);
             overview_layout[ws_id] = HTWorkspace {x, y, ws_box};
         }
