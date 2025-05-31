@@ -108,7 +108,8 @@ void HTView::hide(bool exit_on_mouse) {
     g_pCompositor->scheduleFrameForMonitor(monitor);
 }
 
-void HTView::move(std::string arg, bool move_window) {
+void HTView::move_id(WORKSPACEID ws_id, bool move_window) {
+    navigating = false;
     if (closing)
         return;
     const PHLMONITOR monitor = get_monitor();
@@ -118,22 +119,14 @@ void HTView::move(std::string arg, bool move_window) {
     if (active_workspace == nullptr)
         return;
 
+    // FIXME: weird hovered window duplicate code
     PHLWINDOW hovered_window = ht_manager->get_window_from_cursor();
     if (hovered_window == nullptr && move_window)
         return;
 
-    // if moving a window, the up/down/left/right should be relative to the window (and cursor) and not necessarily the active workspace
-    const WORKSPACEID source_ws_id =
-        move_window ? hovered_window->workspaceID() : active_workspace->m_id;
-
-    layout->build_overview_layout(HT_VIEW_CLOSED);
-    const auto ws_layout = layout->overview_layout[source_ws_id];
-
-    const WORKSPACEID id = layout->get_ws_id_in_direction(ws_layout.x, ws_layout.y, arg);
-    PHLWORKSPACE other_workspace = g_pCompositor->getWorkspaceByID(id);
-
-    if (other_workspace == nullptr && id != WORKSPACE_INVALID)
-        other_workspace = g_pCompositor->createNewWorkspace(id, monitor->m_id);
+    PHLWORKSPACE other_workspace = g_pCompositor->getWorkspaceByID(ws_id);
+    if (other_workspace == nullptr && ws_id != WORKSPACE_INVALID)
+        other_workspace = g_pCompositor->createNewWorkspace(ws_id, monitor->m_id);
     if (other_workspace == nullptr)
         return;
 
@@ -147,6 +140,27 @@ void HTView::move(std::string arg, bool move_window) {
     layout->on_move(active_workspace->m_id, other_workspace->m_id, [this](auto self) {
         navigating = false;
     });
+}
+
+void HTView::move(std::string arg, bool move_window) {
+    const PHLMONITOR monitor = get_monitor();
+    if (monitor == nullptr)
+        return;
+    const PHLWORKSPACE active_workspace = monitor->m_activeWorkspace;
+    if (active_workspace == nullptr)
+        return;
+    PHLWINDOW hovered_window = ht_manager->get_window_from_cursor();
+    if (hovered_window == nullptr && move_window)
+        return;
+
+    // if moving a window, the up/down/left/right should be relative to the window (and cursor) and not necessarily the active workspace
+    const WORKSPACEID source_ws_id =
+        move_window ? hovered_window->workspaceID() : active_workspace->m_id;
+    layout->build_overview_layout(HT_VIEW_CLOSED);
+    const auto ws_layout = layout->overview_layout[source_ws_id];
+    const WORKSPACEID id = layout->get_ws_id_in_direction(ws_layout.x, ws_layout.y, arg);
+
+    move_id(id, move_window);
 }
 
 PHLMONITOR HTView::get_monitor() {

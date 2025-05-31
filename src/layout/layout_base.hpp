@@ -33,6 +33,7 @@ class HTLayoutBase {
         CBox box;
     };
 
+    virtual CBox calculate_ws_box(int x, int y, HTViewStage stage) = 0;
     std::unordered_map<WORKSPACEID, HTWorkspace> overview_layout;
 
     // Warp the show/hide animations to perc (from closed to open)
@@ -41,6 +42,9 @@ class HTLayoutBase {
     virtual void on_hide(CallbackFun on_complete = nullptr) = 0;
     virtual void
     on_move(WORKSPACEID old_id, WORKSPACEID new_id, CallbackFun on_complete = nullptr) = 0;
+    virtual void on_move_swipe(Vector2D delta);
+    // Returns the workspace id that the swipe should snap to
+    virtual WORKSPACEID on_move_swipe_end();
 
     // Get the workspace up/down left/right relative to the workspace at (x, y)
     virtual WORKSPACEID get_ws_id_in_direction(int x, int y, std::string& direction);

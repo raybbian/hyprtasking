@@ -12,13 +12,13 @@ class HTLayoutLinear: public HTLayoutBase {
 
     bool rendering_standard_ws;
 
-    CBox calculate_ws_box(int x, int y, HTViewStage stage);
-
   public:
     HTLayoutLinear(VIEWID view_id);
     virtual ~HTLayoutLinear() = default;
 
     virtual std::string layout_name();
+
+    virtual CBox calculate_ws_box(int x, int y, HTViewStage stage);
 
     virtual void close_open_lerp(float perc);
     virtual void on_show(CallbackFun on_complete);

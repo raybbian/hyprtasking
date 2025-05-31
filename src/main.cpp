@@ -297,8 +297,18 @@ static void init_config() {
     HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprtasking:gestures:enabled", Hyprlang::INT {1});
     HyprlandAPI::addConfigValue(
         PHANDLE,
-        "plugin:hyprtasking:gestures:open_fingers",
+        "plugin:hyprtasking:gestures:move_fingers",
         Hyprlang::INT {3}
+    );
+    HyprlandAPI::addConfigValue(
+        PHANDLE,
+        "plugin:hyprtasking:gestures:move_distance",
+        Hyprlang::FLOAT {200.0}
+    );
+    HyprlandAPI::addConfigValue(
+        PHANDLE,
+        "plugin:hyprtasking:gestures:open_fingers",
+        Hyprlang::INT {4}
     );
     HyprlandAPI::addConfigValue(
         PHANDLE,

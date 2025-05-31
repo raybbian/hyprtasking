@@ -33,6 +33,7 @@ class HTView {
     void show();
     void hide(bool exit_on_mouse);
 
+    void move_id(WORKSPACEID ws_id, bool move_window);
     // arg is up, down, left, right;
     void move(std::string arg, bool move_window);
 };

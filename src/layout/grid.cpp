@@ -68,6 +68,42 @@ WORKSPACEID HTLayoutGrid::get_ws_id_in_direction(int x, int y, std::string& dire
     return get_ws_id_from_xy(x, y);
 }
 
+void HTLayoutGrid::on_move_swipe(Vector2D delta) {
+    const PHLMONITOR monitor = get_monitor();
+    if (monitor == nullptr)
+        return;
+
+    const float MOVE_DISTANCE = HTConfig::value<Hyprlang::FLOAT>("gestures:move_distance");
+    const int ROWS = HTConfig::value<Hyprlang::INT>("grid:rows");
+    const int COLS = HTConfig::value<Hyprlang::INT>("grid:cols");
+    const CBox min_ws = calculate_ws_box(0, 0, HT_VIEW_CLOSED);
+    const CBox max_ws = calculate_ws_box(COLS - 1, ROWS - 1, HT_VIEW_CLOSED);
+
+    Vector2D new_offset = offset->value() + delta / MOVE_DISTANCE * max_ws.w;
+    new_offset = new_offset.clamp(Vector2D {-max_ws.x, -max_ws.y}, Vector2D {-min_ws.x, -min_ws.y});
+
+    offset->resetAllCallbacks();
+    offset->setValueAndWarp(new_offset);
+}
+
+WORKSPACEID HTLayoutGrid::on_move_swipe_end() {
+    const PHLMONITOR monitor = get_monitor();
+    if (monitor == nullptr)
+        return WORKSPACE_INVALID;
+
+    build_overview_layout(HT_VIEW_CLOSED);
+    WORKSPACEID closest = WORKSPACE_INVALID;
+    double closest_dist = 1e9;
+    for (const auto& [ws_id, box] : overview_layout) {
+        const float dist_sq = offset->value().distanceSq(Vector2D {-box.box.x, -box.box.y});
+        if (dist_sq < closest_dist) {
+            closest_dist = dist_sq;
+            closest = ws_id;
+        }
+    }
+    return closest;
+}
+
 void HTLayoutGrid::close_open_lerp(float perc) {
     const PHLMONITOR monitor = get_monitor();
     if (monitor == nullptr)

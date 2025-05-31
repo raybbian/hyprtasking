@@ -9,7 +9,7 @@
 #include "overview.hpp"
 
 HTManager::HTManager() {
-    is_swiping = false;
+    swipe_state = HT_SWIPE_NONE;
     swipe_amt = 0.0;
 }
 
@@ -101,7 +101,7 @@ void HTManager::show_cursor_view() {
 }
 
 void HTManager::reset() {
-    is_swiping = false;
+    swipe_state = HT_SWIPE_NONE;
     swipe_amt = 0.0;
     views.clear();
 }

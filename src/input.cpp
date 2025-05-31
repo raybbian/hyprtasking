@@ -193,18 +193,23 @@ bool HTManager::on_mouse_axis(double delta) {
 }
 
 void HTManager::swipe_start() {
-    is_swiping = false;
+    swipe_state = HT_SWIPE_NONE;
     swipe_amt = 0.0;
 }
 
 bool HTManager::swipe_update(IPointer::SSwipeUpdateEvent e) {
-    const float OPEN_DISTANCE = HTConfig::value<Hyprlang::FLOAT>("gestures:open_distance");
-    const uint OPEN_FINGERS = HTConfig::value<Hyprlang::INT>("gestures:open_fingers");
-    const int OPEN_POSITIVE = HTConfig::value<Hyprlang::INT>("gestures:open_positive");
-    const int ENABLED = HTConfig::value<Hyprlang::INT>("gestures:enabled");
+    const PHTVIEW cursor_view = get_view_from_cursor();
+    if (cursor_view == nullptr)
+        return false;
 
+    const int ENABLED = HTConfig::value<Hyprlang::INT>("gestures:enabled");
     if (!ENABLED)
         return false;
+
+    const int MOVE_FINGERS = HTConfig::value<Hyprlang::INT>("gestures:move_fingers");
+    const float OPEN_DISTANCE = HTConfig::value<Hyprlang::FLOAT>("gestures:open_distance");
+    const int OPEN_FINGERS = HTConfig::value<Hyprlang::INT>("gestures:open_fingers");
+    const int OPEN_POSITIVE = HTConfig::value<Hyprlang::INT>("gestures:open_positive");
 
     bool res = false;
     char swipe_direction = 0;
@@ -214,55 +219,79 @@ bool HTManager::swipe_update(IPointer::SSwipeUpdateEvent e) {
         swipe_direction = 'v';
     }
 
-    const PHTVIEW cursor_view = get_view_from_cursor();
-    if (cursor_view == nullptr)
-        return res;
-    if (cursor_view->active || is_swiping)
-        res = true;
+    if (e.fingers == OPEN_FINGERS) {
+        if (cursor_view->active || swipe_state == HT_SWIPE_OPEN)
+            res = true;
 
-    if (swipe_direction != 'v' || e.fingers != OPEN_FINGERS)
-        return res;
+        const float deltaY = OPEN_POSITIVE ? e.delta.y : -e.delta.y;
 
-    const float deltaY = OPEN_POSITIVE ? e.delta.y : -e.delta.y;
+        if (swipe_state != HT_SWIPE_OPEN) {
+            if (swipe_direction != 'v' || cursor_view->closing) {
+                return res;
+            } else if (!cursor_view->active && deltaY <= 0) {
+                cursor_view->show();
+                swipe_state = HT_SWIPE_OPEN;
+                swipe_amt = OPEN_DISTANCE;
+            } else if (cursor_view->active && deltaY > 0) {
+                cursor_view->hide(false);
+                swipe_state = HT_SWIPE_OPEN;
+                swipe_amt = 0.0;
+            }
+        }
 
-    if (!is_swiping) {
-        if (cursor_view->closing) {
-            return res;
-        } else if (!cursor_view->active && deltaY <= 0) {
-            cursor_view->show();
-            is_swiping = true;
-            swipe_amt = OPEN_DISTANCE;
-        } else if (cursor_view->active && deltaY > 0) {
-            cursor_view->hide(false);
-            is_swiping = true;
-            swipe_amt = 0.0;
-        } else {
-            return res;
+        if (swipe_state == HT_SWIPE_OPEN) {
+            swipe_amt += deltaY;
+            const float swipe_perc = 1.0 - std::clamp(swipe_amt / OPEN_DISTANCE, 0.01f, 1.0f);
+            cursor_view->layout->close_open_lerp(swipe_perc);
+        }
+    } else if (e.fingers == MOVE_FINGERS) {
+        if (swipe_state == HT_SWIPE_MOVE)
+            res = true;
+
+        if (swipe_state != HT_SWIPE_MOVE) {
+            if (cursor_view->active) {
+                return res;
+            } else {
+                swipe_state = HT_SWIPE_MOVE;
+                cursor_view->navigating = true;
+            }
+        }
+
+        if (swipe_state == HT_SWIPE_MOVE) {
+            cursor_view->layout->on_move_swipe(e.delta);
         }
     }
-
-    swipe_amt += deltaY;
-    const float swipe_perc = 1.0 - std::clamp(swipe_amt / OPEN_DISTANCE, 0.01f, 1.0f);
-    cursor_view->layout->close_open_lerp(swipe_perc);
-
     return res;
 }
 
 bool HTManager::swipe_end() {
     const PHTVIEW cursor_view = get_view_from_cursor();
-    if (cursor_view == nullptr || !cursor_view_active() || !is_swiping)
+    if (cursor_view == nullptr || swipe_state == HT_SWIPE_NONE)
         return false;
 
-    const float OPEN_DISTANCE = HTConfig::value<Hyprlang::FLOAT>("gestures:open_distance");
-    const float swipe_perc = 1.0 - std::clamp(swipe_amt / OPEN_DISTANCE, 0.01f, 1.0f);
-
-    if (swipe_perc >= 0.5) {
-        cursor_view->show();
-    } else {
-        cursor_view->hide(false);
+    switch (swipe_state) {
+        case HT_SWIPE_OPEN: {
+            const float OPEN_DISTANCE = HTConfig::value<Hyprlang::FLOAT>("gestures:open_distance");
+            const float swipe_perc = 1.0 - std::clamp(swipe_amt / OPEN_DISTANCE, 0.01f, 1.0f);
+            if (swipe_perc >= 0.5) {
+                cursor_view->show();
+            } else {
+                cursor_view->hide(false);
+            }
+            break;
+        }
+        case HT_SWIPE_MOVE: {
+            // this sets navigating to false
+            const WORKSPACEID ws_id = cursor_view->layout->on_move_swipe_end();
+            Debug::log(LOG, "[Hyprtasking] Move swipe snapping to ws {}", ws_id);
+            cursor_view->move_id(ws_id, false);
+            break;
+        }
+        case HT_SWIPE_NONE:
+            break;
     }
 
-    is_swiping = false;
+    swipe_state = HT_SWIPE_NONE;
     swipe_amt = 0.0;
     return true;
 }

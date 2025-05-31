@@ -18,6 +18,14 @@ HTLayoutBase::HTLayoutBase(VIEWID new_view_id) : view_id(new_view_id) {
     ;
 }
 
+void HTLayoutBase::on_move_swipe(Vector2D delta) {
+    ;
+}
+
+WORKSPACEID HTLayoutBase::on_move_swipe_end() {
+    return WORKSPACE_INVALID;
+}
+
 WORKSPACEID HTLayoutBase::get_ws_id_in_direction(int x, int y, std::string& direction) {
     if (direction == "up") {
         y--;

@@ -10,18 +10,20 @@ class HTLayoutGrid: public HTLayoutBase {
     PHLANIMVAR<float> scale;
     PHLANIMVAR<Vector2D> offset;
 
-    CBox calculate_ws_box(int x, int y, HTViewStage stage);
-
   public:
     HTLayoutGrid(VIEWID view_id);
     virtual ~HTLayoutGrid() = default;
 
     virtual std::string layout_name();
 
+    virtual CBox calculate_ws_box(int x, int y, HTViewStage stage);
+
     virtual void close_open_lerp(float perc);
     virtual void on_show(CallbackFun on_complete);
     virtual void on_hide(CallbackFun on_complete);
     virtual void on_move(WORKSPACEID old_id, WORKSPACEID new_id, CallbackFun on_complete);
+    virtual void on_move_swipe(Vector2D delta);
+    virtual WORKSPACEID on_move_swipe_end();
 
     virtual WORKSPACEID get_ws_id_in_direction(int x, int y, std::string& direction);
 
