@@ -131,7 +131,9 @@ plugin {
 
         gestures {
             enabled = true
-            open_fingers = 3
+            move_fingers = 3
+            move_distance = 300
+            open_fingers = 4
             open_distance = 300
             open_positive = true
         }
@@ -183,7 +185,9 @@ All options should are prefixed with `plugin:hyprtasking:`.
 | `border_size` | `Hyprlang::FLOAT` | The width in logical pixels of the borders around workspaces | `4.f` |
 | `exit_behavior` (deprecated) | `Hyprlang::STRING` | [Determines which workspace to exit to](#exit-behavior-deprecated) when closed by keybind | `active hovered interacted original` |
 | `gestures:enabled` | `Hyprlang::INT` | Whether or not to enable gestures | `1` |
-| `gestures:open_fingers` | `Hyprlang::INT` | The number of fingers to use for the "open" gesture | `3` |
+| `gestures:move_fingers` | `Hyprlang::INT` | The number of fingers to use for the "move" gesture | `3` |
+| `gestures:move_distance` | `Hyprlang::FLOAT` | How large of a swipe on the touchpad corresponds to the width of a workspace | `300.f` |
+| `gestures:open_fingers` | `Hyprlang::INT` | The number of fingers to use for the "open" gesture | `4` |
 | `gestures:open_distance` | `Hyprlang::FLOAT` | How large of a swipe on the touchpad is needed for the "open" gesture | `300.f` |
 | `gestures:open_positive` | `Hyprlang::INT` | `1` if swiping up should open the overlay, `0` otherwise | `1` |
 | `grid:rows` | `Hyprlang::INT` | The number of rows to display on the grid overlay | `3` |

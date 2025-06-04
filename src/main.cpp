@@ -303,7 +303,7 @@ static void init_config() {
     HyprlandAPI::addConfigValue(
         PHANDLE,
         "plugin:hyprtasking:gestures:move_distance",
-        Hyprlang::FLOAT {200.0}
+        Hyprlang::FLOAT {300.0}
     );
     HyprlandAPI::addConfigValue(
         PHANDLE,
