@@ -76,6 +76,7 @@ void HTView::show() {
 
     active = true;
     closing = false;
+    navigating = false;
 
     layout->on_show();
 
@@ -95,7 +96,9 @@ void HTView::hide(bool exit_on_mouse) {
 
     do_exit_behavior(exit_on_mouse);
 
+    active = true;
     closing = true;
+    navigating = false;
 
     layout->on_hide([this](auto self) {
         active = false;

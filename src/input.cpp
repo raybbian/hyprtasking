@@ -198,7 +198,8 @@ void HTManager::swipe_start() {
 }
 
 bool HTManager::swipe_update(IPointer::SSwipeUpdateEvent e) {
-    const PHTVIEW cursor_view = get_view_from_cursor();
+    const PHLMONITOR cursor_monitor = g_pCompositor->getMonitorFromCursor();
+    const PHTVIEW cursor_view = get_view_from_monitor(cursor_monitor);
     if (cursor_view == nullptr)
         return false;
 
@@ -254,6 +255,10 @@ bool HTManager::swipe_update(IPointer::SSwipeUpdateEvent e) {
             } else {
                 swipe_state = HT_SWIPE_MOVE;
                 cursor_view->navigating = true;
+
+                // need to schedule frames for monitor, otherwise the screen doesn't re-render
+                g_pHyprRenderer->damageMonitor(cursor_monitor);
+                g_pCompositor->scheduleFrameForMonitor(cursor_monitor);
             }
         }
 
@@ -281,9 +286,7 @@ bool HTManager::swipe_end() {
             break;
         }
         case HT_SWIPE_MOVE: {
-            // this sets navigating to false
             const WORKSPACEID ws_id = cursor_view->layout->on_move_swipe_end();
-            Debug::log(LOG, "[Hyprtasking] Move swipe snapping to ws {}", ws_id);
             cursor_view->move_id(ws_id, false);
             break;
         }
