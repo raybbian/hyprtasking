@@ -327,7 +327,7 @@ void HTLayoutGrid::render() {
     CBox global_mon_box = {monitor->m_position, monitor->m_transformedSize};
     for (const auto& [ws_id, ws_layout] : overview_layout) {
         // Skip if the box is empty
-        if (ws_layout.box.width == 0 && ws_layout.box.height == 0)
+        if (ws_layout.box.width < 0.01 || ws_layout.box.height < 0.01)
             continue;
 
         // Could be nullptr, in which we render only layers
@@ -391,30 +391,33 @@ void HTLayoutGrid::render() {
     // Render active workspace last so the dragging window is always on top when let go of
     if (start_workspace != nullptr && overview_layout.count(start_workspace->m_id)) {
         CBox ws_box = overview_layout[start_workspace->m_id].box;
+        // make sure box is not empty
+        if (ws_box.width > 0.01 && ws_box.height > 0.01) {
+            // renderModif translation used by renderWorkspace is weird so need
+            // to scale the translation up as well. Geometry is also calculated from pixel size and not transformed size??
+            CBox render_box = {{ws_box.pos() / scale->value()}, ws_box.size()};
+            if (monitor->m_transform % 2 == 1)
+                std::swap(render_box.w, render_box.h);
 
-        // renderModif translation used by renderWorkspace is weird so need
-        // to scale the translation up as well. Geometry is also calculated from pixel size and not transformed size??
-        CBox render_box = {{ws_box.pos() / scale->value()}, ws_box.size()};
-        if (monitor->m_transform % 2 == 1)
-            std::swap(render_box.w, render_box.h);
+            const CGradientValueData border_col =
+                monitor->m_activeWorkspace->m_id == start_workspace->m_id ? *ACTIVECOL
+                                                                          : *INACTIVECOL;
+            CBox border_box = ws_box;
 
-        const CGradientValueData border_col =
-            monitor->m_activeWorkspace->m_id == start_workspace->m_id ? *ACTIVECOL : *INACTIVECOL;
-        CBox border_box = ws_box;
+            CBorderPassElement::SBorderData data;
+            data.box = border_box;
+            data.grad1 = border_col;
+            data.borderSize = BORDERSIZE;
+            g_pHyprRenderer->m_renderPass.add(makeShared<CBorderPassElement>(data));
 
-        CBorderPassElement::SBorderData data;
-        data.box = border_box;
-        data.grad1 = border_col;
-        data.borderSize = BORDERSIZE;
-        g_pHyprRenderer->m_renderPass.add(makeShared<CBorderPassElement>(data));
-
-        ((render_workspace_t)(render_workspace_hook->m_original))(
-            g_pHyprRenderer.get(),
-            monitor,
-            start_workspace,
-            &time,
-            render_box
-        );
+            ((render_workspace_t)(render_workspace_hook->m_original))(
+                g_pHyprRenderer.get(),
+                monitor,
+                start_workspace,
+                &time,
+                render_box
+            );
+        }
     }
 
     const PHTVIEW cursor_view = ht_manager->get_view_from_cursor();
