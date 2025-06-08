@@ -55,7 +55,10 @@ void HTView::do_exit_behavior(bool exit_on_mouse) {
         return layout->get_ws_id_from_global(mouse_coords);
     };
 
-    const WORKSPACEID ws_id = exit_on_mouse ? try_get_hover_id() : monitor->m_activeWorkspace->m_id;
+    const int EXIT_ON_HOVER = HTConfig::value<Hyprlang::INT>("exit_on_hover");
+
+    const WORKSPACEID ws_id =
+        (exit_on_mouse || EXIT_ON_HOVER) ? try_get_hover_id() : monitor->m_activeWorkspace->m_id;
     PHLWORKSPACE workspace = g_pCompositor->getWorkspaceByID(ws_id);
 
     if (workspace == nullptr && ws_id != WORKSPACE_INVALID)

@@ -183,7 +183,7 @@ All options should are prefixed with `plugin:hyprtasking:`.
 | `bg_color` | `Hyprlang::INT` | The color of the background of the overlay | `0x000000FF` |
 | `gap_size` | `Hyprlang::FLOAT` | The width in logical pixels of the gaps between workspaces | `8.f` |
 | `border_size` | `Hyprlang::FLOAT` | The width in logical pixels of the borders around workspaces | `4.f` |
-| `exit_behavior` (deprecated) | `Hyprlang::STRING` | [Determines which workspace to exit to](#exit-behavior-deprecated) when closed by keybind | `active hovered interacted original` |
+| `exit_on_hover` | `Hyprlang::INT` | If true, hiding the workspace will exit to the hovered workspace instead of the active workspace. | `false` |
 | `gestures:enabled` | `Hyprlang::INT` | Whether or not to enable gestures | `1` |
 | `gestures:move_fingers` | `Hyprlang::INT` | The number of fingers to use for the "move" gesture | `3` |
 | `gestures:move_distance` | `Hyprlang::FLOAT` | How large of a swipe on the touchpad corresponds to the width of a workspace | `300.f` |
@@ -196,12 +196,4 @@ All options should are prefixed with `plugin:hyprtasking:`.
 | `linear:blur` | `Hyprlang::INT` | Whether or not to blur the dimmed area | `0` |
 | `linear:height` | `Hyprlang::FLOAT` | The height of the linear overlay in logical pixels | `300.f` |
 | `linear:scroll_speed` | `Hyprlang::FLOAT` | Scroll speed modifier. Set negative to flip direction | `1.f` |
-
-#### Exit Behavior (Deprecated)
-
-- When an overview is about to hide, hyprtasking will evaluate these strings in order
-    - If the string is `'hovered'`, hyprtasking will attempt to switch to the hovered workspace
-    - If the string is `'interacted'`, hyprtasking will attempt to switch to the last interacted workspace (window drag/drop)
-    - If the string is `'original'`, hyprtasking will attempt to switch to the workspace in which the overview was shown initially
-    - (Fallback) If the string is `'active'`, hyprtasking will switch to the monitor's active workspace.
 
