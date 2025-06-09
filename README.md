@@ -183,7 +183,7 @@ All options should are prefixed with `plugin:hyprtasking:`.
 | `bg_color` | `Hyprlang::INT` | The color of the background of the overlay | `0x000000FF` |
 | `gap_size` | `Hyprlang::FLOAT` | The width in logical pixels of the gaps between workspaces | `8.f` |
 | `border_size` | `Hyprlang::FLOAT` | The width in logical pixels of the borders around workspaces | `4.f` |
-| `exit_on_hover` | `Hyprlang::INT` | If true, hiding the workspace will exit to the hovered workspace instead of the active workspace. | `false` |
+| `exit_on_hovered` | `Hyprlang::INT` | If true, hiding the workspace will exit to the hovered workspace instead of the active workspace. | `false` |
 | `gestures:enabled` | `Hyprlang::INT` | Whether or not to enable gestures | `1` |
 | `gestures:move_fingers` | `Hyprlang::INT` | The number of fingers to use for the "move" gesture | `3` |
 | `gestures:move_distance` | `Hyprlang::FLOAT` | How large of a swipe on the touchpad corresponds to the width of a workspace | `300.f` |
