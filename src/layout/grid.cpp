@@ -221,8 +221,14 @@ CBox HTLayoutGrid::calculate_ws_box(int x, int y, HTViewStage stage) {
 
     const int ROWS = HTConfig::value<Hyprlang::INT>("grid:rows");
     const int COLS = HTConfig::value<Hyprlang::INT>("grid:cols");
+    const int GAPS_USE_ASPECT_RATIO = HTConfig::value<Hyprlang::INT>("grid:gaps_use_aspect_ratio");
     const float GAP_SIZE = HTConfig::value<Hyprlang::FLOAT>("gap_size") * monitor->m_scale;
-    const Vector2D gaps = {GAP_SIZE, GAP_SIZE};
+    const Vector2D gaps = {
+        GAP_SIZE,
+        GAPS_USE_ASPECT_RATIO
+            ? GAP_SIZE * monitor->m_transformedSize.y / monitor->m_transformedSize.x
+            : GAP_SIZE
+    };
 
     if (GAP_SIZE > std::min(monitor->m_transformedSize.x, monitor->m_transformedSize.y)
         || GAP_SIZE < 0)

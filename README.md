@@ -128,6 +128,7 @@ plugin {
         gap_size = 20
         bg_color = 0xff26233a
         border_size = 4
+        exit_on_hovered = false
 
         gestures {
             enabled = true
@@ -141,13 +142,14 @@ plugin {
         grid {
             rows = 3
             cols = 3
-            loop = 0
+            loop = false
+            gaps_use_aspect_ratio = false
         }
 
         linear {
             height = 400
-            scroll_speed = 1.1
-            blur = 0
+            scroll_speed = 1.0
+            blur = false
         }
     }
 }
@@ -184,16 +186,17 @@ All options should are prefixed with `plugin:hyprtasking:`.
 | `gap_size` | `Hyprlang::FLOAT` | The width in logical pixels of the gaps between workspaces | `8.f` |
 | `border_size` | `Hyprlang::FLOAT` | The width in logical pixels of the borders around workspaces | `4.f` |
 | `exit_on_hovered` | `Hyprlang::INT` | If true, hiding the workspace will exit to the hovered workspace instead of the active workspace. | `false` |
-| `gestures:enabled` | `Hyprlang::INT` | Whether or not to enable gestures | `1` |
+| `gestures:enabled` | `Hyprlang::INT` | Whether or not to enable gestures | `true` |
 | `gestures:move_fingers` | `Hyprlang::INT` | The number of fingers to use for the "move" gesture | `3` |
 | `gestures:move_distance` | `Hyprlang::FLOAT` | How large of a swipe on the touchpad corresponds to the width of a workspace | `300.f` |
 | `gestures:open_fingers` | `Hyprlang::INT` | The number of fingers to use for the "open" gesture | `4` |
 | `gestures:open_distance` | `Hyprlang::FLOAT` | How large of a swipe on the touchpad is needed for the "open" gesture | `300.f` |
-| `gestures:open_positive` | `Hyprlang::INT` | `1` if swiping up should open the overlay, `0` otherwise | `1` |
+| `gestures:open_positive` | `Hyprlang::INT` | `true` if swiping up should open the overlay, `false` otherwise | `true` |
 | `grid:rows` | `Hyprlang::INT` | The number of rows to display on the grid overlay | `3` |
 | `grid:cols` | `Hyprlang::INT` | The number of columns to display on the grid overlay | `3` |
-| `grid:loop` | `Hyprlang::INT` | When enabled, moving right at the far right of the grid will wrap around to the leftmost workspace, etc. | `0` |
-| `linear:blur` | `Hyprlang::INT` | Whether or not to blur the dimmed area | `0` |
+| `grid:loop` | `Hyprlang::INT` | When enabled, moving right at the far right of the grid will wrap around to the leftmost workspace, etc. | `false` |
+| `grid:gaps_use_aspect_ratio` | `Hyprlang::INT` | When enabled, vertical gaps will be scaled to match the monitor's aspect ratio | `false` | 
+| `linear:blur` | `Hyprlang::INT` | Whether or not to blur the dimmed area | `false` |
 | `linear:height` | `Hyprlang::FLOAT` | The height of the linear overlay in logical pixels | `300.f` |
 | `linear:scroll_speed` | `Hyprlang::FLOAT` | Scroll speed modifier. Set negative to flip direction | `1.f` |
 

@@ -326,6 +326,11 @@ static void init_config() {
     HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprtasking:grid:rows", Hyprlang::INT {3});
     HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprtasking:grid:cols", Hyprlang::INT {3});
     HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprtasking:grid:loop", Hyprlang::INT {0});
+    HyprlandAPI::addConfigValue(
+        PHANDLE,
+        "plugin:hyprtasking:grid:gaps_use_aspect_ratio",
+        Hyprlang::INT {0}
+    );
 
     //linear specifig
     HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprtasking:linear:blur", Hyprlang::INT {1});
