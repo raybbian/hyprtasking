@@ -52,7 +52,7 @@ Add hyprtasking to your flake inputs
 # flake.nix
 {
   inputs = {
-    hyprland.url = "github:hyprwm/Hyprland/v0.46.2";
+    hyprland.url = "github:hyprwm/Hyprland/v0.49.0";
 
     hyprtasking = {
       url = "github:raybbian/hyprtasking";
@@ -113,6 +113,9 @@ Example below:
 ```
 bind = SUPER, tab, hyprtasking:toggle, cursor
 bind = SUPER, space, hyprtasking:toggle, all
+# NOTE: the lack of a comma after hyprtasking:toggle!
+bind = , escape, hyprtasking:if_active, hyprtasking:toggle cursor
+
 
 bind = SUPER, X, hyprtasking:killhovered
 
@@ -156,6 +159,9 @@ plugin {
 ```
 
 ### Dispatchers
+
+- `hyprtasking:if_active, ARG` takes in a dispatch command (one that would be used after `hyprctl dispatch ...`) that will be dispatched only if the cursor overview is active.
+    - Allows you to use e.g. `escape` to close the overlay when it is active. See the [example config](#configuration) for more info.
 
 - `hyprtasking:toggle, ARG` takes in 1 argument that is either `cursor` or `all`
     - if the argument is `all`, then
