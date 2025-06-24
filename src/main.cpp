@@ -27,14 +27,14 @@ APICALL EXPORT std::string PLUGIN_API_VERSION() {
     return HYPRLAND_API_VERSION;
 }
 
-static SDispatchResult dispatch_if_active(std::string arg) {
+static SDispatchResult dispatch_if(std::string arg, bool is_active) {
     if (ht_manager == nullptr)
         return {.passEvent = true, .success = false, .error = "ht_manager is null"};
     PHTVIEW cursor_view = ht_manager->get_view_from_cursor();
     if (cursor_view == nullptr)
         return {.passEvent = true, .success = false, .error = "cursor_view is null"};
-    if (!cursor_view->active)
-        return {.passEvent = true, .success = false, .error = "inactive"};
+    if (cursor_view->active != is_active)
+        return {.passEvent = true, .success = false, .error = "predicate not met"};
 
     const auto DISPATCHSTR = arg.substr(0, arg.find_first_of(' '));
 
@@ -44,19 +44,27 @@ static SDispatchResult dispatch_if_active(std::string arg) {
 
     const auto DISPATCHER = g_pKeybindManager->m_dispatchers.find(DISPATCHSTR);
     if (DISPATCHER == g_pKeybindManager->m_dispatchers.end())
-        return {.passEvent = true, .success = false, .error = "invalid dispatcher"};
+        return {.success = false, .error = "invalid dispatcher"};
 
     SDispatchResult res = DISPATCHER->second(DISPATCHARG);
 
     Debug::log(
         LOG,
-        "[Hyprtasking] active passthrough dispatch: {} : {}{}",
+        "[Hyprtasking] passthrough dispatch: {} : {}{}",
         DISPATCHSTR,
         DISPATCHARG,
         res.success ? "" : " -> " + res.error
     );
 
     return res;
+}
+
+static SDispatchResult dispatch_if_not_active(std::string arg) {
+    return dispatch_if(arg, false);
+}
+
+static SDispatchResult dispatch_if_active(std::string arg) {
+    return dispatch_if(arg, true);
 }
 
 static SDispatchResult dispatch_toggle_view(std::string arg) {
@@ -317,6 +325,7 @@ static void register_callbacks() {
 }
 
 static void add_dispatchers() {
+    HyprlandAPI::addDispatcherV2(PHANDLE, "hyprtasking:if_not_active", dispatch_if_not_active);
     HyprlandAPI::addDispatcherV2(PHANDLE, "hyprtasking:if_active", dispatch_if_active);
     HyprlandAPI::addDispatcherV2(PHANDLE, "hyprtasking:toggle", dispatch_toggle_view);
     HyprlandAPI::addDispatcherV2(PHANDLE, "hyprtasking:move", dispatch_move);

@@ -161,7 +161,9 @@ plugin {
 ### Dispatchers
 
 - `hyprtasking:if_active, ARG` takes in a dispatch command (one that would be used after `hyprctl dispatch ...`) that will be dispatched only if the cursor overview is active.
-    - Allows you to use e.g. `escape` to close the overlay when it is active. See the [example config](#configuration) for more info.
+    - Allows you to use e.g. `escape` to close the overview when it is active. See the [example config](#configuration) for more info.
+
+- `hyprtasking:if_not_active, ARG` same as above, but if the overview is not active.
 
 - `hyprtasking:toggle, ARG` takes in 1 argument that is either `cursor` or `all`
     - if the argument is `all`, then
