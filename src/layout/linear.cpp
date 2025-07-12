@@ -342,7 +342,7 @@ void HTLayoutLinear::render() {
     blur_data.box = mon_box;
     blur_data.blur = (bool)HTConfig::value<Hyprlang::INT>("linear:blur");
     blur_data.blurA = blur_strength->value();
-    g_pHyprRenderer->m_renderPass.add(makeShared<CRectPassElement>(blur_data));
+    g_pHyprRenderer->m_renderPass.add(makeUnique<CRectPassElement>(blur_data));
 
     big_ws->startAnim(false, false, true);
     big_ws->m_visible = false;
@@ -356,7 +356,7 @@ void HTLayoutLinear::render() {
     CRectPassElement::SRectData data;
     data.color = CHyprColor {HTConfig::value<Hyprlang::INT>("bg_color")}.stripA();
     data.box = view_box;
-    g_pHyprRenderer->m_renderPass.add(makeShared<CRectPassElement>(data));
+    g_pHyprRenderer->m_renderPass.add(makeUnique<CRectPassElement>(data));
 
     build_overview_layout(HT_VIEW_ANIMATING);
 
@@ -385,7 +385,7 @@ void HTLayoutLinear::render() {
         data.box = border_box;
         data.grad1 = border_col;
         data.borderSize = BORDERSIZE;
-        g_pHyprRenderer->m_renderPass.add(makeShared<CBorderPassElement>(data));
+        g_pHyprRenderer->m_renderPass.add(makeUnique<CBorderPassElement>(data));
 
         if (workspace != nullptr) {
             monitor->m_activeWorkspace = workspace;
