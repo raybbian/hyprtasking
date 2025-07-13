@@ -27,13 +27,13 @@ HTLayoutGrid::HTLayoutGrid(VIEWID new_view_id) : HTLayoutBase(new_view_id) {
     g_pAnimationManager->createAnimation(
         {0, 0},
         offset,
-        g_pConfigManager->getAnimationPropertyConfig("windowsMove"),
+        g_pConfigManager->getAnimationPropertyConfig("workspaces"),
         AVARDAMAGE_NONE
     );
     g_pAnimationManager->createAnimation(
         1.f,
         scale,
-        g_pConfigManager->getAnimationPropertyConfig("windowsMove"),
+        g_pConfigManager->getAnimationPropertyConfig("workspaces"),
         AVARDAMAGE_NONE
     );
 
