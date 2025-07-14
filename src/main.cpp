@@ -115,8 +115,9 @@ static void set_offset(int new_offset) {
         view->layout->first_offset = new_offset;
         Debug::log(
             LOG,
-            "[Hyprtasking] offset: {}",
-            ht_manager->offset
+            "[Hyprtasking] offset was: {}, new: {}",
+            ht_manager->offset,
+            new_offset
         );
     }
 }
@@ -138,25 +139,47 @@ static SDispatchResult change_layer(std::string arg, bool move_window) {
     if (ht_manager == nullptr)
         return {.success = false, .error = "ht_manager is null"};
 
-    if (ht_manager->views[0]->layout->layout_name() != "grid")
-        return {.success = false, .error = "only grid layout is supported"};
-
     const PHTVIEW cursor_view = ht_manager->get_view_from_cursor();
     if (cursor_view == nullptr)
         return {.success = false, .error = "cursor_view is null"};
 
+    if (cursor_view->layout->layout_name() != "grid")
+        return {.success = false, .error = "only grid layout is supported"};
+
     const int ROWS = HTConfig::value<Hyprlang::INT>("grid:rows");
     const int COLS = HTConfig::value<Hyprlang::INT>("grid:cols");
+    const int LAYERS = HTConfig::value<Hyprlang::INT>("grid:layers");
+    const int MAX_OFFSET = (LAYERS-1)*COLS*ROWS;
 
+    // cursor_view->get_monitor()->m_activeWorkspace;
     int delta;
     if (arg[0] == '+' || arg[0] == '-') {
         // several times
         delta = ROWS*COLS*std::stoi(arg);
     } else {
+        // no argument - one time
         delta = ROWS*COLS;
     }
-    ht_manager->offset += delta;
-    set_offset(ht_manager->offset);
+    int resulting_offset = ht_manager->offset + delta;
+    // TODO: add wraparound config option
+    if (resulting_offset < 0 || resulting_offset > MAX_OFFSET) {
+        delta = 0;
+        resulting_offset = ht_manager->offset;
+        Debug::log(
+                LOG,
+                "[Hyprtasking] Zeroing offsets"
+                );
+    }
+
+    Debug::log(
+        LOG,
+        "[Hyprtasking] Resulting offset: {}, delta: {}, current_offset: {}",
+        resulting_offset,
+        delta,
+        ht_manager->offset
+    );
+    ht_manager->offset = resulting_offset;
+    set_offset(resulting_offset);
 
     const PHLMONITOR monitor = cursor_view->get_monitor();
     if (monitor == nullptr)
@@ -165,8 +188,14 @@ static SDispatchResult change_layer(std::string arg, bool move_window) {
     if (active_workspace == nullptr)
         return {.success = false, .error = "active_workspace is null"};
     const WORKSPACEID source_ws_id = active_workspace->m_id;
+    Debug::log(
+        LOG,
+        "[Hyprtasking] Current id: {}, next id: {}",
+        source_ws_id,
+        source_ws_id + delta
+    );
 
-    cursor_view->move_id(source_ws_id + delta, false);
+    cursor_view->move_id(source_ws_id + delta, move_window);
     return {};
 }
 
@@ -505,6 +534,7 @@ static void init_config() {
     // grid specific
     HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprtasking:grid:rows", Hyprlang::INT {3});
     HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprtasking:grid:cols", Hyprlang::INT {3});
+    HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprtasking:grid:layers", Hyprlang::INT {1});
     HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprtasking:grid:loop", Hyprlang::INT {0});
     HyprlandAPI::addConfigValue(
         PHANDLE,
