@@ -149,9 +149,9 @@ static SDispatchResult change_layer(std::string arg, bool move_window) {
     const int ROWS = HTConfig::value<Hyprlang::INT>("grid:rows");
     const int COLS = HTConfig::value<Hyprlang::INT>("grid:cols");
     const int LAYERS = HTConfig::value<Hyprlang::INT>("grid:layers");
+    const int LOOP_LAYERS = HTConfig::value<Hyprlang::INT>("grid:loop_layers");
     const int MAX_OFFSET = (LAYERS-1)*COLS*ROWS;
 
-    // cursor_view->get_monitor()->m_activeWorkspace;
     int delta;
     if (arg[0] == '+' || arg[0] == '-') {
         // several times
@@ -160,26 +160,7 @@ static SDispatchResult change_layer(std::string arg, bool move_window) {
         // no argument - one time
         delta = ROWS*COLS;
     }
-    int resulting_offset = ht_manager->offset + delta;
-    // TODO: add wraparound config option
-    if (resulting_offset < 0 || resulting_offset > MAX_OFFSET) {
-        delta = 0;
-        resulting_offset = ht_manager->offset;
-        Debug::log(
-                LOG,
-                "[Hyprtasking] Zeroing offsets"
-                );
-    }
 
-    Debug::log(
-        LOG,
-        "[Hyprtasking] Resulting offset: {}, delta: {}, current_offset: {}",
-        resulting_offset,
-        delta,
-        ht_manager->offset
-    );
-    ht_manager->offset = resulting_offset;
-    set_offset(resulting_offset);
 
     const PHLMONITOR monitor = cursor_view->get_monitor();
     if (monitor == nullptr)
@@ -188,14 +169,31 @@ static SDispatchResult change_layer(std::string arg, bool move_window) {
     if (active_workspace == nullptr)
         return {.success = false, .error = "active_workspace is null"};
     const WORKSPACEID source_ws_id = active_workspace->m_id;
-    Debug::log(
-        LOG,
-        "[Hyprtasking] Current id: {}, next id: {}",
-        source_ws_id,
-        source_ws_id + delta
-    );
 
-    cursor_view->move_id(source_ws_id + delta, move_window);
+    int resulting_offset = ht_manager->offset + delta;
+    WORKSPACEID target_ws_id = source_ws_id + delta;
+
+    // if resulting offset doesn't fit in boundaries
+    if (resulting_offset > MAX_OFFSET || resulting_offset < 0) {
+        if (LOOP_LAYERS) {
+            target_ws_id = source_ws_id - ht_manager->offset;
+            if (resulting_offset < 0) {
+                target_ws_id += MAX_OFFSET;
+                resulting_offset = MAX_OFFSET;
+            } else if (resulting_offset > MAX_OFFSET) {
+                resulting_offset = 0;
+            }
+        } else {
+            // Don't do anything if next is invalid and grid:loop_layers is disabled
+            target_ws_id = source_ws_id;
+            resulting_offset = ht_manager->offset;
+        }
+    }
+
+    ht_manager->offset = resulting_offset;
+    set_offset(resulting_offset);
+
+    cursor_view->move_id(target_ws_id, move_window);
     return {};
 }
 
@@ -535,6 +533,7 @@ static void init_config() {
     HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprtasking:grid:rows", Hyprlang::INT {3});
     HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprtasking:grid:cols", Hyprlang::INT {3});
     HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprtasking:grid:layers", Hyprlang::INT {1});
+    HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprtasking:grid:loop_layers", Hyprlang::INT {1});
     HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprtasking:grid:loop", Hyprlang::INT {0});
     HyprlandAPI::addConfigValue(
         PHANDLE,
