@@ -34,7 +34,7 @@ https://github.com/user-attachments/assets/8d6cdfd2-2b17-4240-a117-1dbd2231ed4e
     - [x] Toggle behavior
     - [x] Toggle keybind
 - [ ] Touch and gesture support
-- [ ] Overview layers
+- [x] Overview layers
 
 ## Installation
 
@@ -124,6 +124,9 @@ bind = SUPER, J, hyprtasking:move, down
 bind = SUPER, K, hyprtasking:move, up
 bind = SUPER, L, hyprtasking:move, right
 
+bind = SUPER, A, hyprtasking:nextlayer, +1
+bind = SUPER SHIFT, A, hyprtasking:nextlayerwindow, +1
+
 plugin {
     hyprtasking {
         layout = grid
@@ -152,6 +155,8 @@ plugin {
             rows = 3
             cols = 3
             loop = false
+            layers = 2
+            loop_layers = true
             gaps_use_aspect_ratio = false
         }
 
@@ -185,6 +190,20 @@ plugin {
 - `hyprtasking:movewindow, ARG` takes in 1 argument that is one of `up`, `down`, `left`, `right`
     - when dispatched, hyprtasking will 1. move the hovered window to the workspace in the given direction relative to the window, and 2. switch to that workspace.
 
+- `hyprtasking:nextlayer, ARG` takes in 1 optional argument that specifies the direction of movement across layers.
+    - if provided, the argument has to start with `+` or `-` to take effect. For example: `+1`, `-3`
+    - no arguments has the same effect as `+1`
+    - when dispatched, hyprtasking will move you through the layers in the specified direction
+    - if plugin option `grid:loop_layers` is enabled, will loop the layers if next requested layer is out of bounds (not in the range form 0 to `grid:layers`)
+
+- `hyprtasking:nextlayerwindow, ARG` takes in 1 optional argument that specifies the direction of movement across layers.
+    - when dispatched, hyprtasking will do the same as `hyprtasking:nextlayer, ARG` and also move the window through layers
+
+- `hyprtasking:setoffset, ARG` takes in 1 argument that specifies the direction of movement across layers.
+    - the argument can be a relative change: `+3`, `-4` or an absolute value to set the offset: `15`
+    - when dispatched, hyprtasking will change the first workspace rendered to be the workspace with id=`offset + 1`
+    - initially the offset is 0
+
 - `hyprtasking:killhovered` behaves similarly to the standard `killactive` dispatcher with focus on hover
     - when dispatched, hyprtasking will the currently hovered window, useful when the overview is active.
     - this dispatcher is designed to **replace** killactive, it will work even when the overview is **not active**.
@@ -213,6 +232,8 @@ All options should are prefixed with `plugin:hyprtasking:`.
 | `grid:rows` | `Hyprlang::INT` | The number of rows to display on the grid overlay | `3` |
 | `grid:cols` | `Hyprlang::INT` | The number of columns to display on the grid overlay | `3` |
 | `grid:loop` | `Hyprlang::INT` | When enabled, moving right at the far right of the grid will wrap around to the leftmost workspace, etc. | `false` |
+| `grid:layers` | `Hyprlang::INT` | The number of layers for grid layout, the third dimension | `1` |
+| `grid:loop_layers` | `Hyprlang::INT` | When enabled, moving back on the first layer will wrap around to the last layer. The reverse also works | `true` |
 | `grid:gaps_use_aspect_ratio` | `Hyprlang::INT` | When enabled, vertical gaps will be scaled to match the monitor's aspect ratio | `false` |
 | `linear:blur` | `Hyprlang::INT` | Whether or not to blur the dimmed area | `false` |
 | `linear:height` | `Hyprlang::FLOAT` | The height of the linear overlay in logical pixels | `300.f` |
