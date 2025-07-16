@@ -112,7 +112,7 @@ static void set_offset(int new_offset) {
     for (PHTVIEW view : ht_manager->views) {
         if (view == nullptr)
             continue;
-        view->layout->first_offset = new_offset;
+        view->layout->first_ws_offset = new_offset;
         Debug::log(
             LOG,
             "[Hyprtasking] offset was: {}, new: {}",
@@ -382,7 +382,7 @@ static void on_config_reloaded(void* thisptr, SCallbackInfo& info, std::any args
             continue;
         view->hide(false);
         view->change_layout(HTConfig::value<Hyprlang::STRING>("layout"));
-        view->layout->first_offset = ht_manager->offset;
+        view->layout->first_ws_offset = ht_manager->offset;
     }
 }
 
