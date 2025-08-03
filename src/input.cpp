@@ -207,9 +207,9 @@ bool HTManager::swipe_update(IPointer::SSwipeUpdateEvent e) {
     if (!ENABLED)
         return false;
 
-    const int MOVE_FINGERS = HTConfig::value<Hyprlang::INT>("gestures:move_fingers");
+    const unsigned int MOVE_FINGERS = HTConfig::value<Hyprlang::INT>("gestures:move_fingers");
     const float OPEN_DISTANCE = HTConfig::value<Hyprlang::FLOAT>("gestures:open_distance");
-    const int OPEN_FINGERS = HTConfig::value<Hyprlang::INT>("gestures:open_fingers");
+    const unsigned int OPEN_FINGERS = HTConfig::value<Hyprlang::INT>("gestures:open_fingers");
     const int OPEN_POSITIVE = HTConfig::value<Hyprlang::INT>("gestures:open_positive");
 
     bool res = false;

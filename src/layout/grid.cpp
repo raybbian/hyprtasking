@@ -320,7 +320,7 @@ void HTLayoutGrid::render() {
     CRectPassElement::SRectData data;
     data.color = CHyprColor {HTConfig::value<Hyprlang::INT>("bg_color")}.stripA();
     data.box = monitor_box;
-    g_pHyprRenderer->m_renderPass.add(makeShared<CRectPassElement>(data));
+    g_pHyprRenderer->m_renderPass.add(makeUnique<CRectPassElement>(data));
 
     // Do a dance with active workspaces: Hyprland will only properly render the
     // current active one so make the workspace active before rendering it, etc
@@ -361,7 +361,7 @@ void HTLayoutGrid::render() {
         data.box = border_box;
         data.grad1 = border_col;
         data.borderSize = BORDERSIZE;
-        g_pHyprRenderer->m_renderPass.add(makeShared<CBorderPassElement>(data));
+        g_pHyprRenderer->m_renderPass.add(makeUnique<CBorderPassElement>(data));
 
         if (workspace != nullptr) {
             monitor->m_activeWorkspace = workspace;
@@ -414,7 +414,7 @@ void HTLayoutGrid::render() {
             data.box = border_box;
             data.grad1 = border_col;
             data.borderSize = BORDERSIZE;
-            g_pHyprRenderer->m_renderPass.add(makeShared<CBorderPassElement>(data));
+            g_pHyprRenderer->m_renderPass.add(makeUnique<CBorderPassElement>(data));
 
             ((render_workspace_t)(render_workspace_hook->m_original))(
                 g_pHyprRenderer.get(),

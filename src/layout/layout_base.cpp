@@ -76,7 +76,7 @@ void HTLayoutBase::build_overview_layout(HTViewStage stage) {
 void HTLayoutBase::render() {
     CClearPassElement::SClearData data;
     data.color = CHyprColor {0};
-    g_pHyprRenderer->m_renderPass.add(makeShared<CClearPassElement>(data));
+    g_pHyprRenderer->m_renderPass.add(makeUnique<CClearPassElement>(data));
 }
 
 const std::string CLEAR_PASS_ELEMENT_NAME = "CClearPassElement";
@@ -88,7 +88,7 @@ void HTLayoutBase::post_render() {
         first = false;
         return res;
     });
-    g_pHyprRenderer->m_renderPass.add(makeShared<HTPassElement>());
+    g_pHyprRenderer->m_renderPass.add(makeUnique<HTPassElement>());
     // g_pHyprOpenGL->setDamage(CRegion {CBox {0, 0, INT32_MAX, INT32_MAX}});
 }
 

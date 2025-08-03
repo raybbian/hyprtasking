@@ -30,7 +30,7 @@ void render_window_at_box(PHLWINDOW window, PHLMONITOR monitor, timespec* time, 
     data.modifs.push_back({SRenderModifData::eRenderModifType::RMOD_TYPE_TRANSLATE, transform});
     data.modifs.push_back({SRenderModifData::eRenderModifType::RMOD_TYPE_SCALE, scale});
     g_pHyprRenderer->m_renderPass.add(
-        makeShared<CRendererHintsPassElement>(CRendererHintsPassElement::SData {data})
+        makeUnique<CRendererHintsPassElement>(CRendererHintsPassElement::SData {data})
     );
 
     g_pHyprRenderer->damageWindow(window);
@@ -45,7 +45,7 @@ void render_window_at_box(PHLWINDOW window, PHLMONITOR monitor, timespec* time, 
         false
     );
 
-    g_pHyprRenderer->m_renderPass.add(makeShared<CRendererHintsPassElement>(
+    g_pHyprRenderer->m_renderPass.add(makeUnique<CRendererHintsPassElement>(
         CRendererHintsPassElement::SData {SRenderModifData {}}
     ));
 }
