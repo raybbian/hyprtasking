@@ -107,6 +107,103 @@ static SDispatchResult dispatch_move_window(std::string arg) {
     return {};
 }
 
+static void set_offset(int new_offset) {
+    for (PHTVIEW view : ht_manager->views) {
+        if (view == nullptr)
+            continue;
+        view->layout->first_ws_offset = new_offset;
+        Debug::log(
+            LOG,
+            "[Hyprtasking] offset was: {}, new: {}",
+            ht_manager->offset,
+            new_offset
+        );
+    }
+}
+
+static SDispatchResult dispatch_setoffset(std::string arg) {
+    if (ht_manager == nullptr)
+        return {.success = false, .error = "ht_manager is null"};
+
+    if (arg[0] == '+' || arg[0] == '-') {
+        ht_manager->offset += std::stoi(arg);
+    } else {
+        ht_manager->offset = std::stoi(arg);
+    }
+    set_offset(ht_manager->offset);
+    return {};
+}
+
+static SDispatchResult change_layer(std::string arg, bool move_window) {
+    if (ht_manager == nullptr)
+        return {.success = false, .error = "ht_manager is null"};
+
+    const PHTVIEW cursor_view = ht_manager->get_view_from_cursor();
+    if (cursor_view == nullptr)
+        return {.success = false, .error = "cursor_view is null"};
+
+    if (cursor_view->layout->layout_name() != "grid")
+        return {.success = false, .error = "only grid layout is supported"};
+
+    const int ROWS = HTConfig::value<Hyprlang::INT>("grid:rows");
+    const int COLS = HTConfig::value<Hyprlang::INT>("grid:cols");
+    const int LAYERS = HTConfig::value<Hyprlang::INT>("grid:layers");
+    const int LOOP_LAYERS = HTConfig::value<Hyprlang::INT>("grid:loop_layers");
+    const int MAX_OFFSET = (LAYERS-1)*COLS*ROWS;
+
+    int delta;
+    if (arg[0] == '+' || arg[0] == '-') {
+        // several times
+        delta = ROWS*COLS*std::stoi(arg);
+    } else {
+        // no argument - one time
+        delta = ROWS*COLS;
+    }
+
+
+    const PHLMONITOR monitor = cursor_view->get_monitor();
+    if (monitor == nullptr)
+        return {.success = false, .error = "monitor is null"};
+    const PHLWORKSPACE active_workspace = monitor->m_activeWorkspace;
+    if (active_workspace == nullptr)
+        return {.success = false, .error = "active_workspace is null"};
+    const WORKSPACEID source_ws_id = active_workspace->m_id;
+
+    int resulting_offset = ht_manager->offset + delta;
+    WORKSPACEID target_ws_id = source_ws_id + delta;
+
+    // if resulting offset doesn't fit in boundaries
+    if (resulting_offset > MAX_OFFSET || resulting_offset < 0) {
+        if (LOOP_LAYERS) {
+            target_ws_id = source_ws_id - ht_manager->offset;
+            if (resulting_offset < 0) {
+                target_ws_id += MAX_OFFSET;
+                resulting_offset = MAX_OFFSET;
+            } else if (resulting_offset > MAX_OFFSET) {
+                resulting_offset = 0;
+            }
+        } else {
+            // Don't do anything if next is invalid and grid:loop_layers is disabled
+            target_ws_id = source_ws_id;
+            resulting_offset = ht_manager->offset;
+        }
+    }
+
+    ht_manager->offset = resulting_offset;
+    set_offset(resulting_offset);
+
+    cursor_view->move_id(target_ws_id, move_window);
+    return {};
+}
+
+static SDispatchResult dispatch_nextlayer(std::string arg) {
+    return change_layer(arg, false);
+}
+
+static SDispatchResult dispatch_nextlayerwindow(std::string arg) {
+    return change_layer(arg, true);
+}
+
 static SDispatchResult dispatch_kill_hover(std::string arg) {
     if (ht_manager == nullptr)
         return {.success = false, .error = "ht_manager is null"};
@@ -265,6 +362,7 @@ static void on_config_reloaded(void* thisptr, SCallbackInfo& info, std::any args
             continue;
         view->hide(false);
         view->change_layout(HTConfig::value<Hyprlang::STRING>("layout"));
+        view->layout->first_ws_offset = ht_manager->offset;
     }
 }
 
@@ -331,6 +429,9 @@ static void add_dispatchers() {
     HyprlandAPI::addDispatcherV2(PHANDLE, "hyprtasking:move", dispatch_move);
     HyprlandAPI::addDispatcherV2(PHANDLE, "hyprtasking:movewindow", dispatch_move_window);
     HyprlandAPI::addDispatcherV2(PHANDLE, "hyprtasking:killhovered", dispatch_kill_hover);
+    HyprlandAPI::addDispatcherV2(PHANDLE, "hyprtasking:setoffset", dispatch_setoffset);
+    HyprlandAPI::addDispatcherV2(PHANDLE, "hyprtasking:nextlayer", dispatch_nextlayer);
+    HyprlandAPI::addDispatcherV2(PHANDLE, "hyprtasking:nextlayerwindow", dispatch_nextlayerwindow);
 }
 
 static void init_config() {
@@ -373,6 +474,8 @@ static void init_config() {
     // grid specific
     HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprtasking:grid:rows", Hyprlang::INT {3});
     HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprtasking:grid:cols", Hyprlang::INT {3});
+    HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprtasking:grid:layers", Hyprlang::INT {1});
+    HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprtasking:grid:loop_layers", Hyprlang::INT {1});
     HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprtasking:grid:loop", Hyprlang::INT {0});
     HyprlandAPI::addConfigValue(
         PHANDLE,
