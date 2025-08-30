@@ -41,12 +41,13 @@ PHTVIEW HTManager::get_view_from_id(VIEWID view_id) {
     return nullptr;
 }
 
-PHLWINDOW HTManager::get_window_from_cursor() {
+PHLWINDOW HTManager::get_window_from_cursor(bool return_focused) {
     const PHLMONITOR cursor_monitor = g_pCompositor->getMonitorFromCursor();
     if (cursor_monitor == nullptr)
         return nullptr;
 
-    return cursor_monitor->m_activeWorkspace->getLastFocusedWindow();
+    if (return_focused)
+        return cursor_monitor->m_activeWorkspace->getLastFocusedWindow();
 
     const PHTVIEW cursor_view = get_view_from_monitor(cursor_monitor);
     if (cursor_view == nullptr)

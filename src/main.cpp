@@ -111,7 +111,13 @@ static SDispatchResult dispatch_move_window(std::string arg) {
 static SDispatchResult dispatch_kill_hover(std::string arg) {
     if (ht_manager == nullptr)
         return {.success = false, .error = "ht_manager is null"};
-    const PHLWINDOW hovered_window = ht_manager->get_window_from_cursor();
+
+    const PHTVIEW cursor_view = ht_manager->get_view_from_cursor();
+    if (cursor_view == nullptr)
+        return {.success = false, .error = "cursor_view is null"};
+    // Only use actually hovered window when overview is active
+    // Use focused otherwise
+    const PHLWINDOW hovered_window = ht_manager->get_window_from_cursor(!cursor_view->active);
     if (hovered_window == nullptr)
         return {.success = false, .error = "hovered_window is null"};
     g_pCompositor->closeWindow(hovered_window);
