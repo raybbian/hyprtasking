@@ -106,6 +106,9 @@ Then use `hyprctl plugin load` to load the absolute path to the `.so` file.
 - Window management:
     - **Left click** to drag and drop windows around
 
+> [!NOTE]
+> If either `input:left_handed` or `plugin:hyprtasking:swap_mouse_action` is set to `true`, then right and left clicks are swapped
+
 ## Configuration
 
 Example below:
@@ -131,6 +134,7 @@ plugin {
         gap_size = 20
         bg_color = 0xff26233a
         border_size = 4
+        swap_mouse_actions = false
         exit_on_hovered = false
 
         gestures {
@@ -193,6 +197,7 @@ All options should are prefixed with `plugin:hyprtasking:`.
 | `bg_color` | `Hyprlang::INT` | The color of the background of the overlay | `0x000000FF` |
 | `gap_size` | `Hyprlang::FLOAT` | The width in logical pixels of the gaps between workspaces | `8.f` |
 | `border_size` | `Hyprlang::FLOAT` | The width in logical pixels of the borders around workspaces | `4.f` |
+| `swap_mouse_actions` | `Hyprlang::INT` | When enabled makes left click exit overview and right click drag windows | `false` |
 | `exit_on_hovered` | `Hyprlang::INT` | If true, hiding the workspace will exit to the hovered workspace instead of the active workspace. | `false` |
 | `gestures:enabled` | `Hyprlang::INT` | Whether or not to enable gestures | `true` |
 | `gestures:move_fingers` | `Hyprlang::INT` | The number of fingers to use for the "move" gesture | `3` |
