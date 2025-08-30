@@ -42,6 +42,13 @@ PHTVIEW HTManager::get_view_from_id(VIEWID view_id) {
 }
 
 PHLWINDOW HTManager::get_window_from_cursor() {
+     const auto PWINDOW = g_pCompositor->m_lastWindow.lock();
+
+    if (!validMapped(PWINDOW))
+        return nullptr;
+
+    return PWINDOW;
+
     const PHLMONITOR cursor_monitor = g_pCompositor->getMonitorFromCursor();
     const PHTVIEW cursor_view = get_view_from_monitor(cursor_monitor);
     if (cursor_view == nullptr || cursor_monitor == nullptr)

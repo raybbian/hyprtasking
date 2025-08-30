@@ -142,6 +142,21 @@ void HTView::move_id(WORKSPACEID ws_id, bool move_window) {
     }
 
     monitor->changeWorkspace(other_workspace);
+    if (move_window) {
+        // Maybe use warps or sth??
+        g_pCompositor->focusWindow(hovered_window);
+
+        // taken from Hyprland:
+        // https://github.com/hyprwm/Hyprland/blob/ea42041f936d5810c5cfa45d6bece12dde2fd9b6/src/managers/KeybindManager.cpp#L1319
+        const static auto PWARPONWORKSPACECHANGE = CConfigValue<Hyprlang::INT>("cursor:warp_on_change_workspace");
+
+        if (*PWARPONWORKSPACECHANGE > 0) {
+            auto HLSurface = CWLSurface::fromResource(g_pSeatManager->m_state.pointerFocus.lock());
+
+            if (hovered_window && (!HLSurface || HLSurface->getWindow()))
+                hovered_window->warpCursor(*PWARPONWORKSPACECHANGE == 2);
+        }
+    }
 
     navigating = true;
     layout->on_move(active_workspace->m_id, other_workspace->m_id, [this](auto self) {
