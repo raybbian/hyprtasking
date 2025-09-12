@@ -4,7 +4,8 @@
 #include <hyprland/src/config/ConfigManager.hpp>
 #include <hyprland/src/config/ConfigValue.hpp>
 #include <hyprland/src/helpers/MiscFunctions.hpp>
-#include <hyprland/src/managers/AnimationManager.hpp>
+#include <hyprland/src/managers/animation/AnimationManager.hpp>
+#include <hyprland/src/managers/animation/DesktopAnimationManager.hpp>
 #include <hyprland/src/managers/LayoutManager.hpp>
 #include <hyprland/src/managers/input/InputManager.hpp>
 #include <hyprland/src/render/pass/BorderPassElement.hpp>
@@ -264,7 +265,7 @@ void HTLayoutLinear::build_overview_layout(HTViewStage stage) {
     overview_layout.clear();
 
     std::vector<WORKSPACEID> monitor_workspaces;
-    for (PHLWORKSPACE workspace : g_pCompositor->m_workspaces) {
+    for (PHLWORKSPACE workspace : g_pCompositor->getWorkspacesCopy()) {
         if (workspace == nullptr)
             continue;
         if (workspace->m_monitor != monitor)
@@ -315,14 +316,24 @@ void HTLayoutLinear::render() {
     // Do a dance with active workspaces: Hyprland will only properly render the
     // current active one so make the workspace active before rendering it, etc
     const PHLWORKSPACE start_workspace = monitor->m_activeWorkspace;
-    start_workspace->startAnim(false, false, true);
+    g_pDesktopAnimationManager->startAnimation(
+        start_workspace,
+        CDesktopAnimationManager::ANIMATION_TYPE_OUT,
+        false,
+        true
+    );
     start_workspace->m_visible = false;
 
     const PHLWORKSPACE big_ws = monitor->m_activeWorkspace;
 
     rendering_standard_ws = true;
     monitor->m_activeWorkspace = big_ws;
-    big_ws->startAnim(true, false, true);
+    g_pDesktopAnimationManager->startAnimation(
+        start_workspace,
+        CDesktopAnimationManager::ANIMATION_TYPE_IN,
+        false,
+        true
+    );
     big_ws->m_visible = true;
 
     // use pixel size for geometry
@@ -344,7 +355,12 @@ void HTLayoutLinear::render() {
     blur_data.blurA = blur_strength->value();
     g_pHyprRenderer->m_renderPass.add(makeUnique<CRectPassElement>(blur_data));
 
-    big_ws->startAnim(false, false, true);
+    g_pDesktopAnimationManager->startAnimation(
+        start_workspace,
+        CDesktopAnimationManager::ANIMATION_TYPE_OUT,
+        false,
+        true
+    );
     big_ws->m_visible = false;
     rendering_standard_ws = false;
 
@@ -389,7 +405,12 @@ void HTLayoutLinear::render() {
 
         if (workspace != nullptr) {
             monitor->m_activeWorkspace = workspace;
-            workspace->startAnim(true, false, true);
+            g_pDesktopAnimationManager->startAnimation(
+                workspace,
+                CDesktopAnimationManager::ANIMATION_TYPE_IN,
+                false,
+                true
+            );
             workspace->m_visible = true;
 
             ((render_workspace_t)(render_workspace_hook->m_original))(
@@ -400,7 +421,12 @@ void HTLayoutLinear::render() {
                 render_box
             );
 
-            workspace->startAnim(false, false, true);
+            g_pDesktopAnimationManager->startAnimation(
+                workspace,
+                CDesktopAnimationManager::ANIMATION_TYPE_OUT,
+                false,
+                true
+            );
             workspace->m_visible = false;
         } else {
             // If pWorkspace is null, then just render the layers
@@ -415,7 +441,12 @@ void HTLayoutLinear::render() {
     }
 
     monitor->m_activeWorkspace = start_workspace;
-    start_workspace->startAnim(true, false, true);
+    g_pDesktopAnimationManager->startAnimation(
+        start_workspace,
+        CDesktopAnimationManager::ANIMATION_TYPE_IN,
+        false,
+        true
+    );
     start_workspace->m_visible = true;
 
     // Render dragged window at mouse cursor
