@@ -149,6 +149,25 @@ static bool hook_should_render_window(void* thisptr, PHLWINDOW window, PHLMONITO
     return view->layout->should_render_window(window);
 }
 
+static uint32_t hook_is_solitary_blocked(
+    void* thisptr,
+    bool full
+) {
+    PHTVIEW view = ht_manager->get_view_from_cursor();
+    if (view == nullptr) {
+        Debug::log(
+            ERR,
+            "[Hyprtasking] View is nullptr in hook_is_solitary_blocked"
+        );
+        (*(origIsSolitaryBlocked)is_solitary_blocked_hook->m_original)(thisptr, full);
+    }
+
+    if (view->active || view->navigating) {
+        return (1 << 0);  // reason: unknown
+    }
+    return (*(origIsSolitaryBlocked)is_solitary_blocked_hook->m_original)(thisptr, full);
+}
+
 static void on_mouse_button(void* thisptr, SCallbackInfo& info, std::any args) {
     if (ht_manager == nullptr)
         return;
@@ -295,6 +314,16 @@ static void init_functions() {
     if (FNS3.empty())
         fail_exit("No renderWindow");
     render_window = FNS3[0].address;
+
+
+    static auto FNS4 = HyprlandAPI::findFunctionsByName(PHANDLE, "isSolitaryBlocked");
+    if (FNS4.empty())
+        fail_exit("No isSolitaryBlocked!");
+
+    is_solitary_blocked_hook =
+        HyprlandAPI::createFunctionHook(PHANDLE, FNS4[0].address, (void*)hook_is_solitary_blocked);
+    Debug::log(LOG, "[Hyprtasking] Attempting hook {}", FNS4[0].signature);
+    success = is_solitary_blocked_hook->hook() && success;
 
     if (!success)
         fail_exit("Failed initializing hooks");
