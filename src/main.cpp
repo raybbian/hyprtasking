@@ -125,6 +125,7 @@ static void set_offset(int new_offset) {
 static SDispatchResult dispatch_setoffset(std::string arg) {
     if (ht_manager == nullptr)
         return {.success = false, .error = "ht_manager is null"};
+    const int original_offset = ht_manager->offset;
 
     if (arg[0] == '+' || arg[0] == '-') {
         ht_manager->offset += std::stoi(arg);
@@ -132,6 +133,22 @@ static SDispatchResult dispatch_setoffset(std::string arg) {
         ht_manager->offset = std::stoi(arg);
     }
     set_offset(ht_manager->offset);
+
+
+    const PHTVIEW cursor_view = ht_manager->get_view_from_cursor();
+    if (cursor_view == nullptr)
+        return {.success = false, .error = "cursor_view is null"};
+    const PHLMONITOR monitor = cursor_view->get_monitor();
+    if (monitor == nullptr)
+        return {.success = false, .error = "monitor is null"};
+    const PHLWORKSPACE active_workspace = monitor->m_activeWorkspace;
+    if (active_workspace == nullptr)
+        return {.success = false, .error = "active_workspace is null"};
+    const WORKSPACEID source_ws_id = active_workspace->m_id;
+
+    const int offset_delta = original_offset - ht_manager->offset;
+
+    cursor_view->move_id(source_ws_id - offset_delta, false);
     return {};
 }
 
