@@ -5,6 +5,7 @@
 #include <hyprland/src/SharedDefs.hpp>
 #include <hyprland/src/desktop/DesktopTypes.hpp>
 #include <hyprland/src/devices/IKeyboard.hpp>
+#include <hyprland/src/helpers/Monitor.hpp>
 #include <hyprland/src/macros.hpp>
 #include <hyprland/src/managers/KeybindManager.hpp>
 #include <hyprland/src/managers/LayoutManager.hpp>
@@ -163,7 +164,7 @@ static uint32_t hook_is_solitary_blocked(
     }
 
     if (view->active || view->navigating) {
-        return (1 << 0);  // reason: unknown
+        return CMonitor::SC_UNKNOWN;
     }
     return (*(origIsSolitaryBlocked)is_solitary_blocked_hook->m_original)(thisptr, full);
 }
