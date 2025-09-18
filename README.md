@@ -4,7 +4,7 @@
 </div>
 
 > [!Important]
-> - Supports Hyprland release `v0.46.2-v0.49.0`.
+> - Supports Hyprland release `v0.46.2-v0.51.0`.
 
 https://github.com/user-attachments/assets/8d6cdfd2-2b17-4240-a117-1dbd2231ed4e
 
@@ -207,4 +207,3 @@ All options should are prefixed with `plugin:hyprtasking:`.
 | `linear:blur` | `Hyprlang::INT` | Whether or not to blur the dimmed area | `false` |
 | `linear:height` | `Hyprlang::FLOAT` | The height of the linear overlay in logical pixels | `300.f` |
 | `linear:scroll_speed` | `Hyprlang::FLOAT` | Scroll speed modifier. Set negative to flip direction | `1.f` |
-
