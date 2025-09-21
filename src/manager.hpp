@@ -10,7 +10,6 @@ class HTManager {
     HTManager();
 
     std::vector<PHTVIEW> views;
-    int offset = 0;
 
     PHTVIEW get_view_from_monitor(PHLMONITOR pMonitor);
     PHTVIEW get_view_from_cursor();
