@@ -169,15 +169,14 @@ static SDispatchResult change_layer(std::string arg, bool move_window) {
     const int LOOP_LAYERS = HTConfig::value<Hyprlang::INT>("grid:loop_layers");
     const int MAX_OFFSET = (LAYERS-1)*COLS*ROWS;
 
-    int delta;
+    int resulting_offset;
     if (arg[0] == '+' || arg[0] == '-') {
-        // several times
-        delta = ROWS*COLS*std::stoi(arg);
+        // relative jump
+        resulting_offset = ht_manager->offset + ROWS*COLS*std::stoi(arg);
     } else {
-        // no argument - one time
-        delta = ROWS*COLS;
+        // absolute jump
+        resulting_offset = ROWS*COLS*std::stoi(arg);
     }
-
 
     const PHLMONITOR monitor = cursor_view->get_monitor();
     if (monitor == nullptr)
@@ -187,8 +186,7 @@ static SDispatchResult change_layer(std::string arg, bool move_window) {
         return {.success = false, .error = "active_workspace is null"};
     const WORKSPACEID source_ws_id = active_workspace->m_id;
 
-    int resulting_offset = ht_manager->offset + delta;
-    WORKSPACEID target_ws_id = source_ws_id + delta;
+    WORKSPACEID target_ws_id = source_ws_id - (ht_manager->offset - resulting_offset);
 
     // if resulting offset doesn't fit in boundaries
     if (resulting_offset > MAX_OFFSET || resulting_offset < 0) {
@@ -214,11 +212,11 @@ static SDispatchResult change_layer(std::string arg, bool move_window) {
     return {};
 }
 
-static SDispatchResult dispatch_nextlayer(std::string arg) {
+static SDispatchResult dispatch_setlayer(std::string arg) {
     return change_layer(arg, false);
 }
 
-static SDispatchResult dispatch_nextlayerwindow(std::string arg) {
+static SDispatchResult dispatch_setlayerwindow(std::string arg) {
     return change_layer(arg, true);
 }
 
@@ -484,8 +482,8 @@ static void add_dispatchers() {
     HyprlandAPI::addDispatcherV2(PHANDLE, "hyprtasking:movewindow", dispatch_move_window);
     HyprlandAPI::addDispatcherV2(PHANDLE, "hyprtasking:killhovered", dispatch_kill_hover);
     HyprlandAPI::addDispatcherV2(PHANDLE, "hyprtasking:setoffset", dispatch_setoffset);
-    HyprlandAPI::addDispatcherV2(PHANDLE, "hyprtasking:nextlayer", dispatch_nextlayer);
-    HyprlandAPI::addDispatcherV2(PHANDLE, "hyprtasking:nextlayerwindow", dispatch_nextlayerwindow);
+    HyprlandAPI::addDispatcherV2(PHANDLE, "hyprtasking:setlayer", dispatch_setlayer);
+    HyprlandAPI::addDispatcherV2(PHANDLE, "hyprtasking:setlayerwindow", dispatch_setlayerwindow);
 }
 
 static void init_config() {

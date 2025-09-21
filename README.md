@@ -124,8 +124,8 @@ bind = SUPER, J, hyprtasking:move, down
 bind = SUPER, K, hyprtasking:move, up
 bind = SUPER, L, hyprtasking:move, right
 
-bind = SUPER, A, hyprtasking:nextlayer, +1
-bind = SUPER SHIFT, A, hyprtasking:nextlayerwindow, +1
+bind = SUPER, A, hyprtasking:setlayer, +1
+bind = SUPER SHIFT, A, hyprtasking:setlayerwindow, +1
 
 plugin {
     hyprtasking {
@@ -190,14 +190,14 @@ plugin {
 - `hyprtasking:movewindow, ARG` takes in 1 argument that is one of `up`, `down`, `left`, `right`
     - when dispatched, hyprtasking will 1. move the hovered window to the workspace in the given direction relative to the window, and 2. switch to that workspace.
 
-- `hyprtasking:nextlayer, ARG` takes in 1 optional argument that specifies the direction of movement across layers.
+- `hyprtasking:setlayer, ARG` takes in 1 optional argument that specifies the direction of movement across layers.
     - if provided, the argument has to start with `+` or `-` to take effect. For example: `+1`, `-3`
     - no arguments has the same effect as `+1`
     - when dispatched, hyprtasking will move you through the layers in the specified direction
     - if plugin option `grid:loop_layers` is enabled, will loop the layers if next requested layer is out of bounds (not in the range form 0 to `grid:layers`)
 
-- `hyprtasking:nextlayerwindow, ARG` takes in 1 optional argument that specifies the direction of movement across layers.
-    - when dispatched, hyprtasking will do the same as `hyprtasking:nextlayer, ARG` and also move the window through layers
+- `hyprtasking:setlayerwindow, ARG` takes in 1 optional argument that specifies the direction of movement across layers.
+    - when dispatched, hyprtasking will do the same as `hyprtasking:setlayer, ARG` and also move the window through layers
 
 - `hyprtasking:setoffset, ARG` takes in 1 argument that specifies the direction of movement across layers.
     - the argument can be a relative change: `+3`, `-4` or an absolute value to set the offset: `15`
