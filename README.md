@@ -132,6 +132,7 @@ plugin {
         bg_color = 0xff26233a
         border_size = 4
         exit_on_hovered = false
+        close_overview_on_reload = true
 
         gestures {
             enabled = true
@@ -194,6 +195,7 @@ All options should are prefixed with `plugin:hyprtasking:`.
 | `gap_size` | `Hyprlang::FLOAT` | The width in logical pixels of the gaps between workspaces | `8.f` |
 | `border_size` | `Hyprlang::FLOAT` | The width in logical pixels of the borders around workspaces | `4.f` |
 | `exit_on_hovered` | `Hyprlang::INT` | If true, hiding the workspace will exit to the hovered workspace instead of the active workspace. | `false` |
+| `close_overview_on_reload ` | `Hyprlang::INT` | Whether to close the overview if its type didn't type didn't change after hyprland config reload | `true` |
 | `gestures:enabled` | `Hyprlang::INT` | Whether or not to enable gestures | `true` |
 | `gestures:move_fingers` | `Hyprlang::INT` | The number of fingers to use for the "move" gesture | `3` |
 | `gestures:move_distance` | `Hyprlang::FLOAT` | How large of a swipe on the touchpad corresponds to the width of a workspace | `300.f` |
