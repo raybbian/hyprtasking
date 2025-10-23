@@ -403,9 +403,10 @@ static void init_config() {
 APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
     PHANDLE = handle;
 
-    const std::string HASH = __hyprland_api_get_hash();
+    const std::string COMPOSITOR_HASH = __hyprland_api_get_hash();
+    const std::string CLIENT_HASH = __hyprland_api_get_client_hash();
 
-    if (HASH != GIT_COMMIT_HASH)
+    if (COMPOSITOR_HASH != CLIENT_HASH)
         fail_exit("Mismatched headers! Can't proceed.");
 
     if (ht_manager == nullptr)
