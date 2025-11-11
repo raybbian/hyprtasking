@@ -4,7 +4,7 @@
 </div>
 
 > [!Important]
-> - Supports Hyprland release `v0.46.2-v0.51.0`.
+> - Supports Hyprland release `v0.46.2-v0.52.1`.
 
 https://github.com/user-attachments/assets/8d6cdfd2-2b17-4240-a117-1dbd2231ed4e
 
@@ -35,7 +35,7 @@ https://github.com/user-attachments/assets/8d6cdfd2-2b17-4240-a117-1dbd2231ed4e
     - [x] Toggle keybind
 - [ ] Touch and gesture support
 - [ ] Overview layers
-    
+
 ## Installation
 
 ### Hyprpm
@@ -93,7 +93,7 @@ Then use `hyprctl plugin load` to load the absolute path to the `.so` file.
 
 ### Opening Overview
 
-- Bind `hyprtasking:toggle, all` to a keybind to open/close the overlay on all monitors. 
+- Bind `hyprtasking:toggle, all` to a keybind to open/close the overlay on all monitors.
 - Bind `hyprtasking:toggle, cursor` to a keybind to open the overlay on one monitor and close on all monitors.
 - Swipe up/down on a touchpad device to open/close the overlay on one monitor.
 - See [below](#Configuration) for configuration options.
@@ -203,7 +203,7 @@ All options should are prefixed with `plugin:hyprtasking:`.
 | `grid:rows` | `Hyprlang::INT` | The number of rows to display on the grid overlay | `3` |
 | `grid:cols` | `Hyprlang::INT` | The number of columns to display on the grid overlay | `3` |
 | `grid:loop` | `Hyprlang::INT` | When enabled, moving right at the far right of the grid will wrap around to the leftmost workspace, etc. | `false` |
-| `grid:gaps_use_aspect_ratio` | `Hyprlang::INT` | When enabled, vertical gaps will be scaled to match the monitor's aspect ratio | `false` | 
+| `grid:gaps_use_aspect_ratio` | `Hyprlang::INT` | When enabled, vertical gaps will be scaled to match the monitor's aspect ratio | `false` |
 | `linear:blur` | `Hyprlang::INT` | Whether or not to blur the dimmed area | `false` |
 | `linear:height` | `Hyprlang::FLOAT` | The height of the linear overlay in logical pixels | `300.f` |
 | `linear:scroll_speed` | `Hyprlang::FLOAT` | Scroll speed modifier. Set negative to flip direction | `1.f` |
