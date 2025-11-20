@@ -115,6 +115,17 @@ void HTView::hide(bool exit_on_mouse) {
     g_pCompositor->scheduleFrameForMonitor(monitor);
 }
 
+void HTView::warp_window(Hyprlang::INT warp, PHLWINDOW window) {
+    // taken from Hyprland:
+    // https://github.com/hyprwm/Hyprland/blob/ea42041f936d5810c5cfa45d6bece12dde2fd9b6/src/managers/KeybindManager.cpp#L1319
+    if (warp > 0) {
+        auto HLSurface = CWLSurface::fromResource(g_pSeatManager->m_state.pointerFocus.lock());
+
+        if (window && (!HLSurface || HLSurface->getWindow()))
+            window->warpCursor(warp == 2);
+    }
+}
+
 void HTView::move_id(WORKSPACEID ws_id, bool move_window) {
     navigating = false;
     if (closing)
@@ -141,7 +152,16 @@ void HTView::move_id(WORKSPACEID ws_id, bool move_window) {
         g_pCompositor->moveWindowToWorkspaceSafe(hovered_window, other_workspace);
     }
 
+    Hyprlang::INT warp;
+
     monitor->changeWorkspace(other_workspace);
+    if (move_window) {
+        g_pCompositor->focusWindow(hovered_window);
+        warp = *CConfigValue<Hyprlang::INT>("plugin:hyprtasking:warp_on_move_window");
+    } else {
+        warp = *CConfigValue<Hyprlang::INT>("cursor:warp_on_change_workspace");
+    }
+    warp_window(warp, hovered_window);
 
     navigating = true;
     layout->on_move(active_workspace->m_id, other_workspace->m_id, [this](auto self) {

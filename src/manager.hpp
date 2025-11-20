@@ -15,7 +15,7 @@ class HTManager {
     PHTVIEW get_view_from_cursor();
     PHTVIEW get_view_from_id(VIEWID view_id);
 
-    PHLWINDOW get_window_from_cursor();
+    PHLWINDOW get_window_from_cursor(bool return_focused = true);
 
     void reset();
 
