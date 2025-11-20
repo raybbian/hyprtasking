@@ -7,26 +7,32 @@
     systems.url = "github:nix-systems/default-linux";
   };
 
-  outputs = { self, nixpkgs, hyprland, systems, ... }:
-    let
-      inherit (nixpkgs) lib;
+  outputs = {
+    self,
+    nixpkgs,
+    hyprland,
+    systems,
+    ...
+  }: let
+    inherit (nixpkgs) lib;
 
-      forSystems = attrs: lib.genAttrs (import systems) (system:
-        attrs system nixpkgs.legacyPackages.${system}
+    forSystems = attrs:
+      lib.genAttrs (import systems) (
+        system:
+          attrs system nixpkgs.legacyPackages.${system}
       );
-    in
-    {
-      packages = forSystems (system: pkgs: {
-        hyprtasking = let
-          hyprlandPkg = hyprland.packages.${system}.hyprland;
-        in
+  in {
+    packages = forSystems (system: pkgs: {
+      hyprtasking = let
+        hyprlandPkg = hyprland.packages.${system}.hyprland;
+      in
         pkgs.gcc14Stdenv.mkDerivation {
           pname = "hyprtasking";
           version = "0.1";
 
           src = ./.;
 
-          nativeBuildInputs = hyprlandPkg.nativeBuildInputs;
+          nativeBuildInputs = [pkgs.meson pkgs.ninja] ++ hyprlandPkg.nativeBuildInputs;
           buildInputs = [hyprlandPkg] ++ hyprlandPkg.buildInputs;
 
           meta = with lib; {
@@ -37,7 +43,7 @@
           };
         };
 
-        default = self.packages.${system}.hyprtasking;
-      });
-    };
+      default = self.packages.${system}.hyprtasking;
+    });
+  };
 }
