@@ -283,8 +283,12 @@ static void on_config_reloaded(void* thisptr, SCallbackInfo& info, std::any args
     for (PHTVIEW& view : ht_manager->views) {
         if (view == nullptr)
             continue;
-        view->hide(false);
-        view->change_layout(HTConfig::value<Hyprlang::STRING>("layout"));
+        const Hyprlang::STRING new_layout = HTConfig::value<Hyprlang::STRING>("layout");
+        if (HTConfig::value<Hyprlang::INT>("close_overview_on_reload") || view->layout->layout_name() != new_layout) {
+            Debug::log(LOG, "[Hyprtasking] Closing overview on config reload");
+            view->hide(false);
+            view->change_layout(new_layout);
+        }
     }
 }
 
@@ -371,6 +375,7 @@ static void init_config() {
     HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprtasking:gap_size", Hyprlang::FLOAT {8.f});
     HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprtasking:border_size", Hyprlang::FLOAT {4.f});
     HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprtasking:exit_on_hovered", Hyprlang::INT {0});
+    HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprtasking:close_overview_on_reload", Hyprlang::INT {1});
 
     // swipe
     HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprtasking:gestures:enabled", Hyprlang::INT {1});
