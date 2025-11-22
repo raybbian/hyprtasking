@@ -135,6 +135,10 @@ plugin {
         warp_on_move_window = 1
         close_overview_on_reload = true
 
+        drag_button = 0x110 # left mouse button
+        select_button = 0x111 # right mouse button
+        # for other mouse buttons see <linux/input-event-codes.h>
+
         gestures {
             enabled = true
             move_fingers = 3
@@ -198,6 +202,8 @@ All options should are prefixed with `plugin:hyprtasking:`.
 | `exit_on_hovered` | `Hyprlang::INT` | If true, hiding the workspace will exit to the hovered workspace instead of the active workspace. | `false` |
 | `warp_on_move_window` | `Hyprlang::INT` | Works the same as `cursor:warp_on_change_workspace` (see [wiki](https://wiki.hypr.land/Configuring/Variables/#cursor)) but with `hyprtasking:movewindow` dispathcer. <br> `cursor:warp_on_change_workspace` works only with `hyprtasking:move` dispathcer | `1` |
 | `close_overview_on_reload ` | `Hyprlang::INT` | Whether to close the overview if its type didn't type didn't change after hyprland config reload | `true` |
+| `drag_button` | `Hyprlang::INT` | The mouse button to use to drag windows around | `0x110` |
+| `select_button` | `Hyprlang::INT` | The mouse button to use to select a workspace | `0x111` |
 | `gestures:enabled` | `Hyprlang::INT` | Whether or not to enable gestures | `true` |
 | `gestures:move_fingers` | `Hyprlang::INT` | The number of fingers to use for the "move" gesture | `3` |
 | `gestures:move_distance` | `Hyprlang::FLOAT` | How large of a swipe on the touchpad corresponds to the width of a workspace | `300.f` |

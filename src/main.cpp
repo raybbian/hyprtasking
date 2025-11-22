@@ -156,16 +156,10 @@ static bool hook_should_render_window(void* thisptr, PHLWINDOW window, PHLMONITO
     return view->layout->should_render_window(window);
 }
 
-static uint32_t hook_is_solitary_blocked(
-    void* thisptr,
-    bool full
-) {
+static uint32_t hook_is_solitary_blocked(void* thisptr, bool full) {
     PHTVIEW view = ht_manager->get_view_from_cursor();
     if (view == nullptr) {
-        Debug::log(
-            ERR,
-            "[Hyprtasking] View is nullptr in hook_is_solitary_blocked"
-        );
+        Debug::log(ERR, "[Hyprtasking] View is nullptr in hook_is_solitary_blocked");
         (*(origIsSolitaryBlocked)is_solitary_blocked_hook->m_original)(thisptr, full);
     }
 
@@ -186,11 +180,14 @@ static void on_mouse_button(void* thisptr, SCallbackInfo& info, std::any args) {
     const auto e = std::any_cast<IPointer::SButtonEvent>(args);
     const bool pressed = e.state == WL_POINTER_BUTTON_STATE_PRESSED;
 
-    if (pressed && e.button == BTN_LEFT) {
+    const unsigned int drag_button = HTConfig::value<Hyprlang::INT>("drag_button");
+    const unsigned int select_button = HTConfig::value<Hyprlang::INT>("select_button");
+
+    if (pressed && e.button == drag_button) {
         info.cancelled = ht_manager->start_window_drag();
-    } else if (!pressed && e.button == BTN_LEFT) {
+    } else if (!pressed && e.button == drag_button) {
         info.cancelled = ht_manager->end_window_drag();
-    } else if (pressed && e.button == BTN_RIGHT) {
+    } else if (pressed && e.button == select_button) {
         info.cancelled = ht_manager->exit_to_workspace();
     }
 }
@@ -290,7 +287,8 @@ static void on_config_reloaded(void* thisptr, SCallbackInfo& info, std::any args
         if (view == nullptr)
             continue;
         const Hyprlang::STRING new_layout = HTConfig::value<Hyprlang::STRING>("layout");
-        if (HTConfig::value<Hyprlang::INT>("close_overview_on_reload") || view->layout->layout_name() != new_layout) {
+        if (HTConfig::value<Hyprlang::INT>("close_overview_on_reload")
+            || view->layout->layout_name() != new_layout) {
             Debug::log(LOG, "[Hyprtasking] Closing overview on config reload");
             view->hide(false);
             view->change_layout(new_layout);
@@ -325,7 +323,6 @@ static void init_functions() {
     if (FNS3.empty())
         fail_exit("No renderWindow");
     render_window = FNS3[0].address;
-
 
     static auto FNS4 = HyprlandAPI::findFunctionsByName(PHANDLE, "isSolitaryBlocked");
     if (FNS4.empty())
@@ -381,8 +378,27 @@ static void init_config() {
     HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprtasking:gap_size", Hyprlang::FLOAT {8.f});
     HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprtasking:border_size", Hyprlang::FLOAT {4.f});
     HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprtasking:exit_on_hovered", Hyprlang::INT {0});
-    HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprtasking:warp_on_move_window", Hyprlang::INT {1});
-    HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprtasking:close_overview_on_reload", Hyprlang::INT {1});
+    HyprlandAPI::addConfigValue(
+        PHANDLE,
+        "plugin:hyprtasking:warp_on_move_window",
+        Hyprlang::INT {1}
+    );
+    HyprlandAPI::addConfigValue(
+        PHANDLE,
+        "plugin:hyprtasking:close_overview_on_reload",
+        Hyprlang::INT {1}
+    );
+
+    HyprlandAPI::addConfigValue(
+        PHANDLE,
+        "plugin:hyprtasking:drag_button",
+        Hyprlang::INT {BTN_LEFT}
+    );
+    HyprlandAPI::addConfigValue(
+        PHANDLE,
+        "plugin:hyprtasking:select_button",
+        Hyprlang::INT {BTN_RIGHT}
+    );
 
     // swipe
     HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprtasking:gestures:enabled", Hyprlang::INT {1});
