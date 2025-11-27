@@ -1,6 +1,7 @@
 #include "overview.hpp"
 
 #include <hyprland/src/Compositor.hpp>
+#include <hyprland/src/desktop/state/FocusState.hpp>
 #include <hyprland/src/SharedDefs.hpp>
 #include <hyprland/src/desktop/DesktopTypes.hpp>
 #include <hyprland/src/macros.hpp>
@@ -156,7 +157,7 @@ void HTView::move_id(WORKSPACEID ws_id, bool move_window) {
 
     monitor->changeWorkspace(other_workspace);
     if (move_window) {
-        g_pCompositor->focusWindow(hovered_window);
+        Desktop::focusState()->fullWindowFocus(hovered_window);
         warp = *CConfigValue<Hyprlang::INT>("plugin:hyprtasking:warp_on_move_window");
     } else {
         warp = *CConfigValue<Hyprlang::INT>("cursor:warp_on_change_workspace");
