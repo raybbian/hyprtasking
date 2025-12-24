@@ -278,7 +278,7 @@ void HTLayoutGrid::build_overview_layout(HTViewStage stage) {
 
     for (int y = 0; y < ROWS; y++) {
         for (int x = 0; x < COLS; x++) {
-            const WORKSPACEID ws_id = (view_id * ROWS * COLS + 1) + y * COLS + x + 1;
+            const WORKSPACEID ws_id = (view_id * ROWS * COLS + view_id) + y * COLS + x + 1;
             const PHLWORKSPACE workspace = g_pCompositor->getWorkspaceByID(ws_id);
             if (workspace != nullptr && workspace->monitorID() != view_id) {
                 g_pCompositor->moveWorkspaceToMonitor(workspace, monitor);
