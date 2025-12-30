@@ -311,10 +311,17 @@ static void init_functions() {
         PHANDLE,
         "shouldRenderWindow"
     );
+    void* shouldRenderWindowAdr;
+
+    for (const SFunctionMatch& function : FNS2) {
+        if (function.demangled == "CHyprRenderer::shouldRenderWindow(Hyprutils::Memory::CSharedPointer<Desktop::View::CWindow>, Hyprutils::Memory::CSharedPointer<CMonitor>)") {
+            shouldRenderWindowAdr = function.address;
+        }
+    }
     if (FNS2.empty())
         fail_exit("No shouldRenderWindow");
     should_render_window_hook =
-        HyprlandAPI::createFunctionHook(PHANDLE, FNS2[0].address, (void*)hook_should_render_window);
+        HyprlandAPI::createFunctionHook(PHANDLE, shouldRenderWindowAdr, (void*)hook_should_render_window);
     Log::logger->log(Log::DEBUG, "[Hyprtasking] Attempting hook {}", FNS2[0].signature);
     success = should_render_window_hook->hook() && success;
 
