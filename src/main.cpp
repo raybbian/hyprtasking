@@ -309,8 +309,7 @@ static void init_functions() {
 
     static auto FNS2 = HyprlandAPI::findFunctionsByName(
         PHANDLE,
-        "_ZN13CHyprRenderer18shouldRenderWindowEN9Hyprutils6Memory14CS"
-        "haredPointerI7CWindowEENS2_I8CMonitorEE"
+        "shouldRenderWindow"
     );
     if (FNS2.empty())
         fail_exit("No shouldRenderWindow");
