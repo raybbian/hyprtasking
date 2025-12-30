@@ -5,6 +5,7 @@
 #include <hyprland/src/config/ConfigManager.hpp>
 #include <hyprland/src/config/ConfigValue.hpp>
 #include <hyprland/src/desktop/DesktopTypes.hpp>
+#include <hyprland/src/desktop/state/FocusState.hpp>
 #include <hyprland/src/helpers/AnimatedVariable.hpp>
 #include <hyprland/src/managers/animation/AnimationManager.hpp>
 #include <hyprland/src/managers/animation/DesktopAnimationManager.hpp>
@@ -271,8 +272,8 @@ void HTLayoutGrid::build_overview_layout(HTViewStage stage) {
     const int ROWS = HTConfig::value<Hyprlang::INT>("grid:rows");
     const int COLS = HTConfig::value<Hyprlang::INT>("grid:cols");
 
-    const PHLMONITOR last_monitor = g_pCompositor->m_pLastMonitor.lock();
-    monitor->setActive(true);
+    const PHLMONITOR last_monitor = Desktop::focusState()->monitor();
+    Desktop::focusState()->rawMonitorFocus(monitor);
 
     overview_layout.clear();
 
@@ -289,7 +290,7 @@ void HTLayoutGrid::build_overview_layout(HTViewStage stage) {
     }
 
     if (last_monitor != nullptr)
-        last_monitor->setActive(true);
+        Desktop::focusState()->rawMonitorFocus(last_monitor);
 }
 
 void HTLayoutGrid::render() {

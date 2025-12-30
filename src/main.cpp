@@ -49,8 +49,8 @@ static SDispatchResult dispatch_if(std::string arg, bool is_active) {
 
     SDispatchResult res = DISPATCHER->second(DISPATCHARG);
 
-    Debug::log(
-        LOG,
+    Log::logger->log(
+        Log::DEBUG,
         "[Hyprtasking] passthrough dispatch: {} : {}{}",
         DISPATCHSTR,
         DISPATCHARG,
@@ -159,7 +159,7 @@ static bool hook_should_render_window(void* thisptr, PHLWINDOW window, PHLMONITO
 static uint32_t hook_is_solitary_blocked(void* thisptr, bool full) {
     PHTVIEW view = ht_manager->get_view_from_cursor();
     if (view == nullptr) {
-        Debug::log(ERR, "[Hyprtasking] View is nullptr in hook_is_solitary_blocked");
+        Log::logger->log(Log::ERR, "[Hyprtasking] View is nullptr in hook_is_solitary_blocked");
         (*(origIsSolitaryBlocked)is_solitary_blocked_hook->m_original)(thisptr, full);
     }
 
@@ -266,8 +266,8 @@ static void register_monitors() {
         }
         ht_manager->views.push_back(makeShared<HTView>(monitor->m_id));
 
-        Debug::log(
-            LOG,
+        Log::logger->log(
+            Log::DEBUG,
             "[Hyprtasking] Registering view for monitor {} with resolution {}x{}",
             monitor->m_description,
             monitor->m_transformedSize.x,
@@ -289,7 +289,7 @@ static void on_config_reloaded(void* thisptr, SCallbackInfo& info, std::any args
         const Hyprlang::STRING new_layout = HTConfig::value<Hyprlang::STRING>("layout");
         if (HTConfig::value<Hyprlang::INT>("close_overview_on_reload")
             || view->layout->layout_name() != new_layout) {
-            Debug::log(LOG, "[Hyprtasking] Closing overview on config reload");
+            Log::logger->log(Log::DEBUG, "[Hyprtasking] Closing overview on config reload");
             view->hide(false);
             view->change_layout(new_layout);
         }
@@ -304,7 +304,7 @@ static void init_functions() {
         fail_exit("No renderWorkspace!");
     render_workspace_hook =
         HyprlandAPI::createFunctionHook(PHANDLE, FNS1[0].address, (void*)hook_render_workspace);
-    Debug::log(LOG, "[Hyprtasking] Attempting hook {}", FNS1[0].signature);
+    Log::logger->log(Log::DEBUG, "[Hyprtasking] Attempting hook {}", FNS1[0].signature);
     success = render_workspace_hook->hook();
 
     static auto FNS2 = HyprlandAPI::findFunctionsByName(
@@ -316,7 +316,7 @@ static void init_functions() {
         fail_exit("No shouldRenderWindow");
     should_render_window_hook =
         HyprlandAPI::createFunctionHook(PHANDLE, FNS2[0].address, (void*)hook_should_render_window);
-    Debug::log(LOG, "[Hyprtasking] Attempting hook {}", FNS2[0].signature);
+    Log::logger->log(Log::DEBUG, "[Hyprtasking] Attempting hook {}", FNS2[0].signature);
     success = should_render_window_hook->hook() && success;
 
     static auto FNS3 = HyprlandAPI::findFunctionsByName(PHANDLE, "renderWindow");
@@ -330,7 +330,7 @@ static void init_functions() {
 
     is_solitary_blocked_hook =
         HyprlandAPI::createFunctionHook(PHANDLE, FNS4[0].address, (void*)hook_is_solitary_blocked);
-    Debug::log(LOG, "[Hyprtasking] Attempting hook {}", FNS4[0].signature);
+    Log::logger->log(Log::DEBUG, "[Hyprtasking] Attempting hook {}", FNS4[0].signature);
     success = is_solitary_blocked_hook->hook() && success;
 
     if (!success)
@@ -478,13 +478,13 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
     init_functions();
     register_monitors();
 
-    Debug::log(LOG, "[Hyprtasking] Plugin initialized");
+    Log::logger->log(Log::DEBUG, "[Hyprtasking] Plugin initialized");
 
     return {"Hyprtasking", "A workspace management plugin", "raybbian", "0.1"};
 }
 
 APICALL EXPORT void PLUGIN_EXIT() {
-    Debug::log(LOG, "[Hyprtasking] Plugin exiting");
+    Log::logger->log(Log::DEBUG, "[Hyprtasking] Plugin exiting");
 
     ht_manager->reset();
 }
