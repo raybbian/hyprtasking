@@ -114,7 +114,7 @@ bool HTManager::end_window_drag() {
         use_mouse_coords = cursor_view->layout->get_global_ws_box(cursor_workspace->m_id)
                                .closestPoint(use_mouse_coords);
 
-        Debug::log(
+        Log::log(
             LOG,
             "[Hyprtasking] Dragging to invalid position, snapping to last ws {}",
             cursor_workspace->m_id
@@ -122,12 +122,12 @@ bool HTManager::end_window_drag() {
     }
 
     if (cursor_workspace == nullptr) {
-        Debug::log(LOG, "[Hyprtasking] tried to drop on null workspace??");
+        Log::log(LOG, "[Hyprtasking] tried to drop on null workspace??");
         g_pKeybindManager->changeMouseBindMode(MBIND_INVALID);
         return false;
     }
 
-    Debug::log(LOG, "[Hyprtasking] trying to drop window on ws {}", cursor_workspace->m_id);
+    Log::log(LOG, "[Hyprtasking] trying to drop window on ws {}", cursor_workspace->m_id);
 
     // PHLWORKSPACEREF o_workspace = cursor_monitor->m_activeWorkspace;
     cursor_monitor->changeWorkspace(cursor_workspace, true);

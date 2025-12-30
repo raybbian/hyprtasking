@@ -156,7 +156,7 @@ void HTView::move_id(WORKSPACEID ws_id, bool move_window) {
 
     monitor->changeWorkspace(other_workspace);
     if (move_window) {
-        g_pCompositor->focusWindow(hovered_window);
+        g_pCompositor->focusSurface(hovered_window);
         warp = *CConfigValue<Hyprlang::INT>("plugin:hyprtasking:warp_on_move_window");
     } else {
         warp = *CConfigValue<Hyprlang::INT>("cursor:warp_on_change_workspace");
@@ -193,6 +193,6 @@ void HTView::move(std::string arg, bool move_window) {
 PHLMONITOR HTView::get_monitor() {
     const PHLMONITOR monitor = g_pCompositor->getMonitorFromID(monitor_id);
     if (monitor == nullptr)
-        Debug::log(WARN, "[Hyprtasking] Returning null monitor from get_monitor!");
+        Log::log(WARN, "[Hyprtasking] Returning null monitor from get_monitor!");
     return monitor;
 }

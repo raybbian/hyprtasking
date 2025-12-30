@@ -271,8 +271,8 @@ void HTLayoutGrid::build_overview_layout(HTViewStage stage) {
     const int ROWS = HTConfig::value<Hyprlang::INT>("grid:rows");
     const int COLS = HTConfig::value<Hyprlang::INT>("grid:cols");
 
-    const PHLMONITOR last_monitor = g_pCompositor->m_lastMonitor.lock();
-    g_pCompositor->setActiveMonitor(monitor);
+    const PHLMONITOR last_monitor = g_pCompositor->m_pLastMonitor.lock();
+    monitor->setActive(true);
 
     overview_layout.clear();
 
@@ -289,7 +289,7 @@ void HTLayoutGrid::build_overview_layout(HTViewStage stage) {
     }
 
     if (last_monitor != nullptr)
-        g_pCompositor->setActiveMonitor(last_monitor);
+        last_monitor->setActive(true);
 }
 
 void HTLayoutGrid::render() {

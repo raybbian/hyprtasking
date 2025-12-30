@@ -58,7 +58,7 @@ PHLWINDOW HTManager::get_window_from_cursor(bool return_focused) {
     if (!cursor_view->active || !cursor_view->layout->should_manage_mouse()) {
         return g_pCompositor->vectorToWindowUnified(
             mouse_coords,
-            RESERVED_EXTENTS | INPUT_EXTENTS | ALLOW_FLOATING
+            Desktop::View::RESERVED_EXTENTS | Desktop::View::INPUT_EXTENTS | Desktop::View::ALLOW_FLOATING
         );
     }
 
@@ -75,7 +75,7 @@ PHLWINDOW HTManager::get_window_from_cursor(bool return_focused) {
 
     const PHLWINDOW hovered_window = g_pCompositor->vectorToWindowUnified(
         ws_coords,
-        RESERVED_EXTENTS | INPUT_EXTENTS | ALLOW_FLOATING
+        Desktop::View::RESERVED_EXTENTS | Desktop::View::INPUT_EXTENTS | Desktop::View::ALLOW_FLOATING
     );
 
     if (o_workspace != nullptr)
