@@ -119,9 +119,9 @@ void HTView::warp_window(Hyprlang::INT warp, PHLWINDOW window) {
     // taken from Hyprland:
     // https://github.com/hyprwm/Hyprland/blob/ea42041f936d5810c5cfa45d6bece12dde2fd9b6/src/managers/KeybindManager.cpp#L1319
     if (warp > 0) {
-        auto HLSurface = CWLSurface::fromResource(g_pSeatManager->m_state.pointerFocus.lock());
+        auto HLSurface = Desktop::View::CWLSurface::fromResource(g_pSeatManager->m_state.pointerFocus.lock());
 
-        if (window && (!HLSurface || HLSurface->getWindow()))
+        if (window && (!HLSurface || HLSurface->view()))
             window->warpCursor(warp == 2);
     }
 }
@@ -156,7 +156,7 @@ void HTView::move_id(WORKSPACEID ws_id, bool move_window) {
 
     monitor->changeWorkspace(other_workspace);
     if (move_window) {
-        g_pCompositor->focusWindow(hovered_window);
+        Desktop::focusState()->fullWindowFocus(hovered_window);
         warp = *CConfigValue<Hyprlang::INT>("plugin:hyprtasking:warp_on_move_window");
     } else {
         warp = *CConfigValue<Hyprlang::INT>("cursor:warp_on_change_workspace");
@@ -193,6 +193,6 @@ void HTView::move(std::string arg, bool move_window) {
 PHLMONITOR HTView::get_monitor() {
     const PHLMONITOR monitor = g_pCompositor->getMonitorFromID(monitor_id);
     if (monitor == nullptr)
-        Debug::log(WARN, "[Hyprtasking] Returning null monitor from get_monitor!");
+        Log::logger->log(Log::WARN, "[Hyprtasking] Returning null monitor from get_monitor!");
     return monitor;
 }
