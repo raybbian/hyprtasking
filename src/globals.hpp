@@ -2,8 +2,13 @@
 
 #include <hyprland/src/plugins/HookSystem.hpp>
 #include <hyprland/src/plugins/PluginAPI.hpp>
+#include <hyprland/src/debug/log/Logger.hpp>
+#include <hyprland/src/desktop/state/FocusState.hpp>
+#include <hyprland/src/desktop/view/View.hpp>
 
 #include "manager.hpp"
+
+inline constexpr auto LOG = Hyprutils::CLI::LOG_DEBUG;
 
 inline HANDLE PHANDLE = nullptr;
 
