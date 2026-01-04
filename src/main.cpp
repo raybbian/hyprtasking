@@ -112,7 +112,7 @@ static void set_offset(int new_offset) {
     PHTVIEW view = ht_manager->get_view_from_cursor();
     if (view == nullptr)
         return;
-    Debug::log(
+    Log::logger->log(
         LOG,
         "[Hyprtasking] View \"{}\", previous offset: {}, new: {}",
         view->get_monitor()->m_name,
@@ -405,7 +405,6 @@ static void on_config_reloaded(void* thisptr, SCallbackInfo& info, std::any args
             Log::logger->log(LOG, "[Hyprtasking] Closing overview on config reload");
             view->hide(false);
             view->change_layout(new_layout);
-            view->layout->first_ws_offset = ht_manager->offset;
         }
     }
 }
