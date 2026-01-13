@@ -139,8 +139,9 @@ void HTView::move_id(WORKSPACEID ws_id, bool move_window) {
 
     // FIXME: weird hovered window duplicate code
     PHLWINDOW hovered_window = ht_manager->get_window_from_cursor();
+    bool should_move = true;
     if (hovered_window == nullptr && move_window)
-        return;
+        should_move = false;
 
     PHLWORKSPACE other_workspace = g_pCompositor->getWorkspaceByID(ws_id);
     if (other_workspace == nullptr && ws_id != WORKSPACE_INVALID)
@@ -148,7 +149,7 @@ void HTView::move_id(WORKSPACEID ws_id, bool move_window) {
     if (other_workspace == nullptr)
         return;
 
-    if (move_window) {
+    if (move_window && should_move) {
         g_pCompositor->moveWindowToWorkspaceSafe(hovered_window, other_workspace);
     }
 
