@@ -116,7 +116,15 @@ void HTLayoutGrid::close_open_lerp(float perc) {
 
     build_overview_layout(HT_VIEW_CLOSED);
     double close_scale = 1.;
-    Vector2D close_pos = -overview_layout[monitor->m_activeWorkspace->m_id].box.pos();
+
+    WORKSPACEID active_id = monitor->m_activeWorkspace->m_id;
+    if (!overview_layout.count(active_id)) {
+        if (!overview_layout.empty())
+            active_id = overview_layout.begin()->first;
+        else
+            return;
+    }
+    Vector2D close_pos = -overview_layout[active_id].box.pos();
 
     double new_scale = std::lerp(close_scale, open_scale, perc);
     Vector2D new_pos = Vector2D {
@@ -155,8 +163,17 @@ void HTLayoutGrid::on_hide(CallbackFun on_complete) {
         return;
 
     build_overview_layout(HT_VIEW_CLOSED);
+
+    WORKSPACEID active_id = monitor->m_activeWorkspace->m_id;
+    if (!overview_layout.count(active_id)) {
+        if (!overview_layout.empty())
+            active_id = overview_layout.begin()->first;
+        else
+            return;
+    }
+
     *scale = 1.;
-    *offset = -overview_layout[monitor->m_activeWorkspace->m_id].box.pos();
+    *offset = -overview_layout[active_id].box.pos();
 }
 
 void HTLayoutGrid::on_move(WORKSPACEID old_id, WORKSPACEID new_id, CallbackFun on_complete) {
@@ -174,6 +191,14 @@ void HTLayoutGrid::on_move(WORKSPACEID old_id, WORKSPACEID new_id, CallbackFun o
     g_pCompositor->getWorkspaceByID(new_id)->m_renderOffset->warp();
 
     build_overview_layout(HT_VIEW_CLOSED);
+
+    if (!overview_layout.count(new_id)) {
+        if (!overview_layout.empty())
+            new_id = overview_layout.begin()->first;
+        else
+            return;
+    }
+
     *scale = 1.;
     *offset = -overview_layout[new_id].box.pos();
 }
@@ -211,7 +236,16 @@ void HTLayoutGrid::init_position() {
         return;
 
     build_overview_layout(HT_VIEW_CLOSED);
-    offset->setValueAndWarp(-overview_layout[monitor->m_activeWorkspace->m_id].box.pos());
+
+    WORKSPACEID active_id = monitor->m_activeWorkspace->m_id;
+    if (!overview_layout.count(active_id)) {
+        if (!overview_layout.empty())
+            active_id = overview_layout.begin()->first;
+        else
+            return;
+    }
+
+    offset->setValueAndWarp(-overview_layout[active_id].box.pos());
     scale->setValueAndWarp(1.f);
 }
 
@@ -271,25 +305,38 @@ void HTLayoutGrid::build_overview_layout(HTViewStage stage) {
     const int ROWS = HTConfig::value<Hyprlang::INT>("grid:rows");
     const int COLS = HTConfig::value<Hyprlang::INT>("grid:cols");
 
-    const PHLMONITOR last_monitor = Desktop::focusState()->monitor();
-    Desktop::focusState()->rawMonitorFocus(monitor);
-
     overview_layout.clear();
+
+    std::vector<WORKSPACEID> monitor_workspaces;
+    for (const auto& workspace : g_pCompositor->getWorkspacesCopy()) {
+        if (workspace == nullptr)
+            continue;
+        if (workspace->m_monitor != monitor)
+            continue;
+        if (workspace->m_isSpecialWorkspace)
+            continue;
+        monitor_workspaces.push_back(workspace->m_id);
+    }
+    std::sort(monitor_workspaces.begin(), monitor_workspaces.end());
+
+    WORKSPACEID next_virtual_id = monitor_workspaces.empty() ? 1 : monitor_workspaces.back() + 1;
 
     for (int y = 0; y < ROWS; y++) {
         for (int x = 0; x < COLS; x++) {
-            const WORKSPACEID ws_id = (view_id * ROWS + y) * COLS + x + 1;
-            const PHLWORKSPACE workspace = g_pCompositor->getWorkspaceByID(ws_id);
-            if (workspace != nullptr && workspace->monitorID() != view_id) {
-                g_pCompositor->moveWorkspaceToMonitor(workspace, monitor);
+            size_t slot = y * COLS + x;
+            WORKSPACEID ws_id;
+
+            if (slot < monitor_workspaces.size()) {
+                ws_id = monitor_workspaces[slot];
+            } else {
+                while (g_pCompositor->getWorkspaceByID(next_virtual_id) != nullptr)
+                    next_virtual_id++;
+                ws_id = next_virtual_id++;
             }
-            const CBox ws_box = calculate_ws_box(x, y, stage);
-            overview_layout[ws_id] = HTWorkspace {x, y, ws_box};
+
+            overview_layout[ws_id] = HTWorkspace{x, y, calculate_ws_box(x, y, stage)};
         }
     }
-
-    if (last_monitor != nullptr)
-        Desktop::focusState()->rawMonitorFocus(last_monitor);
 }
 
 void HTLayoutGrid::render() {
