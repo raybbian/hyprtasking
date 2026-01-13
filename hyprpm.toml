@@ -1,5 +1,5 @@
 [repository]
-name = "Hyprtasking"
+name = "hyprtasking"
 authors = ["raybbian"]
 commit_pins = [
     # ["ab1d80f3d6aebd57a0971b53a1993b1c1dfe0b09", "40e6f615c6e2f7f016d1ee6cfa34668edbeb0cc1"], #v0.53.1
