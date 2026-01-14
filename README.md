@@ -87,7 +87,11 @@ meson setup build
 cd build && meson compile
 ```
 
-Then use `hyprctl plugin load` to load the absolute path to the `.so` file.
+Then use `hyprctl plugin load` to load the absolute path to the `.so` file:
+
+```
+hyprctl plugin load "$(realpath libhyprtasking.so)"
+```
 
 ## Usage
 
