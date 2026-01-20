@@ -272,6 +272,8 @@ void HTLayoutLinear::build_overview_layout(HTViewStage stage) {
             continue;
         if (workspace->m_isSpecialWorkspace)
             continue;
+        if (workspace->m_id < first_ws_offset)
+            continue;
         monitor_workspaces.push_back(workspace->m_id);
     }
     std::sort(monitor_workspaces.begin(), monitor_workspaces.end());
