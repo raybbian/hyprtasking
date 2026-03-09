@@ -141,7 +141,12 @@ void HTLayoutGrid::on_show(CallbackFun on_complete) {
     if (monitor == nullptr)
         return;
 
+    // HACK: This is needed to recalculate the position of the current workspace,
+    // so we don't start animating from an inactive workspace
+    init_position();
+
     *scale = calculate_ws_box(0, 0, HT_VIEW_OPENED).w / monitor->m_transformedSize.x; // 1 / ROWS
+    // Offset for the whole grid of workspaces
     *offset = {0, 0};
 }
 
@@ -157,6 +162,7 @@ void HTLayoutGrid::on_hide(CallbackFun on_complete) {
 
     build_overview_layout(HT_VIEW_CLOSED);
     *scale = 1.;
+    // End workspace to end up on
     *offset = -overview_layout[monitor->m_activeWorkspace->m_id].box.pos();
 }
 
@@ -176,6 +182,7 @@ void HTLayoutGrid::on_move(WORKSPACEID old_id, WORKSPACEID new_id, CallbackFun o
 
     build_overview_layout(HT_VIEW_CLOSED);
     *scale = 1.;
+    // Target workspace to animate to
     *offset = -overview_layout[new_id].box.pos();
 }
 
