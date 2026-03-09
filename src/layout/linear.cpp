@@ -167,6 +167,13 @@ bool HTLayoutLinear::on_mouse_axis(double delta) {
     return true;
 }
 
+const float calculate_y(float size_y, float offset_value, float max_offset) {
+    const bool top = HTConfig::value<Hyprlang::FLOAT>("linear:top");
+    if (top)
+        return offset_value - max_offset;
+    return size_y - offset_value;
+}
+
 bool HTLayoutLinear::should_manage_mouse() {
     const PHLMONITOR monitor = get_monitor();
     if (monitor == nullptr)
@@ -176,7 +183,7 @@ bool HTLayoutLinear::should_manage_mouse() {
 
     const Vector2D mouse_coords = g_pInputManager->getMouseCoordsInternal();
     CBox scaled_view_box = {
-        Vector2D {0.f, monitor->m_transformedSize.y - view_offset->value()},
+        Vector2D {0.f, calculate_y(monitor->m_transformedSize.y, view_offset->value(), HEIGHT)},
         {(float)monitor->m_transformedSize.x, (float)HEIGHT}
     };
 
@@ -254,7 +261,7 @@ CBox HTLayoutLinear::calculate_ws_box(int x, int y, HTViewStage stage) {
     const float ws_width = ws_height * monitor->m_transformedSize.x / monitor->m_transformedSize.y;
 
     const float ws_x = scroll_offset->value() + (x * (GAP_SIZE + ws_width) + GAP_SIZE);
-    const float ws_y = monitor->m_transformedSize.y - use_view_offset + GAP_SIZE;
+    const float ws_y = calculate_y(monitor->m_transformedSize.y, use_view_offset, HEIGHT) + GAP_SIZE;
     return CBox {ws_x, ws_y, ws_width, ws_height};
 }
 
@@ -366,7 +373,7 @@ void HTLayoutLinear::render() {
     rendering_standard_ws = false;
 
     CBox view_box = {
-        {0.f, monitor->m_transformedSize.y - view_offset->value()},
+        {0.f, calculate_y(monitor->m_transformedSize.y, view_offset->value(), HEIGHT)},
         {(float)monitor->m_transformedSize.x, (float)HEIGHT}
     };
 

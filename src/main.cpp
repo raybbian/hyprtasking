@@ -451,6 +451,7 @@ static void init_config() {
         "plugin:hyprtasking:linear:scroll_speed",
         Hyprlang::FLOAT {1.f}
     );
+    HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprtasking:linear:top", Hyprlang::INT {0});
 
     // Old config value, warning about updates
     HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprtasking:rows", Hyprlang::INT {-1});
