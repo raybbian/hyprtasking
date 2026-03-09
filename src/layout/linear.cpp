@@ -6,7 +6,7 @@
 #include <hyprland/src/helpers/MiscFunctions.hpp>
 #include <hyprland/src/managers/animation/AnimationManager.hpp>
 #include <hyprland/src/managers/animation/DesktopAnimationManager.hpp>
-#include <hyprland/src/managers/LayoutManager.hpp>
+#include <hyprland/src/layout/LayoutManager.hpp>
 #include <hyprland/src/managers/input/InputManager.hpp>
 #include <hyprland/src/render/pass/BorderPassElement.hpp>
 #include <hyprland/src/render/pass/RectPassElement.hpp>
@@ -192,7 +192,8 @@ bool HTLayoutLinear::should_render_window(PHLWINDOW window) {
     if (window == nullptr || monitor == nullptr)
         return ori_result;
 
-    if (window == g_pInputManager->m_currentlyDraggedWindow.lock())
+    const SP<Layout::ITarget> target = g_layoutManager->dragController()->target();
+    if (target != nullptr && window == target->window())
         return false;
 
     if (rendering_standard_ws)
@@ -307,8 +308,8 @@ void HTLayoutLinear::render() {
     const float BORDERSIZE = HTConfig::value<Hyprlang::FLOAT>("border_size");
     const float HEIGHT = HTConfig::value<Hyprlang::FLOAT>("linear:height") * monitor->m_scale;
 
-    timespec time;
-    clock_gettime(CLOCK_MONOTONIC, &time);
+    const auto time = Time::steadyNow();
+
 
     g_pHyprRenderer->damageMonitor(monitor);
     g_pHyprOpenGL->m_renderData.pCurrentMonData->blurFBShouldRender = true;
@@ -343,7 +344,7 @@ void HTLayoutLinear::render() {
         g_pHyprRenderer.get(),
         monitor,
         big_ws,
-        &time,
+        time,
         mon_box
     );
 
@@ -417,7 +418,7 @@ void HTLayoutLinear::render() {
                 g_pHyprRenderer.get(),
                 monitor,
                 workspace,
-                &time,
+                time,
                 render_box
             );
 
@@ -434,7 +435,7 @@ void HTLayoutLinear::render() {
                 g_pHyprRenderer.get(),
                 monitor,
                 workspace,
-                &time,
+                time,
                 render_box
             );
         }
@@ -453,7 +454,12 @@ void HTLayoutLinear::render() {
     const PHTVIEW cursor_view = ht_manager->get_view_from_cursor();
     if (cursor_view == nullptr)
         return;
-    const PHLWINDOW dragged_window = g_pInputManager->m_currentlyDraggedWindow.lock();
+
+    const SP<Layout::ITarget> target = g_layoutManager->dragController()->target();
+    if (target == nullptr)
+        return;
+
+    const PHLWINDOW dragged_window = target->window();
     if (dragged_window == nullptr)
         return;
     const Vector2D mouse_coords = g_pInputManager->getMouseCoordsInternal();
@@ -462,5 +468,5 @@ void HTLayoutLinear::render() {
                                 .scale(cursor_view->layout->drag_window_scale())
                                 .translate(mouse_coords);
     if (!window_box.intersection(monitor->logicalBox()).empty())
-        render_window_at_box(dragged_window, monitor, &time, window_box);
+        render_window_at_box(dragged_window, monitor, time, window_box);
 }

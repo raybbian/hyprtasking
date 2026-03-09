@@ -1,6 +1,5 @@
 #include <linux/input-event-codes.h>
 
-#include <ctime>
 #include <hyprland/src/Compositor.hpp>
 #include <hyprland/src/SharedDefs.hpp>
 #include <hyprland/src/desktop/DesktopTypes.hpp>
@@ -8,13 +7,14 @@
 #include <hyprland/src/helpers/Monitor.hpp>
 #include <hyprland/src/macros.hpp>
 #include <hyprland/src/managers/KeybindManager.hpp>
-#include <hyprland/src/managers/LayoutManager.hpp>
+#include <hyprland/src/layout/LayoutManager.hpp>
 #include <hyprland/src/managers/PointerManager.hpp>
 #include <hyprland/src/managers/input/InputManager.hpp>
 #include <hyprland/src/plugins/HookSystem.hpp>
 #include <hyprland/src/plugins/PluginAPI.hpp>
 #include <hyprland/src/plugins/PluginSystem.hpp>
 #include <hyprland/src/render/Renderer.hpp>
+#include <hyprland/src/event/EventBus.hpp>
 #include <hyprlang.hpp>
 #include <hyprutils/math/Box.hpp>
 #include <hyprutils/math/Vector2D.hpp>
@@ -128,7 +128,7 @@ static void hook_render_workspace(
     void* thisptr,
     PHLMONITOR monitor,
     PHLWORKSPACE workspace,
-    timespec* now,
+   const Time::steady_tp& now,
     const CBox& geometry
 ) {
     if (ht_manager == nullptr) {
@@ -169,7 +169,7 @@ static uint32_t hook_is_solitary_blocked(void* thisptr, bool full) {
     return (*(origIsSolitaryBlocked)is_solitary_blocked_hook->m_original)(thisptr, full);
 }
 
-static void on_mouse_button(void* thisptr, SCallbackInfo& info, std::any args) {
+static void on_mouse_button(IPointer::SButtonEvent e, Event::SCallbackInfo& info) {
     if (ht_manager == nullptr)
         return;
 
@@ -177,7 +177,6 @@ static void on_mouse_button(void* thisptr, SCallbackInfo& info, std::any args) {
     if (cursor_view == nullptr)
         return;
 
-    const auto e = std::any_cast<IPointer::SButtonEvent>(args);
     const bool pressed = e.state == WL_POINTER_BUTTON_STATE_PRESSED;
 
     const unsigned int drag_button = HTConfig::value<Hyprlang::INT>("drag_button");
@@ -192,41 +191,37 @@ static void on_mouse_button(void* thisptr, SCallbackInfo& info, std::any args) {
     }
 }
 
-static void on_mouse_move(void* thisptr, SCallbackInfo& info, std::any args) {
+static void on_mouse_move(Vector2D c, Event::SCallbackInfo& info) {
     if (ht_manager == nullptr)
         return;
     info.cancelled = ht_manager->on_mouse_move();
 }
 
-static void on_mouse_axis(void* thisptr, SCallbackInfo& info, std::any args) {
+static void on_mouse_axis(IPointer::SAxisEvent e, Event::SCallbackInfo& info) {
     if (ht_manager == nullptr)
         return;
-    const auto e = std::any_cast<IPointer::SAxisEvent>(
-        std::any_cast<std::unordered_map<std::string, std::any>>(args)["event"]
-    );
     info.cancelled = ht_manager->on_mouse_axis(e.delta);
 }
 
-static void on_swipe_begin(void* thisptr, SCallbackInfo& info, std::any args) {
+static void on_swipe_begin(IPointer::SSwipeBeginEvent e, Event::SCallbackInfo& info) {
     if (ht_manager == nullptr)
         return;
     ht_manager->swipe_start();
 }
 
-static void on_swipe_update(void* thisptr, SCallbackInfo& info, std::any args) {
+static void on_swipe_update(IPointer::SSwipeUpdateEvent e, Event::SCallbackInfo& info) {
     if (ht_manager == nullptr)
         return;
-    auto e = std::any_cast<IPointer::SSwipeUpdateEvent>(args);
     info.cancelled = ht_manager->swipe_update(e);
 }
 
-static void on_swipe_end(void* thisptr, SCallbackInfo& info, std::any args) {
+static void on_swipe_end(IPointer::SSwipeEndEvent e, Event::SCallbackInfo& info) {
     if (ht_manager == nullptr)
         return;
     info.cancelled = ht_manager->swipe_end();
 }
 
-static void cancel_event(void* thisptr, SCallbackInfo& info, std::any args) {
+static void cancel_event(Event::SCallbackInfo& info) {
     if (ht_manager == nullptr || !ht_manager->cursor_view_active())
         return;
     info.cancelled = true;
@@ -276,7 +271,7 @@ static void register_monitors() {
     }
 }
 
-static void on_config_reloaded(void* thisptr, SCallbackInfo& info, std::any args) {
+static void on_config_reloaded() {
     notify_config_changes();
 
     if (ht_manager == nullptr)
@@ -319,14 +314,24 @@ static void init_functions() {
     Log::logger->log(LOG, "[Hyprtasking] Attempting hook {}", FNS2[0].signature);
     success = should_render_window_hook->hook() && success;
 
-    static auto FNS3 = HyprlandAPI::findFunctionsByName(PHANDLE, "renderWindow");
+    // Right now (in v0.54.0) there are several "renderWindow" functions
+    // This is needed so it won't break on update that adds/removes a
+    // function with this name
+    // This, however, requires checking for signautre changes
+    static auto FNS3 = HyprlandAPI::findFunctionsByName(
+        PHANDLE,
+        "_ZN13CHyprRenderer12renderWindowEN9Hyprutils6Memory14CSha"
+        "redPointerIN7Desktop4View7CWindowEEENS2_I8CMonitorEERKNSt"
+        "6chrono10time_pointINS9_3_V212steady_clockENS9_8durationI"
+        "lSt5ratioILl1ELl1000000000EEEEEEb15eRenderPassModebb"
+    );
     if (FNS3.empty())
         fail_exit("No renderWindow");
     render_window = FNS3[0].address;
 
     static auto FNS4 = HyprlandAPI::findFunctionsByName(PHANDLE, "isSolitaryBlocked");
     if (FNS4.empty())
-        fail_exit("No isSolitaryBlocked!");
+        fail_exit("No isSolitaryBlocked");
 
     is_solitary_blocked_hook =
         HyprlandAPI::createFunctionHook(PHANDLE, FNS4[0].address, (void*)hook_is_solitary_blocked);
@@ -338,27 +343,23 @@ static void init_functions() {
 }
 
 static void register_callbacks() {
-    static auto P1 = HyprlandAPI::registerCallbackDynamic(PHANDLE, "mouseButton", on_mouse_button);
-    static auto P2 = HyprlandAPI::registerCallbackDynamic(PHANDLE, "mouseMove", on_mouse_move);
-    static auto P3 = HyprlandAPI::registerCallbackDynamic(PHANDLE, "mouseAxis", on_mouse_axis);
+    static auto P1 = Event::bus()->m_events.input.mouse.button.listen(on_mouse_button);
+    static auto P2 = Event::bus()->m_events.input.mouse.move.listen(on_mouse_move);
+    static auto P3 = Event::bus()->m_events.input.mouse.axis.listen(on_mouse_axis);
 
     // TODO: support touch
-    static auto P4 = HyprlandAPI::registerCallbackDynamic(PHANDLE, "touchDown", cancel_event);
-    static auto P5 = HyprlandAPI::registerCallbackDynamic(PHANDLE, "touchUp", cancel_event);
-    static auto P6 = HyprlandAPI::registerCallbackDynamic(PHANDLE, "touchMove", cancel_event);
+    static auto P4 = Event::bus()->m_events.input.touch.down.listen([&] (ITouch::SDownEvent e, Event::SCallbackInfo i) { cancel_event(i); } );
+    static auto P5 = Event::bus()->m_events.input.touch.up.listen([&] (ITouch::SUpEvent e, Event::SCallbackInfo i) { cancel_event(i); } );
+    static auto P6 = Event::bus()->m_events.input.touch.motion.listen([&] (ITouch::SMotionEvent e, Event::SCallbackInfo i) { cancel_event(i); } );
+    // static auto P7 = Event::bus()->m_events.input.touch.cancel.listen([&] (ITouch::SCancelEvent e, Event::SCallbackInfo i) { cancel_event(i); } );
 
-    static auto P7 = HyprlandAPI::registerCallbackDynamic(PHANDLE, "swipeBegin", on_swipe_begin);
-    static auto P8 = HyprlandAPI::registerCallbackDynamic(PHANDLE, "swipeUpdate", on_swipe_update);
-    static auto P9 = HyprlandAPI::registerCallbackDynamic(PHANDLE, "swipeEnd", on_swipe_end);
 
-    static auto P10 =
-        HyprlandAPI::registerCallbackDynamic(PHANDLE, "configReloaded", on_config_reloaded);
+    static auto P7 = Event::bus()->m_events.gesture.swipe.begin.listen(on_swipe_begin);
+    static auto P8 = Event::bus()->m_events.gesture.swipe.update.listen(on_swipe_update);
+    static auto P9 = Event::bus()->m_events.gesture.swipe.end.listen(on_swipe_end);
 
-    static auto P11 = HyprlandAPI::registerCallbackDynamic(
-        PHANDLE,
-        "monitorAdded",
-        [&](void* thisptr, SCallbackInfo& info, std::any data) { register_monitors(); }
-    );
+    static auto P10 = Event::bus()->m_events.config.reloaded.listen(on_config_reloaded);
+    static auto P11 = Event::bus()->m_events.monitor.added.listen(register_monitors);
 }
 
 static void add_dispatchers() {

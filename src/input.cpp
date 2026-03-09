@@ -3,7 +3,7 @@
 #include <hyprland/src/Compositor.hpp>
 #include <hyprland/src/macros.hpp>
 #include <hyprland/src/managers/KeybindManager.hpp>
-#include <hyprland/src/managers/LayoutManager.hpp>
+#include <hyprland/src/layout/LayoutManager.hpp>
 #include <hyprland/src/managers/PointerManager.hpp>
 #include <hyprland/src/managers/input/InputManager.hpp>
 
@@ -43,9 +43,13 @@ bool HTManager::start_window_drag() {
     g_pKeybindManager->changeMouseBindMode(MBIND_MOVE);
     g_pPointerManager->warpTo(mouse_coords);
 
-    const PHLWINDOW dragged_window = g_pInputManager->m_currentlyDraggedWindow.lock();
+    const SP<Layout::ITarget> target = g_layoutManager->dragController()->target();
+    if (target == nullptr)
+        return false;
+
+    const PHLWINDOW dragged_window = target->window();
     if (dragged_window != nullptr) {
-        if (dragged_window->m_draggingTiled) {
+        if (g_layoutManager->dragController()->draggingTiled()) {
             const Vector2D pre_pos = cursor_view->layout->local_ws_unscaled_to_global(
                 dragged_window->m_realPosition->value() - dragged_window->m_monitor->m_position,
                 workspace_id
@@ -92,10 +96,14 @@ bool HTManager::end_window_drag() {
         return false;
     }
 
+    const SP<Layout::ITarget> target = g_layoutManager->dragController()->target();
+    if (target == nullptr)
+        return false;
+
     // If not dragging window or drag is not move, then we just let go (supposed to prevent it
     // from messing up resize on border, but it should be good because above?)
-    const PHLWINDOW dragged_window = g_pInputManager->m_currentlyDraggedWindow.lock();
-    if (dragged_window == nullptr || g_pInputManager->m_dragMode != MBIND_MOVE) {
+    const PHLWINDOW dragged_window = target->window();
+    if (dragged_window == nullptr || g_layoutManager->dragController()->mode() != MBIND_MOVE) {
         g_pKeybindManager->changeMouseBindMode(MBIND_INVALID);
         return false;
     }

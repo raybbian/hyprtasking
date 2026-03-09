@@ -14,6 +14,7 @@
 #include "globals.hpp"
 #include "layout/grid.hpp"
 #include "layout/linear.hpp"
+#include "src/desktop/state/FocusState.hpp"
 
 HTView::HTView(MONITORID in_monitor_id) {
     monitor_id = in_monitor_id;
@@ -156,7 +157,7 @@ void HTView::move_id(WORKSPACEID ws_id, bool move_window) {
 
     monitor->changeWorkspace(other_workspace);
     if (move_window) {
-        Desktop::focusState()->fullWindowFocus(hovered_window);
+        Desktop::focusState()->fullWindowFocus(hovered_window, Desktop::FOCUS_REASON_CLICK);
         warp = *CConfigValue<Hyprlang::INT>("plugin:hyprtasking:warp_on_move_window");
     } else {
         warp = *CConfigValue<Hyprlang::INT>("cursor:warp_on_change_workspace");
