@@ -26,7 +26,7 @@ bool HTManager::start_window_drag() {
 
     const Vector2D mouse_coords = g_pInputManager->getMouseCoordsInternal();
     const WORKSPACEID workspace_id = cursor_view->layout->get_ws_id_from_global(mouse_coords);
-    PHLWORKSPACE cursor_workspace = g_pCompositor->getWorkspaceByID(workspace_id);
+    PHLWORKSPACE cursor_workspace = cursor_view->layout->get_workspace_from_layout(workspace_id);
 
     // If left click on non-workspace workspace, do nothing
     if (cursor_workspace == nullptr)
@@ -111,13 +111,20 @@ bool HTManager::end_window_drag() {
     const Vector2D mouse_coords = g_pInputManager->getMouseCoordsInternal();
     Vector2D use_mouse_coords = mouse_coords;
     const WORKSPACEID workspace_id = cursor_view->layout->get_ws_id_from_global(mouse_coords);
-    PHLWORKSPACE cursor_workspace = g_pCompositor->getWorkspaceByID(workspace_id);
+    PHLWORKSPACE cursor_workspace = cursor_view->layout->get_workspace_from_layout(workspace_id);
 
-    // Release on empty dummy workspace, so create and switch to it
-    if (cursor_workspace == nullptr && workspace_id != WORKSPACE_INVALID) {
-        cursor_workspace = g_pCompositor->createNewWorkspace(workspace_id, cursor_monitor->m_id);
-    } else if (workspace_id == WORKSPACE_INVALID) {
+    if (workspace_id == WORKSPACE_INVALID) {
         cursor_workspace = dragged_window->m_workspace;
+        if (cursor_workspace == nullptr
+            || cursor_view->layout->get_workspace_from_layout(cursor_workspace->m_id) == nullptr) {
+            cursor_workspace = nullptr;
+        }
+
+        if (cursor_workspace == nullptr) {
+            g_pKeybindManager->changeMouseBindMode(MBIND_INVALID);
+            return false;
+        }
+
         // Ensure that the mouse coords are snapped to inside the workspace box itself
         use_mouse_coords = cursor_view->layout->get_global_ws_box(cursor_workspace->m_id)
                                .closestPoint(use_mouse_coords);
@@ -135,7 +142,13 @@ bool HTManager::end_window_drag() {
         return false;
     }
 
-    Log::logger->log(LOG, "[Hyprtasking] trying to drop window on ws {}", cursor_workspace->m_id);
+    Log::logger->log(
+        LOG,
+        "[Hyprtasking] trying to drop window on monitor {} ws {} ({})",
+        cursor_monitor->m_name,
+        cursor_workspace->m_id,
+        cursor_workspace->m_name
+    );
 
     // PHLWORKSPACEREF o_workspace = cursor_monitor->m_activeWorkspace;
     cursor_monitor->changeWorkspace(cursor_workspace, true);
@@ -262,6 +275,7 @@ bool HTManager::swipe_update(IPointer::SSwipeUpdateEvent e) {
                 return res;
             } else {
                 swipe_state = HT_SWIPE_MOVE;
+                cursor_view->layout->init_position();
                 cursor_view->navigating = true;
 
                 // need to schedule frames for monitor, otherwise the screen doesn't re-render

@@ -63,7 +63,7 @@ PHLWINDOW HTManager::get_window_from_cursor(bool return_focused) {
     }
 
     const WORKSPACEID ws_id = cursor_view->layout->get_ws_id_from_global(mouse_coords);
-    const PHLWORKSPACE hovered_workspace = g_pCompositor->getWorkspaceByID(ws_id);
+    const PHLWORKSPACE hovered_workspace = cursor_view->layout->get_workspace_from_layout(ws_id);
     if (hovered_workspace == nullptr)
         return nullptr;
 

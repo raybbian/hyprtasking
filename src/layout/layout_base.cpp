@@ -99,6 +99,39 @@ PHLMONITOR HTLayoutBase::get_monitor() {
     return par_view->get_monitor();
 }
 
+bool HTLayoutBase::is_monitor_workspace(PHLWORKSPACE workspace) {
+    const PHLMONITOR monitor = get_monitor();
+    if (monitor == nullptr || workspace == nullptr)
+        return false;
+    if (workspace->inert() || workspace->m_isSpecialWorkspace)
+        return false;
+    return workspace->monitorID() == monitor->m_id;
+}
+
+std::vector<PHLWORKSPACE> HTLayoutBase::get_monitor_workspaces() {
+    std::vector<PHLWORKSPACE> workspaces;
+    const PHLMONITOR monitor = get_monitor();
+    if (monitor == nullptr)
+        return workspaces;
+
+    for (PHLWORKSPACE workspace : g_pCompositor->getWorkspacesCopy()) {
+        if (!is_monitor_workspace(workspace))
+            continue;
+        workspaces.push_back(workspace);
+    }
+    return workspaces;
+}
+
+PHLWORKSPACE HTLayoutBase::get_workspace_from_layout(WORKSPACEID workspace_id) {
+    if (!overview_layout.contains(workspace_id))
+        return nullptr;
+
+    PHLWORKSPACE workspace = g_pCompositor->getWorkspaceByID(workspace_id);
+    if (!is_monitor_workspace(workspace))
+        return nullptr;
+    return workspace;
+}
+
 WORKSPACEID HTLayoutBase::get_ws_id_from_global(Vector2D pos) {
     const PHLMONITOR monitor = get_monitor();
     if (monitor == nullptr)
@@ -131,8 +164,8 @@ CBox HTLayoutBase::get_global_window_box(PHLWINDOW window, WORKSPACEID workspace
     if (monitor == nullptr)
         return {};
 
-    const PHLWORKSPACE workspace = g_pCompositor->getWorkspaceByID(workspace_id);
-    if (workspace == nullptr || workspace->m_monitor != monitor)
+    const PHLWORKSPACE workspace = get_workspace_from_layout(workspace_id);
+    if (workspace == nullptr)
         return {};
 
     const CBox ws_window_box = window->getWindowMainSurfaceBox();
@@ -148,7 +181,11 @@ CBox HTLayoutBase::get_global_window_box(PHLWINDOW window, WORKSPACEID workspace
 }
 
 CBox HTLayoutBase::get_global_ws_box(WORKSPACEID workspace_id) {
-    const CBox scaled_ws_box = overview_layout[workspace_id].box;
+    const auto it = overview_layout.find(workspace_id);
+    if (it == overview_layout.end())
+        return {};
+
+    const CBox scaled_ws_box = it->second.box;
     const Vector2D top_left = local_ws_scaled_to_global(scaled_ws_box.pos(), workspace_id);
     const Vector2D bottom_right =
         local_ws_scaled_to_global(scaled_ws_box.pos() + scaled_ws_box.size(), workspace_id);
@@ -160,7 +197,11 @@ Vector2D HTLayoutBase::global_to_local_ws_unscaled(Vector2D pos, WORKSPACEID wor
     if (monitor == nullptr)
         return {};
 
-    CBox workspace_box = overview_layout[workspace_id].box;
+    const auto it = overview_layout.find(workspace_id);
+    if (it == overview_layout.end())
+        return {};
+
+    CBox workspace_box = it->second.box;
     if (workspace_box.empty())
         return {};
     pos -= monitor->m_position;
@@ -186,7 +227,11 @@ Vector2D HTLayoutBase::local_ws_unscaled_to_global(Vector2D pos, WORKSPACEID wor
     if (monitor == nullptr)
         return {};
 
-    CBox workspace_box = overview_layout[workspace_id].box;
+    const auto it = overview_layout.find(workspace_id);
+    if (it == overview_layout.end())
+        return {};
+
+    CBox workspace_box = it->second.box;
     if (workspace_box.empty())
         return {};
     pos *= workspace_box.w / monitor->m_transformedSize.x;

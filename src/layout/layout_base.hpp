@@ -4,7 +4,9 @@
 #include <hyprland/src/desktop/DesktopTypes.hpp>
 #include <hyprland/src/helpers/AnimatedVariable.hpp>
 #include <hyprutils/math/Box.hpp>
+#include <string>
 #include <unordered_map>
+#include <vector>
 
 #include "../types.hpp"
 
@@ -32,6 +34,9 @@ class HTLayoutBase {
         int x;
         int y;
         CBox box;
+        WORKSPACEID id = WORKSPACE_INVALID;
+        std::string name;
+        MONITORID monitor_id = -1;
     };
 
     virtual CBox calculate_ws_box(int x, int y, HTViewStage stage) = 0;
@@ -71,6 +76,9 @@ class HTLayoutBase {
     void post_render();
 
     PHLMONITOR get_monitor();
+    bool is_monitor_workspace(PHLWORKSPACE workspace);
+    std::vector<PHLWORKSPACE> get_monitor_workspaces();
+    PHLWORKSPACE get_workspace_from_layout(WORKSPACEID workspace_id);
     WORKSPACEID get_ws_id_from_global(Vector2D pos);
     WORKSPACEID get_ws_id_from_xy(int x, int y);
     std::pair<int, int> get_current_ws_xy();

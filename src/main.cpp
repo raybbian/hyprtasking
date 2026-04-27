@@ -19,6 +19,8 @@
 #include <hyprutils/math/Box.hpp>
 #include <hyprutils/math/Vector2D.hpp>
 
+#include <algorithm>
+
 #include "config.hpp"
 #include "globals.hpp"
 #include "overview.hpp"
@@ -167,7 +169,7 @@ static SDispatchResult change_layer(std::string arg, bool move_window) {
     const int COLS = HTConfig::value<Hyprlang::INT>("grid:cols");
     const int LAYERS = HTConfig::value<Hyprlang::INT>("grid:layers");
     const int LOOP_LAYERS = HTConfig::value<Hyprlang::INT>("grid:loop_layers");
-    const int ws_per_layer = ROWS*COLS;
+    const int ws_per_layer = std::max(1, ROWS * COLS);
     const int original_layer = cursor_view->layout->layer;
 
     int resulting_layer = original_layer;
@@ -187,25 +189,43 @@ static SDispatchResult change_layer(std::string arg, bool move_window) {
         return {.success = false, .error = "active_workspace is null"};
     const WORKSPACEID source_ws_id = active_workspace->m_id;
 
-    const int layer_delta = resulting_layer - original_layer;
-    WORKSPACEID target_ws_id = source_ws_id + layer_delta * ws_per_layer;
+    const std::vector<PHLWORKSPACE> monitor_workspaces = cursor_view->layout->get_monitor_workspaces();
+    if (monitor_workspaces.empty())
+        return {};
 
-    // if resulting offset doesn't fit in boundaries
-    if (resulting_layer >= LAYERS || resulting_layer < 0) {
-        // Don't do anything if next is invalid and grid:loop_layers is disabled
-        if (!LOOP_LAYERS) {
-            return {};
+    int source_index = -1;
+    for (size_t i = 0; i < monitor_workspaces.size(); i++) {
+        if (monitor_workspaces[i] != nullptr && monitor_workspaces[i]->m_id == source_ws_id) {
+            source_index = (int)i;
+            break;
         }
-
-        if (resulting_layer < 0) {
-            resulting_layer = LAYERS - 1;
-        } else if (resulting_layer >= LAYERS) {
-            resulting_layer = 0;
-        }
-        target_ws_id = cursor_view->monitor_id * ws_per_layer * LAYERS + // Monitor
-                       ws_per_layer * resulting_layer +                  // Layer
-                       (source_ws_id - 1) % ws_per_layer + 1;            // X and Y of a workspace
     }
+    if (source_index < 0)
+        return {};
+
+    const int configured_layers = std::max(1, LAYERS);
+    const int needed_layers = std::max(
+        1,
+        (int)(monitor_workspaces.size() + ws_per_layer - 1) / ws_per_layer
+    );
+    const int effective_layers = std::max(configured_layers, needed_layers);
+
+    if (resulting_layer >= effective_layers || resulting_layer < 0) {
+        if (!LOOP_LAYERS)
+            return {};
+        resulting_layer = (resulting_layer + effective_layers) % effective_layers;
+    }
+
+    const int target_cell = source_index % ws_per_layer;
+    const int target_page_start = resulting_layer * ws_per_layer;
+    if (target_page_start >= (int)monitor_workspaces.size())
+        return {};
+
+    const int target_index = std::min(
+        target_page_start + target_cell,
+        (int)monitor_workspaces.size() - 1
+    );
+    const WORKSPACEID target_ws_id = monitor_workspaces[target_index]->m_id;
 
     set_layer(cursor_view, resulting_layer);
 

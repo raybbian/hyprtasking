@@ -59,12 +59,10 @@ void HTView::do_exit_behavior(bool exit_on_mouse) {
 
     const int EXIT_ON_HOVERED = HTConfig::value<Hyprlang::INT>("exit_on_hovered");
 
-    const WORKSPACEID ws_id =
-        (exit_on_mouse || EXIT_ON_HOVERED) ? try_get_hover_id() : monitor->m_activeWorkspace->m_id;
-    PHLWORKSPACE workspace = g_pCompositor->getWorkspaceByID(ws_id);
-
-    if (workspace == nullptr && ws_id != WORKSPACE_INVALID)
-        workspace = g_pCompositor->createNewWorkspace(ws_id, monitor->m_id);
+    const bool use_hovered = exit_on_mouse || EXIT_ON_HOVERED;
+    const WORKSPACEID ws_id = use_hovered ? try_get_hover_id() : monitor->m_activeWorkspace->m_id;
+    PHLWORKSPACE workspace = use_hovered ? layout->get_workspace_from_layout(ws_id)
+                                         : monitor->m_activeWorkspace;
     if (workspace == nullptr)
         return;
 
@@ -147,9 +145,8 @@ void HTView::move_id(WORKSPACEID ws_id, bool move_window) {
     if (hovered_window == nullptr && move_window)
         should_move = false;
 
-    PHLWORKSPACE other_workspace = g_pCompositor->getWorkspaceByID(ws_id);
-    if (other_workspace == nullptr && ws_id != WORKSPACE_INVALID)
-        other_workspace = g_pCompositor->createNewWorkspace(ws_id, monitor->m_id);
+    layout->build_overview_layout(HT_VIEW_CLOSED);
+    PHLWORKSPACE other_workspace = layout->get_workspace_from_layout(ws_id);
     if (other_workspace == nullptr)
         return;
 
@@ -185,11 +182,17 @@ void HTView::move(std::string arg, bool move_window) {
     if (hovered_window == nullptr && move_window)
         return;
 
+    if (!active && !navigating)
+        layout->init_position();
+
     // if moving a window, the up/down/left/right should be relative to the window (and cursor) and not necessarily the active workspace
     const WORKSPACEID source_ws_id =
         move_window ? hovered_window->workspaceID() : active_workspace->m_id;
     layout->build_overview_layout(HT_VIEW_CLOSED);
-    const auto ws_layout = layout->overview_layout[source_ws_id];
+    const auto ws_layout_it = layout->overview_layout.find(source_ws_id);
+    if (ws_layout_it == layout->overview_layout.end())
+        return;
+    const auto ws_layout = ws_layout_it->second;
     const WORKSPACEID id = layout->get_ws_id_in_direction(ws_layout.x, ws_layout.y, arg);
 
     move_id(id, move_window);

@@ -111,15 +111,15 @@ void HTLayoutLinear::on_move(WORKSPACEID old_id, WORKSPACEID new_id, CallbackFun
 
     const float GAP_SIZE = HTConfig::value<Hyprlang::FLOAT>("gap_size") * monitor->m_scale;
 
-    const PHLWORKSPACE new_ws = g_pCompositor->getWorkspaceByID(new_id);
-    if (new_ws == nullptr)
-        return;
-
     build_overview_layout(HT_VIEW_ANIMATING);
 
-    const float cur_screen_min_x = overview_layout[new_id].box.x - GAP_SIZE;
+    const auto target_it = overview_layout.find(new_id);
+    if (target_it == overview_layout.end() || get_workspace_from_layout(new_id) == nullptr)
+        return;
+
+    const float cur_screen_min_x = target_it->second.box.x - GAP_SIZE;
     const float cur_screen_max_x =
-        overview_layout[new_id].box.x + overview_layout[new_id].box.w + GAP_SIZE;
+        target_it->second.box.x + target_it->second.box.w + GAP_SIZE;
 
     if (cur_screen_min_x < 0) {
         *scroll_offset = scroll_offset->value() - cur_screen_min_x;
@@ -276,26 +276,19 @@ void HTLayoutLinear::build_overview_layout(HTViewStage stage) {
 
     overview_layout.clear();
 
-    std::vector<WORKSPACEID> monitor_workspaces;
-    for (PHLWORKSPACE workspace : g_pCompositor->getWorkspacesCopy()) {
+    const std::vector<PHLWORKSPACE> monitor_workspaces = get_monitor_workspaces();
+    for (const auto& [x, workspace] : monitor_workspaces | std::views::enumerate) {
         if (workspace == nullptr)
             continue;
-        if (workspace->m_monitor != monitor)
-            continue;
-        if (workspace->m_isSpecialWorkspace)
-            continue;
-        monitor_workspaces.push_back(workspace->m_id);
-    }
-    std::sort(monitor_workspaces.begin(), monitor_workspaces.end());
-
-    WORKSPACEID big_id = monitor_workspaces.back();
-    while (g_pCompositor->getWorkspaceByID(big_id) != nullptr)
-        big_id++;
-    monitor_workspaces.push_back(big_id);
-
-    for (const auto& [x, ws_id] : monitor_workspaces | std::views::enumerate) {
         CBox ws_box = calculate_ws_box(x, 0, stage);
-        overview_layout[ws_id] = {x, 0, ws_box};
+        overview_layout[workspace->m_id] = {
+            (int)x,
+            0,
+            ws_box,
+            workspace->m_id,
+            workspace->m_name,
+            monitor->m_id,
+        };
     }
 }
 
@@ -328,6 +321,8 @@ void HTLayoutLinear::render() {
     // Do a dance with active workspaces: Hyprland will only properly render the
     // current active one so make the workspace active before rendering it, etc
     const PHLWORKSPACE start_workspace = monitor->m_activeWorkspace;
+    if (start_workspace == nullptr)
+        return;
     g_pDesktopAnimationManager->startAnimation(
         start_workspace,
         CDesktopAnimationManager::ANIMATION_TYPE_OUT,
@@ -391,7 +386,7 @@ void HTLayoutLinear::render() {
     CBox global_mon_box = {monitor->m_position, monitor->m_transformedSize};
     for (const auto& [ws_id, ws_layout] : overview_layout) {
         // Could be nullptr, in which we render only layers
-        const PHLWORKSPACE workspace = g_pCompositor->getWorkspaceByID(ws_id);
+        const PHLWORKSPACE workspace = get_workspace_from_layout(ws_id);
 
         // renderModif translation used by renderWorkspace is weird so need
         // to scale the translation up as well. Geometry is also calculated from pixel size and not transformed size??

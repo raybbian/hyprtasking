@@ -10,6 +10,9 @@ class HTLayoutGrid: public HTLayoutBase {
     PHLANIMVAR<float> scale;
     PHLANIMVAR<Vector2D> offset;
 
+    int get_effective_layer_count(size_t workspace_count);
+    int get_workspace_layer(WORKSPACEID workspace_id);
+
   public:
     HTLayoutGrid(VIEWID view_id);
     virtual ~HTLayoutGrid() = default;

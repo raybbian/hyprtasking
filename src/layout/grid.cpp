@@ -1,5 +1,7 @@
 #include "grid.hpp"
 
+#include <algorithm>
+
 #include <hyprland/src/Compositor.hpp>
 #include <hyprland/src/config/ConfigManager.hpp>
 #include <hyprland/src/config/ConfigValue.hpp>
@@ -44,6 +46,29 @@ HTLayoutGrid::HTLayoutGrid(VIEWID new_view_id) : HTLayoutBase(new_view_id) {
 
 std::string HTLayoutGrid::layout_name() {
     return "grid";
+}
+
+int HTLayoutGrid::get_effective_layer_count(size_t workspace_count) {
+    const int ROWS = HTConfig::value<Hyprlang::INT>("grid:rows");
+    const int COLS = HTConfig::value<Hyprlang::INT>("grid:cols");
+    const int LAYERS = HTConfig::value<Hyprlang::INT>("grid:layers");
+    const int ws_per_layer = std::max(1, ROWS * COLS);
+    const int configured_layers = std::max(1, LAYERS);
+    const int needed_layers = std::max(1, (int)(workspace_count + ws_per_layer - 1) / ws_per_layer);
+    return std::max(configured_layers, needed_layers);
+}
+
+int HTLayoutGrid::get_workspace_layer(WORKSPACEID workspace_id) {
+    const int ROWS = HTConfig::value<Hyprlang::INT>("grid:rows");
+    const int COLS = HTConfig::value<Hyprlang::INT>("grid:cols");
+    const int ws_per_layer = std::max(1, ROWS * COLS);
+    const std::vector<PHLWORKSPACE> workspaces = get_monitor_workspaces();
+
+    for (size_t i = 0; i < workspaces.size(); i++) {
+        if (workspaces[i] != nullptr && workspaces[i]->m_id == workspace_id)
+            return (int)i / ws_per_layer;
+    }
+    return layer;
 }
 
 WORKSPACEID HTLayoutGrid::get_ws_id_in_direction(int x, int y, std::string& direction) {
@@ -115,9 +140,13 @@ void HTLayoutGrid::close_open_lerp(float perc) {
         calculate_ws_box(0, 0, HT_VIEW_OPENED).w / monitor->m_transformedSize.x; // 1 / ROWS
     Vector2D open_pos = {0, 0};
 
+    layer = get_workspace_layer(monitor->m_activeWorkspace->m_id);
     build_overview_layout(HT_VIEW_CLOSED);
     double close_scale = 1.;
-    Vector2D close_pos = -overview_layout[monitor->m_activeWorkspace->m_id].box.pos();
+    const auto active_it = overview_layout.find(monitor->m_activeWorkspace->m_id);
+    if (active_it == overview_layout.end())
+        return;
+    Vector2D close_pos = -active_it->second.box.pos();
 
     double new_scale = std::lerp(close_scale, open_scale, perc);
     Vector2D new_pos = Vector2D {
@@ -156,10 +185,14 @@ void HTLayoutGrid::on_hide(CallbackFun on_complete) {
     if (monitor == nullptr)
         return;
 
+    layer = get_workspace_layer(monitor->m_activeWorkspace->m_id);
     build_overview_layout(HT_VIEW_CLOSED);
     *scale = 1.;
     // End workspace to end up on
-    *offset = -overview_layout[monitor->m_activeWorkspace->m_id].box.pos();
+    const auto active_it = overview_layout.find(monitor->m_activeWorkspace->m_id);
+    if (active_it == overview_layout.end())
+        return;
+    *offset = -active_it->second.box.pos();
 }
 
 void HTLayoutGrid::on_move(WORKSPACEID old_id, WORKSPACEID new_id, CallbackFun on_complete) {
@@ -172,14 +205,23 @@ void HTLayoutGrid::on_move(WORKSPACEID old_id, WORKSPACEID new_id, CallbackFun o
     if (par_view == nullptr || par_view->active)
         return;
 
-    // prevent the thing from animating
-    g_pCompositor->getWorkspaceByID(old_id)->m_renderOffset->warp();
-    g_pCompositor->getWorkspaceByID(new_id)->m_renderOffset->warp();
+    const PHLWORKSPACE old_workspace = g_pCompositor->getWorkspaceByID(old_id);
+    const PHLWORKSPACE new_workspace = g_pCompositor->getWorkspaceByID(new_id);
+    if (old_workspace == nullptr || new_workspace == nullptr)
+        return;
 
+    // prevent the thing from animating
+    old_workspace->m_renderOffset->warp();
+    new_workspace->m_renderOffset->warp();
+
+    layer = get_workspace_layer(new_id);
     build_overview_layout(HT_VIEW_CLOSED);
     *scale = 1.;
     // Target workspace to animate to
-    *offset = -overview_layout[new_id].box.pos();
+    const auto target_it = overview_layout.find(new_id);
+    if (target_it == overview_layout.end())
+        return;
+    *offset = -target_it->second.box.pos();
 }
 
 bool HTLayoutGrid::should_render_window(PHLWINDOW window) {
@@ -218,6 +260,7 @@ void HTLayoutGrid::init_position() {
     if (monitor->m_activeWorkspace == nullptr)
         return;
 
+    layer = get_workspace_layer(monitor->m_activeWorkspace->m_id);
     build_overview_layout(HT_VIEW_CLOSED);
 
     const auto it = overview_layout.find(monitor->m_activeWorkspace->m_id);
@@ -287,39 +330,33 @@ void HTLayoutGrid::build_overview_layout(HTViewStage stage) {
 
     const int ROWS = HTConfig::value<Hyprlang::INT>("grid:rows");
     const int COLS = HTConfig::value<Hyprlang::INT>("grid:cols");
-    const int LAYERS = HTConfig::value<Hyprlang::INT>("grid:layers");
-
-    const PHLMONITOR last_monitor = Desktop::focusState()->monitor();
-    Desktop::focusState()->rawMonitorFocus(monitor);
+    const std::vector<PHLWORKSPACE> workspaces = get_monitor_workspaces();
+    const int ws_per_layer = std::max(1, ROWS * COLS);
+    const int effective_layers = get_effective_layer_count(workspaces.size());
+    layer = std::clamp(layer, 0, effective_layers - 1);
 
     overview_layout.clear();
 
-    // ROWS*COLS workspaces
-    //           per layer
-    //           per monitor
-    //       M1
-    //  L1       L2
-    // 1  2     5  6
-    // 3  4     7  8
-    //       M2
-    //  L1       L2
-    // 9  10    13 14
-    // 11 12    15 16
-    const int ws_per_layer = ROWS*COLS;
-    for (int y = 0; y < ROWS; y++) {
-        for (int x = 0; x < COLS; x++) {
-            const WORKSPACEID ws_id = view_id * ws_per_layer * LAYERS + layer * ws_per_layer + y * ROWS + x + 1;
-            const PHLWORKSPACE workspace = g_pCompositor->getWorkspaceByID(ws_id);
-            if (workspace != nullptr && workspace->monitorID() != view_id) {
-                g_pCompositor->moveWorkspaceToMonitor(workspace, monitor);
-            }
-            const CBox ws_box = calculate_ws_box(x, y, stage);
-            overview_layout[ws_id] = HTWorkspace {x, y, ws_box};
-        }
-    }
+    const size_t start = layer * ws_per_layer;
+    const size_t end = std::min(start + ws_per_layer, workspaces.size());
+    for (size_t i = start; i < end; i++) {
+        const PHLWORKSPACE workspace = workspaces[i];
+        if (workspace == nullptr)
+            continue;
 
-    if (last_monitor != nullptr)
-        Desktop::focusState()->rawMonitorFocus(last_monitor);
+        const int local_i = (int)(i - start);
+        const int x = local_i % COLS;
+        const int y = local_i / COLS;
+        const CBox ws_box = calculate_ws_box(x, y, stage);
+        overview_layout[workspace->m_id] = HTWorkspace {
+            x,
+            y,
+            ws_box,
+            workspace->m_id,
+            workspace->m_name,
+            monitor->m_id,
+        };
+    }
 }
 
 void HTLayoutGrid::render() {
@@ -356,6 +393,8 @@ void HTLayoutGrid::render() {
     // Do a dance with active workspaces: Hyprland will only properly render the
     // current active one so make the workspace active before rendering it, etc
     const PHLWORKSPACE start_workspace = monitor->m_activeWorkspace;
+    if (start_workspace == nullptr)
+        return;
 
     g_pDesktopAnimationManager->startAnimation(
         start_workspace,
@@ -374,7 +413,7 @@ void HTLayoutGrid::render() {
             continue;
 
         // Could be nullptr, in which we render only layers
-        const PHLWORKSPACE workspace = g_pCompositor->getWorkspaceByID(ws_id);
+        const PHLWORKSPACE workspace = get_workspace_from_layout(ws_id);
 
         // renderModif translation used by renderWorkspace is weird so need
         // to scale the translation up as well. Geometry is also calculated from pixel size and not transformed size??
@@ -391,7 +430,7 @@ void HTLayoutGrid::render() {
             continue;
 
         const CGradientValueData border_col =
-            monitor->m_activeWorkspace->m_id == ws_id ? *ACTIVECOL : *INACTIVECOL;
+            start_workspace->m_id == ws_id ? *ACTIVECOL : *INACTIVECOL;
         CBox border_box = ws_layout.box;
 
         CBorderPassElement::SBorderData data;
@@ -447,8 +486,9 @@ void HTLayoutGrid::render() {
     start_workspace->m_visible = true;
 
     // Render active workspace last so the dragging window is always on top when let go of
-    if (start_workspace != nullptr && overview_layout.count(start_workspace->m_id)) {
-        CBox ws_box = overview_layout[start_workspace->m_id].box;
+    const auto active_it = overview_layout.find(start_workspace->m_id);
+    if (start_workspace != nullptr && active_it != overview_layout.end()) {
+        CBox ws_box = active_it->second.box;
         // make sure box is not empty
         if (ws_box.width > 0.01 && ws_box.height > 0.01) {
             // renderModif translation used by renderWorkspace is weird so need
