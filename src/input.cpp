@@ -278,6 +278,7 @@ bool HTManager::swipe_update(IPointer::SSwipeUpdateEvent e) {
                 cursor_view->layout->init_position();
                 cursor_view->navigating = true;
 
+                cursor_view->layout->init_position();
                 // need to schedule frames for monitor, otherwise the screen doesn't re-render
                 g_pHyprRenderer->damageMonitor(cursor_monitor);
                 g_pCompositor->scheduleFrameForMonitor(cursor_monitor);
