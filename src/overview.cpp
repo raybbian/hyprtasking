@@ -190,6 +190,8 @@ void HTView::move(std::string arg, bool move_window) {
         move_window ? hovered_window->workspaceID() : active_workspace->m_id;
     if (!navigating && !active) {
         layout->init_position();
+    } else {
+        layout->build_overview_layout(HT_VIEW_CLOSED);
     }
     const auto ws_layout = layout->overview_layout[source_ws_id];
     const WORKSPACEID id = layout->get_ws_id_in_direction(ws_layout.x, ws_layout.y, arg);
