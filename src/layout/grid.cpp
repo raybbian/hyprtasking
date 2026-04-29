@@ -48,6 +48,40 @@ std::string HTLayoutGrid::layout_name() {
     return "grid";
 }
 
+void HTLayoutGrid::pin_workspace_to_slot(WORKSPACEID ws_id, int slot) {
+    pinned_positions[ws_id] = slot;
+}
+
+void HTLayoutGrid::unpin_workspace(WORKSPACEID ws_id) {
+    pinned_positions.erase(ws_id);
+}
+
+std::pair<int, int> HTLayoutGrid::get_grid_cell_from_global(Vector2D pos) {
+    const PHLMONITOR monitor = get_monitor();
+    if (monitor == nullptr)
+        return {-1, -1};
+
+    if (!monitor->logicalBox().containsPoint(pos))
+        return {-1, -1};
+
+    build_overview_layout(HT_VIEW_ANIMATING);
+
+    const int ROWS = HTConfig::value<Hyprlang::INT>("grid:rows");
+    const int COLS = HTConfig::value<Hyprlang::INT>("grid:cols");
+
+    Vector2D rel = (pos - monitor->m_position) * monitor->m_scale;
+
+    for (int y = 0; y < ROWS; y++) {
+        for (int x = 0; x < COLS; x++) {
+            CBox box = calculate_ws_box(x, y, HT_VIEW_ANIMATING);
+            if (!box.empty() && box.containsPoint(rel))
+                return {x, y};
+        }
+    }
+
+    return {-1, -1};
+}
+
 int HTLayoutGrid::get_effective_layer_count(size_t workspace_count) {
     const int ROWS = HTConfig::value<Hyprlang::INT>("grid:rows");
     const int COLS = HTConfig::value<Hyprlang::INT>("grid:cols");
@@ -59,6 +93,14 @@ int HTLayoutGrid::get_effective_layer_count(size_t workspace_count) {
 }
 
 int HTLayoutGrid::get_workspace_layer(WORKSPACEID workspace_id) {
+    auto pin_it = pinned_positions.find(workspace_id);
+    if (pin_it != pinned_positions.end()) {
+        const int ROWS = HTConfig::value<Hyprlang::INT>("grid:rows");
+        const int COLS = HTConfig::value<Hyprlang::INT>("grid:cols");
+        const int ws_per_layer = std::max(1, ROWS * COLS);
+        return pin_it->second / ws_per_layer;
+    }
+
     const int ROWS = HTConfig::value<Hyprlang::INT>("grid:rows");
     const int COLS = HTConfig::value<Hyprlang::INT>("grid:cols");
     const int ws_per_layer = std::max(1, ROWS * COLS);
@@ -68,6 +110,7 @@ int HTLayoutGrid::get_workspace_layer(WORKSPACEID workspace_id) {
         if (workspaces[i] != nullptr && workspaces[i]->m_id == workspace_id)
             return (int)i / ws_per_layer;
     }
+
     return layer;
 }
 
@@ -337,22 +380,66 @@ void HTLayoutGrid::build_overview_layout(HTViewStage stage) {
 
     overview_layout.clear();
 
-    const size_t start = layer * ws_per_layer;
-    const size_t end = std::min(start + ws_per_layer, workspaces.size());
-    for (size_t i = start; i < end; i++) {
-        const PHLWORKSPACE workspace = workspaces[i];
+    for (auto it = pinned_positions.begin(); it != pinned_positions.end(); ) {
+        if (g_pCompositor->getWorkspaceByID(it->first) == nullptr)
+            it = pinned_positions.erase(it);
+        else
+            ++it;
+    }
+
+    const int layer_start = layer * ws_per_layer;
+    const int layer_end = layer_start + ws_per_layer;
+
+    std::vector<bool> slot_occupied(ws_per_layer, false);
+    std::unordered_map<WORKSPACEID, int> ws_to_slot;
+
+    for (PHLWORKSPACE workspace : workspaces) {
         if (workspace == nullptr)
             continue;
 
-        const int local_i = (int)(i - start);
-        const int x = local_i % COLS;
-        const int y = local_i / COLS;
+        auto pin_it = pinned_positions.find(workspace->m_id);
+        if (pin_it != pinned_positions.end()) {
+            int slot = pin_it->second;
+            if (slot >= layer_start && slot < layer_end) {
+                int local_i = slot - layer_start;
+                slot_occupied[local_i] = true;
+                ws_to_slot[workspace->m_id] = slot;
+            }
+        }
+    }
+
+    int next_free = layer_start;
+    for (PHLWORKSPACE workspace : workspaces) {
+        if (workspace == nullptr)
+            continue;
+        if (ws_to_slot.contains(workspace->m_id))
+            continue;
+
+        while (next_free < layer_end && slot_occupied[next_free - layer_start])
+            ++next_free;
+
+        if (next_free >= layer_end)
+            break;
+
+        slot_occupied[next_free - layer_start] = true;
+        ws_to_slot[workspace->m_id] = next_free;
+        ++next_free;
+    }
+
+    for (const auto& [ws_id, slot] : ws_to_slot) {
+        int local_i = slot - layer_start;
+        int x = local_i % COLS;
+        int y = local_i / COLS;
+        PHLWORKSPACE workspace = g_pCompositor->getWorkspaceByID(ws_id);
+        if (workspace == nullptr)
+            continue;
+
         const CBox ws_box = calculate_ws_box(x, y, stage);
-        overview_layout[workspace->m_id] = HTWorkspace {
+        overview_layout[ws_id] = HTWorkspace {
             x,
             y,
             ws_box,
-            workspace->m_id,
+            ws_id,
             workspace->m_name,
             monitor->m_id,
         };

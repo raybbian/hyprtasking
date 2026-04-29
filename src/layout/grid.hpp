@@ -17,6 +17,13 @@ class HTLayoutGrid: public HTLayoutBase {
     HTLayoutGrid(VIEWID view_id);
     virtual ~HTLayoutGrid() = default;
 
+    std::unordered_map<WORKSPACEID, int> pinned_positions;
+
+    void pin_workspace_to_slot(WORKSPACEID ws_id, int slot);
+    void unpin_workspace(WORKSPACEID ws_id);
+
+    std::pair<int, int> get_grid_cell_from_global(Vector2D pos);
+
     virtual std::string layout_name();
 
     virtual CBox calculate_ws_box(int x, int y, HTViewStage stage);
