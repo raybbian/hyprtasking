@@ -26,10 +26,35 @@ bool HTManager::start_window_drag() {
     }
 
     const Vector2D mouse_coords = g_pInputManager->getMouseCoordsInternal();
-    const WORKSPACEID workspace_id = cursor_view->layout->get_ws_id_from_global(mouse_coords);
+    WORKSPACEID workspace_id = cursor_view->layout->get_ws_id_from_global(mouse_coords);
     PHLWORKSPACE cursor_workspace = cursor_view->layout->get_workspace_from_layout(workspace_id);
 
-    // If left click on non-workspace workspace, do nothing
+    // If left click on non-workspace workspace (empty cell), create workspace there
+    if (cursor_workspace == nullptr && workspace_id == WORKSPACE_INVALID) {
+        const SP<HTLayoutGrid> grid_layout = Hyprutils::Memory::dynamicPointerCast<HTLayoutGrid, HTLayoutBase>(cursor_view->layout);
+        if (grid_layout != nullptr && cursor_monitor->logicalBox().containsPoint(mouse_coords)) {
+            const auto [cell_x, cell_y] = grid_layout->get_grid_cell_from_global(mouse_coords);
+            if (cell_x >= 0 && cell_y >= 0) {
+                const int ROWS = HTConfig::value<Hyprlang::INT>("grid:rows");
+                const int COLS = HTConfig::value<Hyprlang::INT>("grid:cols");
+                const int ws_per_layer = std::max(1, ROWS * COLS);
+                const int target_slot = grid_layout->layer * ws_per_layer + cell_y * COLS + cell_x;
+                WORKSPACEID next_id = 1;
+                for (PHLWORKSPACE ws : g_pCompositor->getWorkspacesCopy()) {
+                    if (ws != nullptr && !ws->m_isSpecialWorkspace && ws->m_id >= next_id) {
+                        next_id = ws->m_id + 1;
+                    }
+                }
+                cursor_workspace = g_pCompositor->createNewWorkspace(next_id, cursor_monitor->m_id, "", false);
+                if (cursor_workspace != nullptr) {
+                    grid_layout->pin_workspace_to_slot(next_id, target_slot);
+                    workspace_id = next_id;
+                }
+            }
+        }
+    }
+
+    // If still no workspace, do nothing
     if (cursor_workspace == nullptr)
         return false;
 
