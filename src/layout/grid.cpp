@@ -337,48 +337,24 @@ void HTLayoutGrid::build_overview_layout(HTViewStage stage) {
 
     overview_layout.clear();
 
-    const size_t visible_slots = (size_t)ws_per_layer;
     const size_t start = layer * ws_per_layer;
-    const size_t placeholders_needed = start + visible_slots > workspaces.size()
-        ? start + visible_slots - workspaces.size()
-        : 0;
-    const std::vector<WORKSPACEID> placeholder_ids = get_available_workspace_ids(placeholders_needed);
+    const size_t end = std::min(start + ws_per_layer, workspaces.size());
+    for (size_t i = start; i < end; i++) {
+        const PHLWORKSPACE workspace = workspaces[i];
+        if (workspace == nullptr)
+            continue;
 
-    for (size_t local_i = 0; local_i < visible_slots; local_i++) {
-        const size_t workspace_i = start + local_i;
+        const int local_i = (int)(i - start);
         const int x = local_i % COLS;
         const int y = local_i / COLS;
         const CBox ws_box = calculate_ws_box(x, y, stage);
-
-        if (workspace_i < workspaces.size()) {
-            const PHLWORKSPACE workspace = workspaces[workspace_i];
-            if (workspace == nullptr)
-                continue;
-            overview_layout[workspace->m_id] = HTWorkspace {
-                x,
-                y,
-                ws_box,
-                workspace->m_id,
-                workspace->m_name,
-                monitor->m_id,
-                false,
-            };
-            continue;
-        }
-
-        const size_t placeholder_i = workspace_i - workspaces.size();
-        if (placeholder_i >= placeholder_ids.size())
-            continue;
-
-        const WORKSPACEID placeholder_id = placeholder_ids[placeholder_i];
-        overview_layout[placeholder_id] = HTWorkspace {
+        overview_layout[workspace->m_id] = HTWorkspace {
             x,
             y,
             ws_box,
-            placeholder_id,
-            std::to_string(placeholder_id),
+            workspace->m_id,
+            workspace->m_name,
             monitor->m_id,
-            true,
         };
     }
 }

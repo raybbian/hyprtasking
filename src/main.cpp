@@ -217,15 +217,17 @@ static SDispatchResult change_layer(std::string arg, bool move_window) {
     }
 
     const int target_cell = source_index % ws_per_layer;
+    const int target_page_start = resulting_layer * ws_per_layer;
+    if (target_page_start >= (int)monitor_workspaces.size())
+        return {};
+
+    const int target_index = std::min(
+        target_page_start + target_cell,
+        (int)monitor_workspaces.size() - 1
+    );
+    const WORKSPACEID target_ws_id = monitor_workspaces[target_index]->m_id;
 
     set_layer(cursor_view, resulting_layer);
-    cursor_view->layout->build_overview_layout(HT_VIEW_CLOSED);
-
-    const int target_x = target_cell % COLS;
-    const int target_y = target_cell / COLS;
-    const WORKSPACEID target_ws_id = cursor_view->layout->get_ws_id_from_xy(target_x, target_y);
-    if (target_ws_id == WORKSPACE_INVALID)
-        return {};
 
     cursor_view->move_id(target_ws_id, move_window);
     return {};

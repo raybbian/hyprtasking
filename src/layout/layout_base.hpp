@@ -37,7 +37,6 @@ class HTLayoutBase {
         WORKSPACEID id = WORKSPACE_INVALID;
         std::string name;
         MONITORID monitor_id = -1;
-        bool is_placeholder = false;
     };
 
     virtual CBox calculate_ws_box(int x, int y, HTViewStage stage) = 0;
@@ -79,9 +78,7 @@ class HTLayoutBase {
     PHLMONITOR get_monitor();
     bool is_monitor_workspace(PHLWORKSPACE workspace);
     std::vector<PHLWORKSPACE> get_monitor_workspaces();
-    std::vector<WORKSPACEID> get_available_workspace_ids(size_t count);
     PHLWORKSPACE get_workspace_from_layout(WORKSPACEID workspace_id);
-    PHLWORKSPACE get_or_create_workspace_from_layout(WORKSPACEID workspace_id);
     WORKSPACEID get_ws_id_from_global(Vector2D pos);
     WORKSPACEID get_ws_id_from_xy(int x, int y);
     std::pair<int, int> get_current_ws_xy();
