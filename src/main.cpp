@@ -174,10 +174,8 @@ static SDispatchResult change_layer(std::string arg, bool move_window) {
 
     int resulting_layer = original_layer;
     if (arg[0] == '+' || arg[0] == '-') {
-        // relative jump
         resulting_layer += std::stoi(arg);
     } else {
-        // absolute jump
         resulting_layer = std::stoi(arg);
     }
 
@@ -189,18 +187,15 @@ static SDispatchResult change_layer(std::string arg, bool move_window) {
         return {.success = false, .error = "active_workspace is null"};
     const WORKSPACEID source_ws_id = active_workspace->m_id;
 
+    cursor_view->layout->build_overview_layout(HT_VIEW_CLOSED);
+    const auto active_it = cursor_view->layout->overview_layout.find(source_ws_id);
+    if (active_it == cursor_view->layout->overview_layout.end())
+        return {.success = false, .error = "active workspace not in layout"};
+
+    const int target_cell = active_it->second.y * COLS + active_it->second.x;
+
     const std::vector<PHLWORKSPACE> monitor_workspaces = cursor_view->layout->get_monitor_workspaces();
     if (monitor_workspaces.empty())
-        return {};
-
-    int source_index = -1;
-    for (size_t i = 0; i < monitor_workspaces.size(); i++) {
-        if (monitor_workspaces[i] != nullptr && monitor_workspaces[i]->m_id == source_ws_id) {
-            source_index = (int)i;
-            break;
-        }
-    }
-    if (source_index < 0)
         return {};
 
     const int configured_layers = std::max(1, LAYERS);
@@ -216,7 +211,6 @@ static SDispatchResult change_layer(std::string arg, bool move_window) {
         resulting_layer = (resulting_layer + effective_layers) % effective_layers;
     }
 
-    const int target_cell = source_index % ws_per_layer;
     const int target_page_start = resulting_layer * ws_per_layer;
     if (target_page_start >= (int)monitor_workspaces.size())
         return {};

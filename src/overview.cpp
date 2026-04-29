@@ -45,7 +45,7 @@ void HTView::change_layout(const std::string& layout_name) {
 
 void HTView::do_exit_behavior(bool exit_on_mouse) {
     const PHLMONITOR monitor = get_monitor();
-    if (monitor == nullptr) //???
+    if (monitor == nullptr)
         return;
 
     auto try_get_hover_id = [this, &monitor]() {
@@ -60,9 +60,47 @@ void HTView::do_exit_behavior(bool exit_on_mouse) {
     const int EXIT_ON_HOVERED = HTConfig::value<Hyprlang::INT>("exit_on_hovered");
 
     const bool use_hovered = exit_on_mouse || EXIT_ON_HOVERED;
-    const WORKSPACEID ws_id = use_hovered ? try_get_hover_id() : monitor->m_activeWorkspace->m_id;
+    WORKSPACEID ws_id = use_hovered ? try_get_hover_id() : monitor->m_activeWorkspace->m_id;
     PHLWORKSPACE workspace = use_hovered ? layout->get_workspace_from_layout(ws_id)
                                          : monitor->m_activeWorkspace;
+
+    if (use_hovered && ws_id == WORKSPACE_INVALID && layout->layout_name() == "grid") {
+        const PHLMONITOR cursor_monitor = g_pCompositor->getMonitorFromCursor();
+        if (cursor_monitor == monitor) {
+            const Vector2D mouse_coords = g_pInputManager->getMouseCoordsInternal();
+            const SP<HTLayoutGrid> grid_layout = Hyprutils::Memory::dynamicPointerCast<HTLayoutGrid, HTLayoutBase>(layout);
+            if (grid_layout != nullptr) {
+                const auto [cell_x, cell_y] = grid_layout->get_grid_cell_from_global(mouse_coords);
+                if (cell_x >= 0 && cell_y >= 0) {
+                    const int ROWS = HTConfig::value<Hyprlang::INT>("grid:rows");
+                    const int COLS = HTConfig::value<Hyprlang::INT>("grid:cols");
+                    const int ws_per_layer = std::max(1, ROWS * COLS);
+                    const int target_slot = grid_layout->layer * ws_per_layer + cell_y * COLS + cell_x;
+
+                    WORKSPACEID next_id = 1;
+                    for (PHLWORKSPACE ws : g_pCompositor->getWorkspacesCopy()) {
+                        if (ws != nullptr && !ws->m_isSpecialWorkspace && ws->m_id >= next_id) {
+                            next_id = ws->m_id + 1;
+                        }
+                    }
+
+                    workspace = g_pCompositor->createNewWorkspace(next_id, monitor->m_id, "", false);
+                    if (workspace != nullptr) {
+                        grid_layout->pin_workspace_to_slot(next_id, target_slot);
+                        ws_id = next_id;
+                        Log::logger->log(
+                            LOG,
+                            "[Hyprtasking] Created workspace {} at slot ({}, {}) on right-click exit",
+                            next_id,
+                            cell_x,
+                            cell_y
+                        );
+                    }
+                }
+            }
+        }
+    }
+
     if (workspace == nullptr)
         return;
 
@@ -194,6 +232,40 @@ void HTView::move(std::string arg, bool move_window) {
         return;
     const auto ws_layout = ws_layout_it->second;
     const WORKSPACEID id = layout->get_ws_id_in_direction(ws_layout.x, ws_layout.y, arg);
+
+    if (id == WORKSPACE_INVALID && layout->layout_name() == "grid") {
+        const SP<HTLayoutGrid> grid_layout = Hyprutils::Memory::dynamicPointerCast<HTLayoutGrid, HTLayoutBase>(layout);
+        if (grid_layout != nullptr) {
+            int x = ws_layout.x, y = ws_layout.y;
+            if (arg == "up") {
+                y--;
+            } else if (arg == "down") {
+                y++;
+            } else if (arg == "right") {
+                x++;
+            } else if (arg == "left") {
+                x--;
+            }
+            const int ROWS = HTConfig::value<Hyprlang::INT>("grid:rows");
+            const int COLS = HTConfig::value<Hyprlang::INT>("grid:cols");
+            if (x >= 0 && x < COLS && y >= 0 && y < ROWS) {
+                const int ws_per_layer = std::max(1, ROWS * COLS);
+                const int target_slot = grid_layout->layer * ws_per_layer + y * COLS + x;
+                WORKSPACEID next_id = 1;
+                for (PHLWORKSPACE ws : g_pCompositor->getWorkspacesCopy()) {
+                    if (ws != nullptr && !ws->m_isSpecialWorkspace && ws->m_id >= next_id) {
+                        next_id = ws->m_id + 1;
+                    }
+                }
+                PHLWORKSPACE new_ws = g_pCompositor->createNewWorkspace(next_id, monitor->m_id, "", false);
+                if (new_ws != nullptr) {
+                    grid_layout->pin_workspace_to_slot(next_id, target_slot);
+                    move_id(next_id, move_window);
+                    return;
+                }
+            }
+        }
+    }
 
     move_id(id, move_window);
 }
