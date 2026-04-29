@@ -1,5 +1,7 @@
 #include <any>
+#include <limits>
 #include <sstream>
+#include <unordered_set>
 
 #define private public
 #include <hyprland/src/config/ConfigManager.hpp>
@@ -122,6 +124,30 @@ std::vector<PHLWORKSPACE> HTLayoutBase::get_monitor_workspaces() {
     return workspaces;
 }
 
+std::vector<WORKSPACEID> HTLayoutBase::get_available_workspace_ids(size_t count) {
+    std::vector<WORKSPACEID> ids;
+    std::unordered_set<WORKSPACEID> occupied;
+
+    for (PHLWORKSPACE workspace : g_pCompositor->getWorkspacesCopy()) {
+        if (workspace == nullptr || workspace->inert())
+            continue;
+        occupied.insert(workspace->m_id);
+    }
+
+    WORKSPACEID candidate = 1;
+    while (ids.size() < count) {
+        if (!occupied.contains(candidate) && !g_pCompositor->workspaceIDOutOfBounds(candidate)) {
+            ids.push_back(candidate);
+            occupied.insert(candidate);
+        }
+        if (candidate == std::numeric_limits<WORKSPACEID>::max())
+            break;
+        candidate++;
+    }
+
+    return ids;
+}
+
 PHLWORKSPACE HTLayoutBase::get_workspace_from_layout(WORKSPACEID workspace_id) {
     if (!overview_layout.contains(workspace_id))
         return nullptr;
@@ -129,6 +155,39 @@ PHLWORKSPACE HTLayoutBase::get_workspace_from_layout(WORKSPACEID workspace_id) {
     PHLWORKSPACE workspace = g_pCompositor->getWorkspaceByID(workspace_id);
     if (!is_monitor_workspace(workspace))
         return nullptr;
+    return workspace;
+}
+
+PHLWORKSPACE HTLayoutBase::get_or_create_workspace_from_layout(WORKSPACEID workspace_id) {
+    PHLWORKSPACE workspace = get_workspace_from_layout(workspace_id);
+    if (workspace != nullptr)
+        return workspace;
+
+    const PHLMONITOR monitor = get_monitor();
+    if (monitor == nullptr)
+        return nullptr;
+
+    const auto it = overview_layout.find(workspace_id);
+    if (it == overview_layout.end() || !it->second.is_placeholder)
+        return nullptr;
+    if (it->second.monitor_id != monitor->m_id || workspace_id == WORKSPACE_INVALID)
+        return nullptr;
+    if (g_pCompositor->getWorkspaceByID(workspace_id) != nullptr)
+        return nullptr;
+    if (g_pCompositor->workspaceIDOutOfBounds(workspace_id))
+        return nullptr;
+
+    workspace = g_pCompositor->createNewWorkspace(workspace_id, monitor->m_id);
+    if (!is_monitor_workspace(workspace))
+        return nullptr;
+
+    Log::logger->log(
+        LOG,
+        "[Hyprtasking] created workspace {} ({}) on monitor {} for empty tile",
+        workspace->m_id,
+        workspace->m_name,
+        monitor->m_name
+    );
     return workspace;
 }
 

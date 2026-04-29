@@ -111,7 +111,7 @@ bool HTManager::end_window_drag() {
     const Vector2D mouse_coords = g_pInputManager->getMouseCoordsInternal();
     Vector2D use_mouse_coords = mouse_coords;
     const WORKSPACEID workspace_id = cursor_view->layout->get_ws_id_from_global(mouse_coords);
-    PHLWORKSPACE cursor_workspace = cursor_view->layout->get_workspace_from_layout(workspace_id);
+    PHLWORKSPACE cursor_workspace = cursor_view->layout->get_or_create_workspace_from_layout(workspace_id);
 
     if (workspace_id == WORKSPACE_INVALID) {
         cursor_workspace = dragged_window->m_workspace;

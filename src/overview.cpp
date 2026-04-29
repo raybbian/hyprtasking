@@ -61,7 +61,7 @@ void HTView::do_exit_behavior(bool exit_on_mouse) {
 
     const bool use_hovered = exit_on_mouse || EXIT_ON_HOVERED;
     const WORKSPACEID ws_id = use_hovered ? try_get_hover_id() : monitor->m_activeWorkspace->m_id;
-    PHLWORKSPACE workspace = use_hovered ? layout->get_workspace_from_layout(ws_id)
+    PHLWORKSPACE workspace = use_hovered ? layout->get_or_create_workspace_from_layout(ws_id)
                                          : monitor->m_activeWorkspace;
     if (workspace == nullptr)
         return;
@@ -146,7 +146,7 @@ void HTView::move_id(WORKSPACEID ws_id, bool move_window) {
         should_move = false;
 
     layout->build_overview_layout(HT_VIEW_CLOSED);
-    PHLWORKSPACE other_workspace = layout->get_workspace_from_layout(ws_id);
+    PHLWORKSPACE other_workspace = layout->get_or_create_workspace_from_layout(ws_id);
     if (other_workspace == nullptr)
         return;
 
