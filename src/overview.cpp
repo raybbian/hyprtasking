@@ -70,12 +70,13 @@ void HTView::do_exit_behavior(bool exit_on_mouse) {
             const Vector2D mouse_coords = g_pInputManager->getMouseCoordsInternal();
             const SP<HTLayoutGrid> grid_layout = Hyprutils::Memory::dynamicPointerCast<HTLayoutGrid, HTLayoutBase>(layout);
             if (grid_layout != nullptr) {
-                const auto [cell_x, cell_y] = grid_layout->get_grid_cell_from_global(mouse_coords);
-                if (cell_x >= 0 && cell_y >= 0) {
+                const auto [cell_x, cell_y, cell_layer] = grid_layout->get_grid_cell_from_global(mouse_coords);
+                if (cell_x >= 0 && cell_y >= 0 && cell_layer >= 0) {
+                    grid_layout->layer = cell_layer;
                     const int ROWS = HTConfig::value<Hyprlang::INT>("grid:rows");
                     const int COLS = HTConfig::value<Hyprlang::INT>("grid:cols");
                     const int ws_per_layer = std::max(1, ROWS * COLS);
-                    const int target_slot = grid_layout->layer * ws_per_layer + cell_y * COLS + cell_x;
+                    const int target_slot = cell_layer * ws_per_layer + cell_y * COLS + cell_x;
 
                     WORKSPACEID next_id = 1;
                     for (PHLWORKSPACE ws : g_pCompositor->getWorkspacesCopy()) {

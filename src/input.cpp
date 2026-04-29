@@ -33,12 +33,13 @@ bool HTManager::start_window_drag() {
     if (cursor_workspace == nullptr && workspace_id == WORKSPACE_INVALID) {
         const SP<HTLayoutGrid> grid_layout = Hyprutils::Memory::dynamicPointerCast<HTLayoutGrid, HTLayoutBase>(cursor_view->layout);
         if (grid_layout != nullptr && cursor_monitor->logicalBox().containsPoint(mouse_coords)) {
-            const auto [cell_x, cell_y] = grid_layout->get_grid_cell_from_global(mouse_coords);
-            if (cell_x >= 0 && cell_y >= 0) {
+            const auto [cell_x, cell_y, cell_layer] = grid_layout->get_grid_cell_from_global(mouse_coords);
+            if (cell_x >= 0 && cell_y >= 0 && cell_layer >= 0) {
+                grid_layout->layer = cell_layer;
                 const int ROWS = HTConfig::value<Hyprlang::INT>("grid:rows");
                 const int COLS = HTConfig::value<Hyprlang::INT>("grid:cols");
                 const int ws_per_layer = std::max(1, ROWS * COLS);
-                const int target_slot = grid_layout->layer * ws_per_layer + cell_y * COLS + cell_x;
+                const int target_slot = cell_layer * ws_per_layer + cell_y * COLS + cell_x;
                 WORKSPACEID next_id = 1;
                 for (PHLWORKSPACE ws : g_pCompositor->getWorkspacesCopy()) {
                     if (ws != nullptr && !ws->m_isSpecialWorkspace && ws->m_id >= next_id) {
@@ -163,37 +164,36 @@ bool HTManager::end_window_drag() {
                     cursor_workspace->m_id
                 );
             } else {
-                const auto [cell_x, cell_y] = grid_layout->get_grid_cell_from_global(mouse_coords);
-                if (cell_x < 0 || cell_y < 0) {
-                    g_pKeybindManager->changeMouseBindMode(MBIND_INVALID);
-                    return false;
-                }
+                const auto [cell_x, cell_y, cell_layer] = grid_layout->get_grid_cell_from_global(mouse_coords);
+                if (cell_x >= 0 && cell_y >= 0 && cell_layer >= 0) {
+                    grid_layout->layer = cell_layer;
 
-                const int ROWS = HTConfig::value<Hyprlang::INT>("grid:rows");
-                const int COLS = HTConfig::value<Hyprlang::INT>("grid:cols");
-                const int ws_per_layer = std::max(1, ROWS * COLS);
-                const int target_slot = grid_layout->layer * ws_per_layer + cell_y * COLS + cell_x;
+                    const int ROWS = HTConfig::value<Hyprlang::INT>("grid:rows");
+                    const int COLS = HTConfig::value<Hyprlang::INT>("grid:cols");
+                    const int ws_per_layer = std::max(1, ROWS * COLS);
+                    const int target_slot = cell_layer * ws_per_layer + cell_y * COLS + cell_x;
 
-                WORKSPACEID next_id = 1;
-                for (PHLWORKSPACE ws : g_pCompositor->getWorkspacesCopy()) {
-                    if (ws != nullptr && !ws->m_isSpecialWorkspace && ws->m_id >= next_id) {
-                        next_id = ws->m_id + 1;
+                    WORKSPACEID next_id = 1;
+                    for (PHLWORKSPACE ws : g_pCompositor->getWorkspacesCopy()) {
+                        if (ws != nullptr && !ws->m_isSpecialWorkspace && ws->m_id >= next_id) {
+                            next_id = ws->m_id + 1;
+                        }
                     }
-                }
 
-                cursor_workspace = g_pCompositor->createNewWorkspace(next_id, cursor_monitor->m_id, "", false);
-                if (cursor_workspace != nullptr) {
-                    grid_layout->pin_workspace_to_slot(next_id, target_slot);
-                    Log::logger->log(
-                        LOG,
-                        "[Hyprtasking] Created workspace {} at slot ({}, {}) for drop",
-                        next_id,
-                        cell_x,
-                        cell_y
-                    );
-                } else {
-                    g_pKeybindManager->changeMouseBindMode(MBIND_INVALID);
-                    return false;
+                    cursor_workspace = g_pCompositor->createNewWorkspace(next_id, cursor_monitor->m_id, "", false);
+                    if (cursor_workspace != nullptr) {
+                        grid_layout->pin_workspace_to_slot(next_id, target_slot);
+                        Log::logger->log(
+                            LOG,
+                            "[Hyprtasking] Created workspace {} at slot ({}, {}) for drop",
+                            next_id,
+                            cell_x,
+                            cell_y
+                        );
+                    } else {
+                        g_pKeybindManager->changeMouseBindMode(MBIND_INVALID);
+                        return false;
+                    }
                 }
             }
         } else {

@@ -23,6 +23,7 @@
 
 #include "config.hpp"
 #include "globals.hpp"
+#include "layout/grid.hpp"
 #include "overview.hpp"
 #include "types.hpp"
 
@@ -192,18 +193,16 @@ static SDispatchResult change_layer(std::string arg, bool move_window) {
     if (active_it == cursor_view->layout->overview_layout.end())
         return {.success = false, .error = "active workspace not in layout"};
 
-    const int target_cell = active_it->second.y * COLS + active_it->second.x;
+    const int source_cell = active_it->second.y * COLS + active_it->second.x;
 
     const std::vector<PHLWORKSPACE> monitor_workspaces = cursor_view->layout->get_monitor_workspaces();
     if (monitor_workspaces.empty())
         return {};
 
     const int configured_layers = std::max(1, LAYERS);
-    const int needed_layers = std::max(
-        1,
-        (int)(monitor_workspaces.size() + ws_per_layer - 1) / ws_per_layer
-    );
-    const int effective_layers = std::max(configured_layers, needed_layers);
+    const int needed_layers = std::max(1, (int)(monitor_workspaces.size() + ws_per_layer - 1) / ws_per_layer);
+    // Allow navigation up to configured_layers even if they're empty
+    const int effective_layers = std::max({configured_layers, needed_layers, resulting_layer + 1});
 
     if (resulting_layer >= effective_layers || resulting_layer < 0) {
         if (!LOOP_LAYERS)
@@ -211,17 +210,43 @@ static SDispatchResult change_layer(std::string arg, bool move_window) {
         resulting_layer = (resulting_layer + effective_layers) % effective_layers;
     }
 
-    const int target_page_start = resulting_layer * ws_per_layer;
-    if (target_page_start >= (int)monitor_workspaces.size())
-        return {};
-
-    const int target_index = std::min(
-        target_page_start + target_cell,
-        (int)monitor_workspaces.size() - 1
-    );
-    const WORKSPACEID target_ws_id = monitor_workspaces[target_index]->m_id;
-
     set_layer(cursor_view, resulting_layer);
+    cursor_view->layout->build_overview_layout(HT_VIEW_CLOSED);
+
+    WORKSPACEID target_ws_id = WORKSPACE_INVALID;
+    for (const auto& [ws_id, ws_layout] : cursor_view->layout->overview_layout) {
+        if (ws_layout.y * COLS + ws_layout.x == source_cell) {
+            target_ws_id = ws_id;
+            break;
+        }
+    }
+
+    if (target_ws_id == WORKSPACE_INVALID) {
+        const SP<HTLayoutGrid> grid_layout = Hyprutils::Memory::dynamicPointerCast<HTLayoutGrid, HTLayoutBase>(cursor_view->layout);
+        if (grid_layout == nullptr) {
+            set_layer(cursor_view, original_layer);
+            cursor_view->layout->build_overview_layout(HT_VIEW_CLOSED);
+            return {};
+        }
+
+        WORKSPACEID next_id = 1;
+        for (PHLWORKSPACE ws : g_pCompositor->getWorkspacesCopy()) {
+            if (ws != nullptr && !ws->m_isSpecialWorkspace && ws->m_id >= next_id) {
+                next_id = ws->m_id + 1;
+            }
+        }
+
+        const PHLWORKSPACE new_workspace = g_pCompositor->createNewWorkspace(next_id, monitor->m_id, "", false);
+        if (new_workspace == nullptr) {
+            set_layer(cursor_view, original_layer);
+            cursor_view->layout->build_overview_layout(HT_VIEW_CLOSED);
+            return {};
+        }
+
+        const int target_slot = resulting_layer * ws_per_layer + source_cell;
+        grid_layout->pin_workspace_to_slot(next_id, target_slot);
+        target_ws_id = next_id;
+    }
 
     cursor_view->move_id(target_ws_id, move_window);
     return {};

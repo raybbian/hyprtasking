@@ -22,7 +22,7 @@ class HTLayoutGrid: public HTLayoutBase {
     void pin_workspace_to_slot(WORKSPACEID ws_id, int slot);
     void unpin_workspace(WORKSPACEID ws_id);
 
-    std::pair<int, int> get_grid_cell_from_global(Vector2D pos);
+    std::tuple<int, int, int> get_grid_cell_from_global(Vector2D pos);
 
     virtual std::string layout_name();
 
