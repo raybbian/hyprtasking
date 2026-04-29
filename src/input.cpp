@@ -114,26 +114,46 @@ bool HTManager::end_window_drag() {
     PHLWORKSPACE cursor_workspace = cursor_view->layout->get_workspace_from_layout(workspace_id);
 
     if (workspace_id == WORKSPACE_INVALID) {
-        cursor_workspace = dragged_window->m_workspace;
-        if (cursor_workspace == nullptr
-            || cursor_view->layout->get_workspace_from_layout(cursor_workspace->m_id) == nullptr) {
-            cursor_workspace = nullptr;
+        if (cursor_monitor->logicalBox().containsPoint(mouse_coords)) {
+            WORKSPACEID next_id = 1;
+            for (PHLWORKSPACE ws : g_pCompositor->getWorkspacesCopy()) {
+                if (ws != nullptr && !ws->m_isSpecialWorkspace && ws->m_id >= next_id) {
+                    next_id = ws->m_id + 1;
+                }
+            }
+
+            cursor_workspace = g_pCompositor->createNewWorkspace(next_id, cursor_monitor->m_id, "", false);
+            if (cursor_workspace != nullptr) {
+                Log::logger->log(
+                    LOG,
+                    "[Hyprtasking] Created workspace {} for drop on empty cell",
+                    next_id
+                );
+            } else {
+                g_pKeybindManager->changeMouseBindMode(MBIND_INVALID);
+                return false;
+            }
+        } else {
+            cursor_workspace = dragged_window->m_workspace;
+            if (cursor_workspace == nullptr
+                || cursor_view->layout->get_workspace_from_layout(cursor_workspace->m_id) == nullptr) {
+                cursor_workspace = nullptr;
+            }
+
+            if (cursor_workspace == nullptr) {
+                g_pKeybindManager->changeMouseBindMode(MBIND_INVALID);
+                return false;
+            }
+
+            use_mouse_coords = cursor_view->layout->get_global_ws_box(cursor_workspace->m_id)
+                                   .closestPoint(use_mouse_coords);
+
+            Log::logger->log(
+                LOG,
+                "[Hyprtasking] Dragging to invalid position, snapping to last ws {}",
+                cursor_workspace->m_id
+            );
         }
-
-        if (cursor_workspace == nullptr) {
-            g_pKeybindManager->changeMouseBindMode(MBIND_INVALID);
-            return false;
-        }
-
-        // Ensure that the mouse coords are snapped to inside the workspace box itself
-        use_mouse_coords = cursor_view->layout->get_global_ws_box(cursor_workspace->m_id)
-                               .closestPoint(use_mouse_coords);
-
-        Log::logger->log(
-            LOG,
-            "[Hyprtasking] Dragging to invalid position, snapping to last ws {}",
-            cursor_workspace->m_id
-        );
     }
 
     if (cursor_workspace == nullptr) {

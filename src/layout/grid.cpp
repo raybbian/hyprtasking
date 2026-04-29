@@ -406,73 +406,103 @@ void HTLayoutGrid::render() {
 
     build_overview_layout(HT_VIEW_ANIMATING);
 
-    CBox global_mon_box = {monitor->m_position, monitor->m_transformedSize};
+    const int ROWS = HTConfig::value<Hyprlang::INT>("grid:rows");
+    const int COLS = HTConfig::value<Hyprlang::INT>("grid:cols");
+
+    std::unordered_map<int, WORKSPACEID> grid_to_ws;
     for (const auto& [ws_id, ws_layout] : overview_layout) {
-        // Skip if the box is empty
-        if (ws_layout.box.width < 0.01 || ws_layout.box.height < 0.01)
-            continue;
+        grid_to_ws[ws_layout.y * COLS + ws_layout.x] = ws_id;
+    }
 
-        // Could be nullptr, in which we render only layers
-        const PHLWORKSPACE workspace = get_workspace_from_layout(ws_id);
+    CBox global_mon_box = {monitor->m_position, monitor->m_transformedSize};
+    for (int y = 0; y < ROWS; y++) {
+        for (int x = 0; x < COLS; x++) {
+            const int grid_key = y * COLS + x;
+            const bool has_ws = grid_to_ws.contains(grid_key);
 
-        // renderModif translation used by renderWorkspace is weird so need
-        // to scale the translation up as well. Geometry is also calculated from pixel size and not transformed size??
-        CBox render_box = {{ws_layout.box.pos() / scale->value()}, ws_layout.box.size()};
-        if (monitor->m_transform % 2 == 1)
-            std::swap(render_box.w, render_box.h);
+            CBox ws_box;
+            WORKSPACEID ws_id = WORKSPACE_INVALID;
+            if (has_ws) {
+                ws_id = grid_to_ws[grid_key];
+                const auto& ws_layout = overview_layout[ws_id];
+                ws_box = ws_layout.box;
+            } else {
+                ws_box = calculate_ws_box(x, y, HT_VIEW_ANIMATING);
+            }
 
-        // render active one last
-        if (workspace == start_workspace && start_workspace != nullptr)
-            continue;
+            if (ws_box.width < 0.01 || ws_box.height < 0.01)
+                continue;
 
-        CBox global_box = {ws_layout.box.pos() + monitor->m_position, ws_layout.box.size()};
-        if (global_box.expand(BORDERSIZE).intersection(global_mon_box).empty())
-            continue;
+            // renderModif translation used by renderWorkspace is weird so need
+            // to scale the translation up as well. Geometry is also calculated from pixel size and not transformed size??
+            CBox render_box = {{ws_box.pos() / scale->value()}, ws_box.size()};
+            if (monitor->m_transform % 2 == 1)
+                std::swap(render_box.w, render_box.h);
 
-        const CGradientValueData border_col =
-            start_workspace->m_id == ws_id ? *ACTIVECOL : *INACTIVECOL;
-        CBox border_box = ws_layout.box;
+            // render active one last
+            if (has_ws && ws_id == start_workspace->m_id && start_workspace != nullptr)
+                continue;
 
-        CBorderPassElement::SBorderData data;
-        data.box = border_box;
-        data.grad1 = border_col;
-        data.borderSize = BORDERSIZE;
-        g_pHyprRenderer->m_renderPass.add(makeUnique<CBorderPassElement>(data));
+            CBox global_box = {ws_box.pos() + monitor->m_position, ws_box.size()};
+            if (global_box.expand(BORDERSIZE).intersection(global_mon_box).empty())
+                continue;
 
-        if (workspace != nullptr) {
-            monitor->m_activeWorkspace = workspace;
-            g_pDesktopAnimationManager->startAnimation(
-                workspace,
-                CDesktopAnimationManager::ANIMATION_TYPE_IN,
-                false,
-                true
-            );
-            workspace->m_visible = true;
+            const CGradientValueData border_col =
+                (has_ws && start_workspace->m_id == ws_id) ? *ACTIVECOL : *INACTIVECOL;
+            CBox border_box = ws_box;
 
-            ((render_workspace_t)(render_workspace_hook->m_original))(
-                g_pHyprRenderer.get(),
-                monitor,
-                workspace,
-                time,
-                render_box
-            );
+            CBorderPassElement::SBorderData data;
+            data.box = border_box;
+            data.grad1 = border_col;
+            data.borderSize = BORDERSIZE;
+            g_pHyprRenderer->m_renderPass.add(makeUnique<CBorderPassElement>(data));
 
-            g_pDesktopAnimationManager->startAnimation(
-                workspace,
-                CDesktopAnimationManager::ANIMATION_TYPE_OUT,
-                false,
-                true
-            );
-            workspace->m_visible = false;
-        } else {
-            // If pWorkspace is null, then just render the layers
-            ((render_workspace_t)(render_workspace_hook->m_original))(
-                g_pHyprRenderer.get(),
-                monitor,
-                workspace,
-                time,
-                render_box
-            );
+            if (has_ws) {
+                const PHLWORKSPACE workspace = get_workspace_from_layout(ws_id);
+
+                if (workspace != nullptr) {
+                    monitor->m_activeWorkspace = workspace;
+                    g_pDesktopAnimationManager->startAnimation(
+                        workspace,
+                        CDesktopAnimationManager::ANIMATION_TYPE_IN,
+                        false,
+                        true
+                    );
+                    workspace->m_visible = true;
+
+                    ((render_workspace_t)(render_workspace_hook->m_original))(
+                        g_pHyprRenderer.get(),
+                        monitor,
+                        workspace,
+                        time,
+                        render_box
+                    );
+
+                    g_pDesktopAnimationManager->startAnimation(
+                        workspace,
+                        CDesktopAnimationManager::ANIMATION_TYPE_OUT,
+                        false,
+                        true
+                    );
+                    workspace->m_visible = false;
+                } else {
+                    ((render_workspace_t)(render_workspace_hook->m_original))(
+                        g_pHyprRenderer.get(),
+                        monitor,
+                        workspace,
+                        time,
+                        render_box
+                    );
+                }
+            } else {
+                ((render_workspace_t)(render_workspace_hook->m_original))(
+                    g_pHyprRenderer.get(),
+                    monitor,
+                    nullptr,
+                    time,
+                    render_box
+                );
+            }
         }
     }
 
