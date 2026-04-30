@@ -471,6 +471,8 @@ void HTLayoutGrid::build_overview_layout(HTViewStage stage) {
             if (slot >= 0 && slot < total_slots && slot_to_ws[slot] == WORKSPACE_INVALID) {
                 slot_to_ws[slot] = workspace->m_id;
                 ws_to_slot[workspace->m_id] = slot;
+            } else {
+                pinned_positions.erase(pin_it);
             }
         }
     }
@@ -482,9 +484,6 @@ void HTLayoutGrid::build_overview_layout(HTViewStage stage) {
         if (ws_to_slot.contains(workspace->m_id))
             continue;
 
-        if (pinned_positions.contains(workspace->m_id))
-            continue;
-
         while (next_free < total_slots && slot_to_ws[next_free] != WORKSPACE_INVALID)
             ++next_free;
 
@@ -493,6 +492,7 @@ void HTLayoutGrid::build_overview_layout(HTViewStage stage) {
 
         slot_to_ws[next_free] = workspace->m_id;
         ws_to_slot[workspace->m_id] = next_free;
+        pinned_positions[workspace->m_id] = next_free;
         ++next_free;
     }
 
