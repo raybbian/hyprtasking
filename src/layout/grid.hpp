@@ -18,6 +18,7 @@ class HTLayoutGrid: public HTLayoutBase {
     virtual ~HTLayoutGrid() = default;
 
     std::unordered_map<WORKSPACEID, int> pinned_positions;
+    int last_layer_cell = 0;
 
     void pin_workspace_to_slot(WORKSPACEID ws_id, int slot);
     void unpin_workspace(WORKSPACEID ws_id);

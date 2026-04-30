@@ -204,6 +204,16 @@ void HTView::move_id(WORKSPACEID ws_id, bool move_window) {
     }
     warp_window(warp, hovered_window);
 
+    if (active) {
+        Log::logger->log(
+            LOG,
+            "[Hyprtasking] move_id changed active view from workspace {} to {} without navigation animation",
+            active_workspace->m_id,
+            other_workspace->m_id
+        );
+        return;
+    }
+
     navigating = true;
     layout->on_move(active_workspace->m_id, other_workspace->m_id, [this](auto self) {
         navigating = false;
@@ -229,9 +239,28 @@ void HTView::move(std::string arg, bool move_window) {
         move_window ? hovered_window->workspaceID() : active_workspace->m_id;
     layout->build_overview_layout(HT_VIEW_CLOSED);
     const auto ws_layout_it = layout->overview_layout.find(source_ws_id);
-    if (ws_layout_it == layout->overview_layout.end())
-        return;
-    const auto ws_layout = ws_layout_it->second;
+    HTLayoutBase::HTWorkspace ws_layout;
+    if (ws_layout_it == layout->overview_layout.end()) {
+        const SP<HTLayoutGrid> grid_layout = Hyprutils::Memory::dynamicPointerCast<HTLayoutGrid, HTLayoutBase>(layout);
+        if (grid_layout == nullptr || !active)
+            return;
+
+        const int ROWS = HTConfig::value<Hyprlang::INT>("grid:rows");
+        const int COLS = HTConfig::value<Hyprlang::INT>("grid:cols");
+        const int cell = grid_layout->last_layer_cell;
+        if (cell < 0 || cell >= ROWS * COLS)
+            return;
+
+        ws_layout.x = cell % COLS;
+        ws_layout.y = cell / COLS;
+    } else {
+        ws_layout = ws_layout_it->second;
+        const SP<HTLayoutGrid> grid_layout = Hyprutils::Memory::dynamicPointerCast<HTLayoutGrid, HTLayoutBase>(layout);
+        if (grid_layout != nullptr) {
+            const int COLS = HTConfig::value<Hyprlang::INT>("grid:cols");
+            grid_layout->last_layer_cell = ws_layout.y * COLS + ws_layout.x;
+        }
+    }
     const WORKSPACEID id = layout->get_ws_id_in_direction(ws_layout.x, ws_layout.y, arg);
 
     if (id == WORKSPACE_INVALID && layout->layout_name() == "grid") {

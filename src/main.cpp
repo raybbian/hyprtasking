@@ -20,6 +20,7 @@
 #include <hyprutils/math/Vector2D.hpp>
 
 #include <algorithm>
+#include <fstream>
 
 #include "config.hpp"
 #include "globals.hpp"
@@ -61,6 +62,12 @@ static SDispatchResult dispatch_if(std::string arg, bool is_active) {
     );
 
     return res;
+}
+
+static void debug_setlayer_log(const std::string& message) {
+    std::ofstream log_file("/tmp/hyprtasking-setlayer.log", std::ios::app);
+    if (log_file.is_open())
+        log_file << message << '\n';
 }
 
 static SDispatchResult dispatch_if_not_active(std::string arg) {
@@ -171,14 +178,6 @@ static SDispatchResult change_layer(std::string arg, bool move_window) {
     const int LAYERS = HTConfig::value<Hyprlang::INT>("grid:layers");
     const int LOOP_LAYERS = HTConfig::value<Hyprlang::INT>("grid:loop_layers");
     const int ws_per_layer = std::max(1, ROWS * COLS);
-    const int original_layer = cursor_view->layout->layer;
-
-    int resulting_layer = original_layer;
-    if (arg[0] == '+' || arg[0] == '-') {
-        resulting_layer += std::stoi(arg);
-    } else {
-        resulting_layer = std::stoi(arg);
-    }
 
     const PHLMONITOR monitor = cursor_view->get_monitor();
     if (monitor == nullptr)
@@ -188,47 +187,125 @@ static SDispatchResult change_layer(std::string arg, bool move_window) {
         return {.success = false, .error = "active_workspace is null"};
     const WORKSPACEID source_ws_id = active_workspace->m_id;
 
+    if (!cursor_view->active)
+        cursor_view->layout->init_position();
+
     cursor_view->layout->build_overview_layout(HT_VIEW_CLOSED);
     const auto active_it = cursor_view->layout->overview_layout.find(source_ws_id);
-    if (active_it == cursor_view->layout->overview_layout.end())
+    if (active_it == cursor_view->layout->overview_layout.end() && !cursor_view->active)
         return {.success = false, .error = "active workspace not in layout"};
 
-    const int source_cell = active_it->second.y * COLS + active_it->second.x;
+    const int original_layer = cursor_view->layout->layer;
+    const std::string layer_arg = arg.empty() ? "+1" : arg;
+    int resulting_layer = original_layer;
+    if (layer_arg[0] == '+' || layer_arg[0] == '-') {
+        resulting_layer += std::stoi(layer_arg);
+    } else {
+        resulting_layer = std::stoi(layer_arg);
+    }
+
+    int source_cell = 0;
+    if (active_it != cursor_view->layout->overview_layout.end()) {
+        source_cell = active_it->second.y * COLS + active_it->second.x;
+    } else {
+        const SP<HTLayoutGrid> grid_layout = Hyprutils::Memory::dynamicPointerCast<HTLayoutGrid, HTLayoutBase>(cursor_view->layout);
+        if (grid_layout != nullptr)
+            source_cell = grid_layout->last_layer_cell;
+        debug_setlayer_log(std::format(
+            "setlayer active_source_fallback monitor={} source_ws={} source_cell={}",
+            monitor->m_name,
+            source_ws_id,
+            source_cell
+        ));
+    }
 
     const std::vector<PHLWORKSPACE> monitor_workspaces = cursor_view->layout->get_monitor_workspaces();
     if (monitor_workspaces.empty())
         return {};
 
+    const SP<HTLayoutGrid> grid_layout = Hyprutils::Memory::dynamicPointerCast<HTLayoutGrid, HTLayoutBase>(cursor_view->layout);
+    if (grid_layout == nullptr)
+        return {.success = false, .error = "grid layout is null"};
+
+    grid_layout->last_layer_cell = source_cell;
+
     const int configured_layers = std::max(1, LAYERS);
     const int needed_layers = std::max(1, (int)(monitor_workspaces.size() + ws_per_layer - 1) / ws_per_layer);
-    // Allow navigation up to configured_layers even if they're empty
-    const int effective_layers = std::max({configured_layers, needed_layers, resulting_layer + 1});
+    const int effective_layers = std::max(configured_layers, needed_layers);
 
     if (resulting_layer >= effective_layers || resulting_layer < 0) {
         if (!LOOP_LAYERS)
             return {};
-        resulting_layer = (resulting_layer + effective_layers) % effective_layers;
+        resulting_layer = ((resulting_layer % effective_layers) + effective_layers) % effective_layers;
+    }
+
+    Log::logger->log(
+        LOG,
+        "[Hyprtasking] setlayer arg={} monitor={} active={} source_ws={} original_layer={} target_layer={} source_cell={} effective_layers={} active_view={} navigating={}",
+        layer_arg,
+        monitor->m_name,
+        active_workspace->m_id,
+        source_ws_id,
+        original_layer,
+        resulting_layer,
+        source_cell,
+        effective_layers,
+        cursor_view->active,
+        cursor_view->navigating
+    );
+    debug_setlayer_log(std::format(
+        "setlayer arg={} monitor={} active={} source_ws={} original_layer={} target_layer={} source_cell={} effective_layers={} active_view={} navigating={}",
+        layer_arg,
+        monitor->m_name,
+        active_workspace->m_id,
+        source_ws_id,
+        original_layer,
+        resulting_layer,
+        source_cell,
+        effective_layers,
+        cursor_view->active,
+        cursor_view->navigating
+    ));
+
+    WORKSPACEID target_ws_id = WORKSPACE_INVALID;
+    const int target_slot = resulting_layer * ws_per_layer + source_cell;
+
+    for (const auto& [ws_id, ws_layout] : cursor_view->layout->overview_layout) {
+        const int slot = original_layer * ws_per_layer + ws_layout.y * COLS + ws_layout.x;
+        grid_layout->pin_workspace_to_slot(ws_id, slot);
+    }
+
+    if (cursor_view->active) {
+        set_layer(cursor_view, resulting_layer);
+        cursor_view->layout->build_overview_layout(HT_VIEW_CLOSED);
+        g_pHyprRenderer->damageMonitor(monitor);
+        g_pCompositor->scheduleFrameForMonitor(monitor);
+        grid_layout->last_layer_cell = source_cell;
+        debug_setlayer_log(std::format("setlayer active_layer_only target_layer={} target_slot={}", resulting_layer, target_slot));
+        return {};
     }
 
     set_layer(cursor_view, resulting_layer);
     cursor_view->layout->build_overview_layout(HT_VIEW_CLOSED);
+    target_ws_id = cursor_view->layout->get_ws_id_from_xy(source_cell % COLS, source_cell / COLS);
 
-    WORKSPACEID target_ws_id = WORKSPACE_INVALID;
-    for (const auto& [ws_id, ws_layout] : cursor_view->layout->overview_layout) {
-        if (ws_layout.y * COLS + ws_layout.x == source_cell) {
-            target_ws_id = ws_id;
-            break;
-        }
-    }
+    Log::logger->log(
+        LOG,
+        "[Hyprtasking] setlayer target lookup slot={} x={} y={} found_ws={}",
+        target_slot,
+        source_cell % COLS,
+        source_cell / COLS,
+        target_ws_id
+    );
+    debug_setlayer_log(std::format(
+        "setlayer target_lookup slot={} x={} y={} found_ws={}",
+        target_slot,
+        source_cell % COLS,
+        source_cell / COLS,
+        target_ws_id
+    ));
 
     if (target_ws_id == WORKSPACE_INVALID) {
-        const SP<HTLayoutGrid> grid_layout = Hyprutils::Memory::dynamicPointerCast<HTLayoutGrid, HTLayoutBase>(cursor_view->layout);
-        if (grid_layout == nullptr) {
-            set_layer(cursor_view, original_layer);
-            cursor_view->layout->build_overview_layout(HT_VIEW_CLOSED);
-            return {};
-        }
-
         WORKSPACEID next_id = 1;
         for (PHLWORKSPACE ws : g_pCompositor->getWorkspacesCopy()) {
             if (ws != nullptr && !ws->m_isSpecialWorkspace && ws->m_id >= next_id) {
@@ -243,11 +320,40 @@ static SDispatchResult change_layer(std::string arg, bool move_window) {
             return {};
         }
 
-        const int target_slot = resulting_layer * ws_per_layer + source_cell;
         grid_layout->pin_workspace_to_slot(next_id, target_slot);
         target_ws_id = next_id;
+        Log::logger->log(LOG, "[Hyprtasking] setlayer created workspace {} for slot {}", target_ws_id, target_slot);
+        debug_setlayer_log(std::format("setlayer created workspace={} slot={}", target_ws_id, target_slot));
+    } else {
+        grid_layout->pin_workspace_to_slot(target_ws_id, target_slot);
+        Log::logger->log(LOG, "[Hyprtasking] setlayer pinned existing workspace {} to slot {}", target_ws_id, target_slot);
+        debug_setlayer_log(std::format("setlayer pinned workspace={} slot={}", target_ws_id, target_slot));
     }
 
+    cursor_view->layout->build_overview_layout(HT_VIEW_CLOSED);
+    if (!cursor_view->active) {
+        const PHLWORKSPACE target_workspace = cursor_view->layout->get_workspace_from_layout(target_ws_id);
+        if (target_workspace == nullptr) {
+            set_layer(cursor_view, original_layer);
+            cursor_view->layout->build_overview_layout(HT_VIEW_CLOSED);
+            return {};
+        }
+
+        if (move_window) {
+            const PHLWINDOW hovered_window = ht_manager->get_window_from_cursor();
+            if (hovered_window != nullptr)
+                g_pCompositor->moveWindowToWorkspaceSafe(hovered_window, target_workspace);
+        }
+
+        monitor->changeWorkspace(target_workspace);
+        cursor_view->layout->on_move(source_ws_id, target_ws_id);
+        Log::logger->log(LOG, "[Hyprtasking] setlayer changed closed view to workspace {}", target_ws_id);
+        debug_setlayer_log(std::format("setlayer closed_change target_ws={}", target_ws_id));
+        return {};
+    }
+
+    Log::logger->log(LOG, "[Hyprtasking] setlayer moving active view to workspace {}", target_ws_id);
+    debug_setlayer_log(std::format("setlayer active_move target_ws={}", target_ws_id));
     cursor_view->move_id(target_ws_id, move_window);
     return {};
 }
