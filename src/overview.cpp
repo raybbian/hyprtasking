@@ -267,6 +267,9 @@ void HTView::move(std::string arg, bool move_window) {
         const SP<HTLayoutGrid> grid_layout = Hyprutils::Memory::dynamicPointerCast<HTLayoutGrid, HTLayoutBase>(layout);
         if (grid_layout != nullptr) {
             int x = ws_layout.x, y = ws_layout.y;
+            const int LOOP = HTConfig::value<Hyprlang::INT>("grid:loop");
+            const int ROWS = HTConfig::value<Hyprlang::INT>("grid:rows");
+            const int COLS = HTConfig::value<Hyprlang::INT>("grid:cols");
             if (arg == "up") {
                 y--;
             } else if (arg == "down") {
@@ -276,8 +279,10 @@ void HTView::move(std::string arg, bool move_window) {
             } else if (arg == "left") {
                 x--;
             }
-            const int ROWS = HTConfig::value<Hyprlang::INT>("grid:rows");
-            const int COLS = HTConfig::value<Hyprlang::INT>("grid:cols");
+            if (LOOP) {
+                x = (x + COLS) % COLS;
+                y = (y + ROWS) % ROWS;
+            }
             if (x >= 0 && x < COLS && y >= 0 && y < ROWS) {
                 const int ws_per_layer = std::max(1, ROWS * COLS);
                 const int target_slot = grid_layout->layer * ws_per_layer + y * COLS + x;

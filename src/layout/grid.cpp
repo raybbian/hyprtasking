@@ -451,7 +451,7 @@ void HTLayoutGrid::build_overview_layout(HTViewStage stage) {
 
     for (auto it = pinned_positions.begin(); it != pinned_positions.end(); ) {
         const PHLWORKSPACE workspace = g_pCompositor->getWorkspaceByID(it->first);
-        if (!is_monitor_workspace(workspace))
+        if (workspace == nullptr || workspace->inert() || workspace->m_isSpecialWorkspace)
             it = pinned_positions.erase(it);
         else
             ++it;
@@ -459,7 +459,24 @@ void HTLayoutGrid::build_overview_layout(HTViewStage stage) {
 
     const int total_slots = effective_layers * ws_per_layer;
     std::vector<WORKSPACEID> slot_to_ws(total_slots, WORKSPACE_INVALID);
+    std::vector<bool> slot_occupied(total_slots, false);
     std::unordered_map<WORKSPACEID, int> ws_to_slot;
+
+    std::vector<std::pair<WORKSPACEID, int>> pinned_slots;
+    pinned_slots.reserve(pinned_positions.size());
+    for (const auto& [ws_id, slot] : pinned_positions)
+        pinned_slots.emplace_back(ws_id, slot);
+
+    std::ranges::sort(pinned_slots, [](const auto& lhs, const auto& rhs) {
+        if (lhs.second != rhs.second)
+            return lhs.second < rhs.second;
+        return lhs.first < rhs.first;
+    });
+
+    for (const auto& [ws_id, slot] : pinned_slots) {
+        if (slot >= 0 && slot < total_slots && !slot_occupied[slot])
+            slot_occupied[slot] = true;
+    }
 
     for (PHLWORKSPACE workspace : workspaces) {
         if (workspace == nullptr)
@@ -484,13 +501,14 @@ void HTLayoutGrid::build_overview_layout(HTViewStage stage) {
         if (ws_to_slot.contains(workspace->m_id))
             continue;
 
-        while (next_free < total_slots && slot_to_ws[next_free] != WORKSPACE_INVALID)
+        while (next_free < total_slots && slot_occupied[next_free])
             ++next_free;
 
         if (next_free >= total_slots)
             break;
 
         slot_to_ws[next_free] = workspace->m_id;
+        slot_occupied[next_free] = true;
         ws_to_slot[workspace->m_id] = next_free;
         pinned_positions[workspace->m_id] = next_free;
         ++next_free;
