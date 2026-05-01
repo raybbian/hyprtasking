@@ -253,18 +253,21 @@ static SDispatchResult change_layer(std::string arg, bool move_window) {
     PHLWORKSPACE target_workspace = nullptr;
 
     if (target_ws_id == WORKSPACE_INVALID) {
-        const PHLWORKSPACE new_workspace = create_workspace_for_monitor(monitor);
-        if (new_workspace == nullptr) {
-            set_layer(cursor_view, original_layer);
-            cursor_view->layout->build_overview_layout(HT_VIEW_CLOSED);
-            return {};
+        if (!move_window && can_reuse_empty_workspace(active_workspace, monitor)) {
+            target_workspace = active_workspace;
+        } else {
+            target_workspace = create_workspace_for_monitor(monitor);
+            if (target_workspace == nullptr) {
+                set_layer(cursor_view, original_layer);
+                cursor_view->layout->build_overview_layout(HT_VIEW_CLOSED);
+                return {};
+            }
         }
 
-        grid_layout->pin_workspace_to_slot(new_workspace->m_id, target_slot);
-        target_ws_id = new_workspace->m_id;
-        // createNewWorkspace can return before overview_layout sees the new ws,
-        // so keep the returned pointer instead of looking it up immediately.
-        target_workspace = new_workspace;
+        grid_layout->pin_workspace_to_slot(target_workspace->m_id, target_slot);
+        target_ws_id = target_workspace->m_id;
+        // Reused or newly created empty workspaces may not be in
+        // overview_layout yet, so keep the pointer instead of looking it up.
     } else {
         grid_layout->pin_workspace_to_slot(target_ws_id, target_slot);
         target_workspace = cursor_view->layout->get_workspace_from_layout(target_ws_id);

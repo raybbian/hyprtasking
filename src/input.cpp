@@ -41,7 +41,10 @@ bool HTManager::start_window_drag() {
                 const int COLS = HTConfig::value<Hyprlang::INT>("grid:cols");
                 const int ws_per_layer = std::max(1, ROWS * COLS);
                 const int target_slot = cell_layer * ws_per_layer + cell_y * COLS + cell_x;
-                cursor_workspace = create_workspace_for_monitor(cursor_monitor);
+                if (can_reuse_empty_workspace(cursor_monitor->m_activeWorkspace, cursor_monitor))
+                    cursor_workspace = cursor_monitor->m_activeWorkspace;
+                else
+                    cursor_workspace = create_workspace_for_monitor(cursor_monitor);
                 if (cursor_workspace != nullptr) {
                     grid_layout->pin_workspace_to_slot(cursor_workspace->m_id, target_slot);
                     workspace_id = cursor_workspace->m_id;

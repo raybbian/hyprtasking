@@ -79,13 +79,16 @@ void HTView::do_exit_behavior(bool exit_on_mouse) {
                     const int ws_per_layer = std::max(1, ROWS * COLS);
                     const int target_slot = cell_layer * ws_per_layer + cell_y * COLS + cell_x;
 
-                    workspace = create_workspace_for_monitor(monitor);
+                    if (can_reuse_empty_workspace(monitor->m_activeWorkspace, monitor))
+                        workspace = monitor->m_activeWorkspace;
+                    else
+                        workspace = create_workspace_for_monitor(monitor);
                     if (workspace != nullptr) {
                         grid_layout->pin_workspace_to_slot(workspace->m_id, target_slot);
                         ws_id = workspace->m_id;
                         Log::logger->log(
                             LOG,
-                            "[Hyprtasking] Created workspace {} at slot ({}, {}) on right-click exit",
+                            "[Hyprtasking] Using workspace {} at slot ({}, {}) on right-click exit",
                             workspace->m_id,
                             cell_x,
                             cell_y
@@ -290,7 +293,11 @@ void HTView::move(std::string arg, bool move_window) {
             if (x >= 0 && x < COLS && y >= 0 && y < ROWS) {
                 const int ws_per_layer = std::max(1, ROWS * COLS);
                 const int target_slot = grid_layout->layer * ws_per_layer + y * COLS + x;
-                PHLWORKSPACE new_ws = create_workspace_for_monitor(monitor);
+                PHLWORKSPACE new_ws = nullptr;
+                if (!move_window && can_reuse_empty_workspace(active_workspace, monitor))
+                    new_ws = active_workspace;
+                else
+                    new_ws = create_workspace_for_monitor(monitor);
                 if (new_ws != nullptr) {
                     grid_layout->pin_workspace_to_slot(new_ws->m_id, target_slot);
                     move_id(new_ws->m_id, move_window);
