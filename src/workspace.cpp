@@ -31,6 +31,8 @@ PHLWORKSPACE create_workspace_for_monitor(PHLMONITOR monitor) {
     if (monitor == nullptr)
         return nullptr;
 
+    // Remember only workspaces created by hyprtasking. Hyprland removes empty
+    // non-persistent workspaces, so this gives empty cells their old ID back.
     static std::unordered_map<MONITORID, std::vector<WORKSPACEID>> monitor_workspace_history;
 
     std::unordered_set<WORKSPACEID> used_ids;
@@ -44,6 +46,8 @@ PHLWORKSPACE create_workspace_for_monitor(PHLMONITOR monitor) {
             live_monitor_ids.insert(live_monitor->m_id);
     }
 
+    // Drop history for monitors that no longer exist so hotplugging does not
+    // reserve IDs forever for a stale monitor id.
     for (auto it = monitor_workspace_history.begin(); it != monitor_workspace_history.end(); ) {
         if (!live_monitor_ids.contains(it->first))
             it = monitor_workspace_history.erase(it);
@@ -65,6 +69,8 @@ PHLWORKSPACE create_workspace_for_monitor(PHLMONITOR monitor) {
 
     std::vector<WORKSPACEID>& remembered_ids = monitor_workspace_history[monitor->m_id];
 
+    // Do not let one monitor reuse another monitor's remembered empty ID. This
+    // keeps split/ranged monitor setups from stealing each other's slots.
     for (const auto& [monitor_id, ids] : monitor_workspace_history) {
         if (monitor_id == monitor->m_id)
             continue;
@@ -85,6 +91,8 @@ PHLWORKSPACE create_workspace_for_monitor(PHLMONITOR monitor) {
         if (workspace == nullptr)
             return nullptr;
 
+        // Workspace rules may redirect an ID to another monitor. In that case
+        // do not pin or remember it for this view.
         if (!is_workspace_on_monitor(workspace, monitor->m_id)) {
             created_wrong_monitor_workspace = true;
             return nullptr;
@@ -122,5 +130,7 @@ PHLWORKSPACE create_workspace_for_monitor(PHLMONITOR monitor) {
     while (used_ids.contains(next_id) || reserved_ids.contains(next_id))
         ++next_id;
 
+    // Last resort: keep the old max+1 behavior, but still avoid IDs reserved by
+    // another monitor's hyprtasking-created empty workspaces.
     return try_create(next_id);
 }
