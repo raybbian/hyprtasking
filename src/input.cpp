@@ -41,6 +41,8 @@ bool HTManager::start_window_drag() {
                 const int COLS = HTConfig::value<Hyprlang::INT>("grid:cols");
                 const int ws_per_layer = std::max(1, ROWS * COLS);
                 const int target_slot = cell_layer * ws_per_layer + cell_y * COLS + cell_x;
+                // Starting a drag from an empty cell should not force a new id
+                // when the active workspace is empty and can simply be reused.
                 if (can_reuse_empty_workspace(cursor_monitor->m_activeWorkspace, cursor_monitor))
                     cursor_workspace = cursor_monitor->m_activeWorkspace;
                 else

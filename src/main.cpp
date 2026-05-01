@@ -253,6 +253,8 @@ static SDispatchResult change_layer(std::string arg, bool move_window) {
     PHLWORKSPACE target_workspace = nullptr;
 
     if (target_ws_id == WORKSPACE_INVALID) {
+        // Avoid growing workspace IDs when just hopping between empty cells.
+        // If the current workspace is empty, move that workspace to the target.
         if (!move_window && can_reuse_empty_workspace(active_workspace, monitor)) {
             target_workspace = active_workspace;
         } else {

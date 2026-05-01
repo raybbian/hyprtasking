@@ -4,12 +4,13 @@
 #include <hyprland/src/helpers/Monitor.hpp>
 #include <hyprland/src/desktop/Workspace.hpp>
 
+// Safe only for the workspace we are leaving: it already belongs to this
+// monitor, and with no windows Hyprland would clean it up anyway.
 bool can_reuse_empty_workspace(PHLWORKSPACE workspace, PHLMONITOR monitor) {
     return workspace != nullptr && monitor != nullptr && !workspace->inert()
         && !workspace->m_isSpecialWorkspace && workspace->m_id > 0
         && workspace->monitorID() == monitor->m_id && workspace->getWindows() == 0;
 }
-
 
 PHLWORKSPACE create_workspace_for_monitor(PHLMONITOR monitor) {
     if (monitor == nullptr)
@@ -21,5 +22,6 @@ PHLWORKSPACE create_workspace_for_monitor(PHLMONITOR monitor) {
             next_id = ws->m_id + 1;
     }
 
+    // Fallback to the old behavior when the source workspace is not reusable.
     return g_pCompositor->createNewWorkspace(next_id, monitor->m_id, "", false);
 }
