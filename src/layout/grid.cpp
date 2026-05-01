@@ -473,6 +473,9 @@ void HTLayoutGrid::build_overview_layout(HTViewStage stage) {
         return lhs.first < rhs.first;
     });
 
+    // Reserve every still-valid pinned slot first, even if the workspace is not
+    // currently on this monitor. This prevents monitor switches from causing
+    // unrelated workspaces to reflow into positions that should stay stable.
     for (const auto& [ws_id, slot] : pinned_slots) {
         if (slot >= 0 && slot < total_slots && !slot_occupied[slot])
             slot_occupied[slot] = true;
@@ -510,6 +513,8 @@ void HTLayoutGrid::build_overview_layout(HTViewStage stage) {
         slot_to_ws[next_free] = workspace->m_id;
         slot_occupied[next_free] = true;
         ws_to_slot[workspace->m_id] = next_free;
+        // Remember auto-placed workspaces so the next rebuild keeps the same
+        // order instead of depending on transient compositor workspace lists.
         pinned_positions[workspace->m_id] = next_free;
         ++next_free;
     }
@@ -610,6 +615,7 @@ void HTLayoutGrid::render() {
                 ws_box = calculate_ws_box(x, y, HT_VIEW_ANIMATING);
             }
 
+            // Skip if the box is empty
             if (ws_box.width < 0.01 || ws_box.height < 0.01)
                 continue;
 
@@ -667,6 +673,7 @@ void HTLayoutGrid::render() {
                     workspace->m_visible = false;
                 }
             } else {
+                // If a workspace is not allocated, then just render the layers
                 ((render_workspace_t)(render_workspace_hook->m_original))(
                     g_pHyprRenderer.get(),
                     monitor,

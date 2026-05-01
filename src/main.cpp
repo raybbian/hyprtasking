@@ -105,6 +105,8 @@ static SDispatchResult dispatch_move(std::string arg) {
     } if (arg == "out") {
         return change_layer("+1", false);
     }
+    if (arg != "up" && arg != "down" && arg != "left" && arg != "right")
+        return {.success = false, .error = "invalid arg"};
     cursor_view->move(arg, false);
     return {};
 }
@@ -115,12 +117,14 @@ static SDispatchResult dispatch_move_window(std::string arg) {
     const PHTVIEW cursor_view = ht_manager->get_view_from_cursor();
     if (cursor_view == nullptr)
         return {.success = false, .error = "cursor_view is null"};
-    cursor_view->move(arg, true);
     if (arg == "in") {
         return change_layer("-1", true);
     } if (arg == "out") {
         return change_layer("+1", true);
     }
+    if (arg != "up" && arg != "down" && arg != "left" && arg != "right")
+        return {.success = false, .error = "invalid arg"};
+    cursor_view->move(arg, true);
     return {};
 }
 
@@ -158,6 +162,8 @@ static void set_layer(PHTVIEW view, int new_layer) {
 static SDispatchResult change_layer(std::string arg, bool move_window) {
     if (ht_manager == nullptr)
         return {.success = false, .error = "ht_manager is null"};
+    if (arg.empty())
+        return {.success = false, .error = "invalid arg"};
 
     const PHTVIEW cursor_view = ht_manager->get_view_from_cursor();
     if (cursor_view == nullptr)
@@ -189,12 +195,11 @@ static SDispatchResult change_layer(std::string arg, bool move_window) {
         return {.success = false, .error = "active workspace not in layout"};
 
     const int original_layer = cursor_view->layout->layer;
-    const std::string layer_arg = arg.empty() ? "+1" : arg;
     int resulting_layer = original_layer;
-    if (layer_arg[0] == '+' || layer_arg[0] == '-') {
-        resulting_layer += std::stoi(layer_arg);
+    if (arg[0] == '+' || arg[0] == '-') {
+        resulting_layer += std::stoi(arg);
     } else {
-        resulting_layer = std::stoi(layer_arg);
+        resulting_layer = std::stoi(arg);
     }
 
     int source_cell = 0;
@@ -220,7 +225,9 @@ static SDispatchResult change_layer(std::string arg, bool move_window) {
     const int needed_layers = std::max(1, (int)(monitor_workspaces.size() + ws_per_layer - 1) / ws_per_layer);
     const int effective_layers = std::max(configured_layers, needed_layers);
 
+    // if resulting offset doesn't fit in boundaries
     if (resulting_layer >= effective_layers || resulting_layer < 0) {
+        // Don't do anything if next is invalid and grid:loop_layers is disabled
         if (!LOOP_LAYERS)
             return {};
         resulting_layer = ((resulting_layer % effective_layers) + effective_layers) % effective_layers;
@@ -229,23 +236,18 @@ static SDispatchResult change_layer(std::string arg, bool move_window) {
     WORKSPACEID target_ws_id = WORKSPACE_INVALID;
     const int target_slot = resulting_layer * ws_per_layer + source_cell;
 
+    // Preserve the currently visible grid before changing layers, otherwise a
+    // rebuild may auto-pack workspaces and make the same cell point elsewhere.
     for (const auto& [ws_id, ws_layout] : cursor_view->layout->overview_layout) {
         const int slot = original_layer * ws_per_layer + ws_layout.y * COLS + ws_layout.x;
         grid_layout->pin_workspace_to_slot(ws_id, slot);
     }
 
-    if (cursor_view->active) {
-        set_layer(cursor_view, resulting_layer);
-        cursor_view->layout->build_overview_layout(HT_VIEW_CLOSED);
-        g_pHyprRenderer->damageMonitor(monitor);
-        g_pCompositor->scheduleFrameForMonitor(monitor);
-        grid_layout->last_layer_cell = source_cell;
-        return {};
-    }
-
     set_layer(cursor_view, resulting_layer);
     cursor_view->layout->build_overview_layout(HT_VIEW_CLOSED);
     target_ws_id = cursor_view->layout->get_ws_id_from_xy(source_cell % COLS, source_cell / COLS);
+
+    PHLWORKSPACE target_workspace = nullptr;
 
     if (target_ws_id == WORKSPACE_INVALID) {
         WORKSPACEID next_id = 1;
@@ -264,31 +266,40 @@ static SDispatchResult change_layer(std::string arg, bool move_window) {
 
         grid_layout->pin_workspace_to_slot(next_id, target_slot);
         target_ws_id = next_id;
+        // createNewWorkspace can return before overview_layout sees the new ws,
+        // so keep the returned pointer instead of looking it up immediately.
+        target_workspace = new_workspace;
     } else {
         grid_layout->pin_workspace_to_slot(target_ws_id, target_slot);
+        target_workspace = cursor_view->layout->get_workspace_from_layout(target_ws_id);
     }
 
     cursor_view->layout->build_overview_layout(HT_VIEW_CLOSED);
+    if (target_workspace == nullptr)
+        target_workspace = cursor_view->layout->get_workspace_from_layout(target_ws_id);
+
+    if (target_workspace == nullptr) {
+        set_layer(cursor_view, original_layer);
+        cursor_view->layout->build_overview_layout(HT_VIEW_CLOSED);
+        return {};
+    }
+
+    if (move_window) {
+        const PHLWINDOW hovered_window = ht_manager->get_window_from_cursor();
+        if (hovered_window != nullptr)
+            g_pCompositor->moveWindowToWorkspaceSafe(hovered_window, target_workspace);
+    }
+
+    monitor->changeWorkspace(target_workspace);
+    cursor_view->layout->build_overview_layout(HT_VIEW_CLOSED);
+    g_pHyprRenderer->damageMonitor(monitor);
+    g_pCompositor->scheduleFrameForMonitor(monitor);
+
     if (!cursor_view->active) {
-        const PHLWORKSPACE target_workspace = cursor_view->layout->get_workspace_from_layout(target_ws_id);
-        if (target_workspace == nullptr) {
-            set_layer(cursor_view, original_layer);
-            cursor_view->layout->build_overview_layout(HT_VIEW_CLOSED);
-            return {};
-        }
-
-        if (move_window) {
-            const PHLWINDOW hovered_window = ht_manager->get_window_from_cursor();
-            if (hovered_window != nullptr)
-                g_pCompositor->moveWindowToWorkspaceSafe(hovered_window, target_workspace);
-        }
-
-        monitor->changeWorkspace(target_workspace);
         cursor_view->layout->on_move(source_ws_id, target_ws_id);
         return {};
     }
 
-    cursor_view->move_id(target_ws_id, move_window);
     return {};
 }
 

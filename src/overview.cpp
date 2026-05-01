@@ -205,6 +205,9 @@ void HTView::move_id(WORKSPACEID ws_id, bool move_window) {
     warp_window(warp, hovered_window);
 
     if (active) {
+        layout->build_overview_layout(HT_VIEW_CLOSED);
+        g_pHyprRenderer->damageMonitor(monitor);
+        g_pCompositor->scheduleFrameForMonitor(monitor);
         Log::logger->log(
             LOG,
             "[Hyprtasking] move_id changed active view from workspace {} to {} without navigation animation",
@@ -221,6 +224,9 @@ void HTView::move_id(WORKSPACEID ws_id, bool move_window) {
 }
 
 void HTView::move(std::string arg, bool move_window) {
+    if (arg != "up" && arg != "down" && arg != "left" && arg != "right")
+        return;
+
     const PHLMONITOR monitor = get_monitor();
     if (monitor == nullptr)
         return;
@@ -241,6 +247,8 @@ void HTView::move(std::string arg, bool move_window) {
     const auto ws_layout_it = layout->overview_layout.find(source_ws_id);
     HTLayoutBase::HTWorkspace ws_layout;
     if (ws_layout_it == layout->overview_layout.end()) {
+        // After changing to an empty layer, the active workspace may not be in
+        // overview_layout yet. Keep moving from the same grid cell instead.
         const SP<HTLayoutGrid> grid_layout = Hyprutils::Memory::dynamicPointerCast<HTLayoutGrid, HTLayoutBase>(layout);
         if (grid_layout == nullptr || !active)
             return;
@@ -264,6 +272,8 @@ void HTView::move(std::string arg, bool move_window) {
     const WORKSPACEID id = layout->get_ws_id_in_direction(ws_layout.x, ws_layout.y, arg);
 
     if (id == WORKSPACE_INVALID && layout->layout_name() == "grid") {
+        // Moving inside a sparse layer should still be able to land on an empty
+        // grid cell, including wrapped cells when grid:loop is enabled.
         const SP<HTLayoutGrid> grid_layout = Hyprutils::Memory::dynamicPointerCast<HTLayoutGrid, HTLayoutBase>(layout);
         if (grid_layout != nullptr) {
             int x = ws_layout.x, y = ws_layout.y;
