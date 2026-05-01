@@ -11,6 +11,7 @@
 #include "manager.hpp"
 #include "overview.hpp"
 #include "layout/grid.hpp"
+#include "workspace.hpp"
 
 bool HTManager::start_window_drag() {
     const PHLMONITOR cursor_monitor = g_pCompositor->getMonitorFromCursor();
@@ -40,16 +41,10 @@ bool HTManager::start_window_drag() {
                 const int COLS = HTConfig::value<Hyprlang::INT>("grid:cols");
                 const int ws_per_layer = std::max(1, ROWS * COLS);
                 const int target_slot = cell_layer * ws_per_layer + cell_y * COLS + cell_x;
-                WORKSPACEID next_id = 1;
-                for (PHLWORKSPACE ws : g_pCompositor->getWorkspacesCopy()) {
-                    if (ws != nullptr && !ws->m_isSpecialWorkspace && ws->m_id >= next_id) {
-                        next_id = ws->m_id + 1;
-                    }
-                }
-                cursor_workspace = g_pCompositor->createNewWorkspace(next_id, cursor_monitor->m_id, "", false);
+                cursor_workspace = create_workspace_for_monitor(cursor_monitor);
                 if (cursor_workspace != nullptr) {
-                    grid_layout->pin_workspace_to_slot(next_id, target_slot);
-                    workspace_id = next_id;
+                    grid_layout->pin_workspace_to_slot(cursor_workspace->m_id, target_slot);
+                    workspace_id = cursor_workspace->m_id;
                 }
             }
         }
@@ -173,20 +168,13 @@ bool HTManager::end_window_drag() {
                     const int ws_per_layer = std::max(1, ROWS * COLS);
                     const int target_slot = cell_layer * ws_per_layer + cell_y * COLS + cell_x;
 
-                    WORKSPACEID next_id = 1;
-                    for (PHLWORKSPACE ws : g_pCompositor->getWorkspacesCopy()) {
-                        if (ws != nullptr && !ws->m_isSpecialWorkspace && ws->m_id >= next_id) {
-                            next_id = ws->m_id + 1;
-                        }
-                    }
-
-                    cursor_workspace = g_pCompositor->createNewWorkspace(next_id, cursor_monitor->m_id, "", false);
+                    cursor_workspace = create_workspace_for_monitor(cursor_monitor);
                     if (cursor_workspace != nullptr) {
-                        grid_layout->pin_workspace_to_slot(next_id, target_slot);
+                        grid_layout->pin_workspace_to_slot(cursor_workspace->m_id, target_slot);
                         Log::logger->log(
                             LOG,
                             "[Hyprtasking] Created workspace {} at slot ({}, {}) for drop",
-                            next_id,
+                            cursor_workspace->m_id,
                             cell_x,
                             cell_y
                         );

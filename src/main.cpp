@@ -26,6 +26,7 @@
 #include "layout/grid.hpp"
 #include "overview.hpp"
 #include "types.hpp"
+#include "workspace.hpp"
 
 APICALL EXPORT std::string PLUGIN_API_VERSION() {
     return HYPRLAND_API_VERSION;
@@ -230,7 +231,9 @@ static SDispatchResult change_layer(std::string arg, bool move_window) {
         // Don't do anything if next is invalid and grid:loop_layers is disabled
         if (!LOOP_LAYERS)
             return {};
-        resulting_layer = ((resulting_layer % effective_layers) + effective_layers) % effective_layers;
+        resulting_layer %= effective_layers;
+        if (resulting_layer < 0)
+            resulting_layer += effective_layers;
     }
 
     WORKSPACEID target_ws_id = WORKSPACE_INVALID;
@@ -250,22 +253,15 @@ static SDispatchResult change_layer(std::string arg, bool move_window) {
     PHLWORKSPACE target_workspace = nullptr;
 
     if (target_ws_id == WORKSPACE_INVALID) {
-        WORKSPACEID next_id = 1;
-        for (PHLWORKSPACE ws : g_pCompositor->getWorkspacesCopy()) {
-            if (ws != nullptr && !ws->m_isSpecialWorkspace && ws->m_id >= next_id) {
-                next_id = ws->m_id + 1;
-            }
-        }
-
-        const PHLWORKSPACE new_workspace = g_pCompositor->createNewWorkspace(next_id, monitor->m_id, "", false);
+        const PHLWORKSPACE new_workspace = create_workspace_for_monitor(monitor);
         if (new_workspace == nullptr) {
             set_layer(cursor_view, original_layer);
             cursor_view->layout->build_overview_layout(HT_VIEW_CLOSED);
             return {};
         }
 
-        grid_layout->pin_workspace_to_slot(next_id, target_slot);
-        target_ws_id = next_id;
+        grid_layout->pin_workspace_to_slot(new_workspace->m_id, target_slot);
+        target_ws_id = new_workspace->m_id;
         // createNewWorkspace can return before overview_layout sees the new ws,
         // so keep the returned pointer instead of looking it up immediately.
         target_workspace = new_workspace;

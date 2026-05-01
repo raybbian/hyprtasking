@@ -15,6 +15,7 @@
 #include "layout/grid.hpp"
 #include "layout/linear.hpp"
 #include "src/desktop/state/FocusState.hpp"
+#include "workspace.hpp"
 
 HTView::HTView(MONITORID in_monitor_id) {
     monitor_id = in_monitor_id;
@@ -78,21 +79,14 @@ void HTView::do_exit_behavior(bool exit_on_mouse) {
                     const int ws_per_layer = std::max(1, ROWS * COLS);
                     const int target_slot = cell_layer * ws_per_layer + cell_y * COLS + cell_x;
 
-                    WORKSPACEID next_id = 1;
-                    for (PHLWORKSPACE ws : g_pCompositor->getWorkspacesCopy()) {
-                        if (ws != nullptr && !ws->m_isSpecialWorkspace && ws->m_id >= next_id) {
-                            next_id = ws->m_id + 1;
-                        }
-                    }
-
-                    workspace = g_pCompositor->createNewWorkspace(next_id, monitor->m_id, "", false);
+                    workspace = create_workspace_for_monitor(monitor);
                     if (workspace != nullptr) {
-                        grid_layout->pin_workspace_to_slot(next_id, target_slot);
-                        ws_id = next_id;
+                        grid_layout->pin_workspace_to_slot(workspace->m_id, target_slot);
+                        ws_id = workspace->m_id;
                         Log::logger->log(
                             LOG,
                             "[Hyprtasking] Created workspace {} at slot ({}, {}) on right-click exit",
-                            next_id,
+                            workspace->m_id,
                             cell_x,
                             cell_y
                         );
@@ -296,16 +290,10 @@ void HTView::move(std::string arg, bool move_window) {
             if (x >= 0 && x < COLS && y >= 0 && y < ROWS) {
                 const int ws_per_layer = std::max(1, ROWS * COLS);
                 const int target_slot = grid_layout->layer * ws_per_layer + y * COLS + x;
-                WORKSPACEID next_id = 1;
-                for (PHLWORKSPACE ws : g_pCompositor->getWorkspacesCopy()) {
-                    if (ws != nullptr && !ws->m_isSpecialWorkspace && ws->m_id >= next_id) {
-                        next_id = ws->m_id + 1;
-                    }
-                }
-                PHLWORKSPACE new_ws = g_pCompositor->createNewWorkspace(next_id, monitor->m_id, "", false);
+                PHLWORKSPACE new_ws = create_workspace_for_monitor(monitor);
                 if (new_ws != nullptr) {
-                    grid_layout->pin_workspace_to_slot(next_id, target_slot);
-                    move_id(next_id, move_window);
+                    grid_layout->pin_workspace_to_slot(new_ws->m_id, target_slot);
+                    move_id(new_ws->m_id, move_window);
                     return;
                 }
             }
