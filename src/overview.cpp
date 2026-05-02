@@ -79,12 +79,10 @@ void HTView::do_exit_behavior(bool exit_on_mouse) {
                     const int ws_per_layer = std::max(1, ROWS * COLS);
                     const int target_slot = cell_layer * ws_per_layer + cell_y * COLS + cell_x;
 
-                    // Right-clicking an empty cell can reuse the current empty
+                    // Right-clicking an empty cell can reuse the last empty
                     // workspace instead of allocating a fresh max+1 id.
-                    if (can_reuse_empty_workspace(monitor->m_activeWorkspace, monitor))
-                        workspace = monitor->m_activeWorkspace;
-                    else
-                        workspace = create_workspace_for_monitor(monitor);
+                    remember_empty_workspace(monitor->m_activeWorkspace, monitor);
+                    workspace = create_workspace_for_monitor(monitor);
                     if (workspace != nullptr) {
                         grid_layout->pin_workspace_to_slot(workspace->m_id, target_slot);
                         ws_id = workspace->m_id;
@@ -297,11 +295,11 @@ void HTView::move(std::string arg, bool move_window) {
                 const int target_slot = grid_layout->layer * ws_per_layer + y * COLS + x;
                 PHLWORKSPACE new_ws = nullptr;
                 // Moving from an empty workspace to an empty cell should reuse
-                // the current id; moving a window still needs a separate target.
-                if (!move_window && can_reuse_empty_workspace(active_workspace, monitor))
-                    new_ws = active_workspace;
-                else
-                    new_ws = create_workspace_for_monitor(monitor);
+                // the last empty id; moving a window still needs a target, but
+                // the source may become reusable after the window leaves.
+                if (!move_window)
+                    remember_empty_workspace(active_workspace, monitor);
+                new_ws = create_workspace_for_monitor(monitor);
                 if (new_ws != nullptr) {
                     grid_layout->pin_workspace_to_slot(new_ws->m_id, target_slot);
                     move_id(new_ws->m_id, move_window);

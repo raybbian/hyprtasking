@@ -4,3 +4,4 @@
 
 PHLWORKSPACE create_workspace_for_monitor(PHLMONITOR monitor);
 bool can_reuse_empty_workspace(PHLWORKSPACE workspace, PHLMONITOR monitor);
+void remember_empty_workspace(PHLWORKSPACE workspace, PHLMONITOR monitor);

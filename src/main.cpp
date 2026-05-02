@@ -255,15 +255,14 @@ static SDispatchResult change_layer(std::string arg, bool move_window) {
     if (target_ws_id == WORKSPACE_INVALID) {
         // Avoid growing workspace IDs when just hopping between empty cells.
         // If the current workspace is empty, move that workspace to the target.
-        if (!move_window && can_reuse_empty_workspace(active_workspace, monitor)) {
-            target_workspace = active_workspace;
-        } else {
-            target_workspace = create_workspace_for_monitor(monitor);
-            if (target_workspace == nullptr) {
-                set_layer(cursor_view, original_layer);
-                cursor_view->layout->build_overview_layout(HT_VIEW_CLOSED);
-                return {};
-            }
+        if (!move_window)
+            remember_empty_workspace(active_workspace, monitor);
+
+        target_workspace = create_workspace_for_monitor(monitor);
+        if (target_workspace == nullptr) {
+            set_layer(cursor_view, original_layer);
+            cursor_view->layout->build_overview_layout(HT_VIEW_CLOSED);
+            return {};
         }
 
         grid_layout->pin_workspace_to_slot(target_workspace->m_id, target_slot);
@@ -287,8 +286,10 @@ static SDispatchResult change_layer(std::string arg, bool move_window) {
 
     if (move_window) {
         const PHLWINDOW hovered_window = ht_manager->get_window_from_cursor();
-        if (hovered_window != nullptr)
+        if (hovered_window != nullptr) {
             g_pCompositor->moveWindowToWorkspaceSafe(hovered_window, target_workspace);
+            remember_empty_workspace(active_workspace, monitor);
+        }
     }
 
     monitor->changeWorkspace(target_workspace);
