@@ -146,16 +146,8 @@ bool HTManager::end_window_drag() {
         cursor_view->layout->global_to_local_ws_unscaled(use_mouse_coords, cursor_workspace->m_id)
         + cursor_monitor->m_position;
 
-    const Vector2D tp_pos = cursor_view->layout->global_to_local_ws_unscaled(
-                                (dragged_window->m_realPosition->value() - use_mouse_coords)
-                                        * cursor_view->layout->drag_window_scale()
-                                    + use_mouse_coords,
-                                cursor_workspace->m_id
-                            )
-        + cursor_monitor->m_position;
-    dragged_window->m_realPosition->setValueAndWarp(tp_pos);
-
     g_pPointerManager->warpTo(workspace_coords);
+    g_pInputManager->simulateMouseMovement();
     g_pKeybindManager->changeMouseBindMode(MBIND_INVALID);
     g_pPointerManager->warpTo(mouse_coords);
 
