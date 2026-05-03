@@ -29,6 +29,7 @@ bool HTManager::start_window_drag() {
     const Vector2D mouse_coords = g_pInputManager->getMouseCoordsInternal();
     WORKSPACEID workspace_id = cursor_view->layout->get_ws_id_from_global(mouse_coords);
     PHLWORKSPACE cursor_workspace = cursor_view->layout->get_workspace_from_layout(workspace_id);
+    bool hit_empty_grid_cell = false;
 
     // If left click on non-workspace workspace (empty cell), create workspace there
     if (cursor_workspace == nullptr && workspace_id == WORKSPACE_INVALID) {
@@ -36,14 +37,14 @@ bool HTManager::start_window_drag() {
         if (grid_layout != nullptr && cursor_monitor->logicalBox().containsPoint(mouse_coords)) {
             const auto [cell_x, cell_y, cell_layer] = grid_layout->get_grid_cell_from_global(mouse_coords);
             if (cell_x >= 0 && cell_y >= 0 && cell_layer >= 0) {
+                hit_empty_grid_cell = true;
                 grid_layout->layer = cell_layer;
                 const int ROWS = HTConfig::value<Hyprlang::INT>("grid:rows");
                 const int COLS = HTConfig::value<Hyprlang::INT>("grid:cols");
                 const int ws_per_layer = std::max(1, ROWS * COLS);
                 const int target_slot = cell_layer * ws_per_layer + cell_y * COLS + cell_x;
-                // Starting a drag from an empty cell should not force a new id
-                // when the active workspace is empty and can be reused.
-                remember_empty_workspace(cursor_monitor->m_activeWorkspace, cursor_monitor);
+                // Create the target lazily only when dragging really enters an
+                // empty grid cell.
                 cursor_workspace = create_workspace_for_monitor(cursor_monitor);
                 if (cursor_workspace != nullptr) {
                     grid_layout->pin_workspace_to_slot(cursor_workspace->m_id, target_slot);
@@ -54,8 +55,10 @@ bool HTManager::start_window_drag() {
     }
 
     // If still no workspace, do nothing
+    // Still consume clicks on valid empty grid cells so failed allocation does
+    // not leak a mouse press through the overview.
     if (cursor_workspace == nullptr)
-        return false;
+        return hit_empty_grid_cell;
 
     // PHLWORKSPACEREF o_workspace = cursor_monitor->m_activeWorkspace;
     cursor_monitor->changeWorkspace(cursor_workspace, true);
@@ -225,11 +228,9 @@ bool HTManager::end_window_drag() {
     );
 
     // PHLWORKSPACEREF o_workspace = cursor_monitor->m_activeWorkspace;
-    const PHLWORKSPACE source_workspace = dragged_window->m_workspace;
     cursor_monitor->changeWorkspace(cursor_workspace, true);
 
     g_pCompositor->moveWindowToWorkspaceSafe(dragged_window, cursor_workspace);
-    remember_empty_workspace(source_workspace, cursor_monitor);
 
     const Vector2D workspace_coords =
         cursor_view->layout->global_to_local_ws_unscaled(use_mouse_coords, cursor_workspace->m_id)

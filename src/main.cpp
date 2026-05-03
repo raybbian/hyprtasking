@@ -253,11 +253,6 @@ static SDispatchResult change_layer(std::string arg, bool move_window) {
     PHLWORKSPACE target_workspace = nullptr;
 
     if (target_ws_id == WORKSPACE_INVALID) {
-        // Avoid growing workspace IDs when just hopping between empty cells.
-        // If the current workspace is empty, move that workspace to the target.
-        if (!move_window)
-            remember_empty_workspace(active_workspace, monitor);
-
         target_workspace = create_workspace_for_monitor(monitor);
         if (target_workspace == nullptr) {
             set_layer(cursor_view, original_layer);
@@ -267,8 +262,8 @@ static SDispatchResult change_layer(std::string arg, bool move_window) {
 
         grid_layout->pin_workspace_to_slot(target_workspace->m_id, target_slot);
         target_ws_id = target_workspace->m_id;
-        // Reused or newly created empty workspaces may not be in
-        // overview_layout yet, so keep the pointer instead of looking it up.
+        // Newly created workspaces may not be in overview_layout yet, so keep
+        // the pointer instead of looking it up immediately.
     } else {
         grid_layout->pin_workspace_to_slot(target_ws_id, target_slot);
         target_workspace = cursor_view->layout->get_workspace_from_layout(target_ws_id);
@@ -286,10 +281,8 @@ static SDispatchResult change_layer(std::string arg, bool move_window) {
 
     if (move_window) {
         const PHLWINDOW hovered_window = ht_manager->get_window_from_cursor();
-        if (hovered_window != nullptr) {
+        if (hovered_window != nullptr)
             g_pCompositor->moveWindowToWorkspaceSafe(hovered_window, target_workspace);
-            remember_empty_workspace(active_workspace, monitor);
-        }
     }
 
     monitor->changeWorkspace(target_workspace);
@@ -342,7 +335,9 @@ static void hook_render_workspace(
         return;
     }
     const PHTVIEW view = ht_manager->get_view_from_monitor(monitor);
-    if ((view != nullptr && view->navigating) || ht_manager->has_active_view()) {
+    // Some render hooks can fire for monitors that do not have a registered
+    // hyprtasking view yet, especially around monitor hotplug/reload.
+    if (view != nullptr && ((view->navigating) || ht_manager->has_active_view())) {
         view->layout->render();
     } else {
         ((render_workspace_t)(render_workspace_hook
@@ -365,7 +360,9 @@ static uint32_t hook_is_solitary_blocked(void* thisptr, bool full) {
     PHTVIEW view = ht_manager->get_view_from_cursor();
     if (view == nullptr) {
         Log::logger->log(Log::ERR, "[Hyprtasking] View is nullptr in hook_is_solitary_blocked");
-        (*(origIsSolitaryBlocked)is_solitary_blocked_hook->m_original)(thisptr, full);
+        // Fall back to Hyprland when there is no cursor view instead of
+        // dereferencing nullptr below.
+        return (*(origIsSolitaryBlocked)is_solitary_blocked_hook->m_original)(thisptr, full);
     }
 
     if (view->active || view->navigating) {

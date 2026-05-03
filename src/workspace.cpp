@@ -1,51 +1,81 @@
 #include "workspace.hpp"
 
+#include <limits>
 #include <unordered_map>
 
 #include <hyprland/src/Compositor.hpp>
 #include <hyprland/src/helpers/Monitor.hpp>
 #include <hyprland/src/desktop/Workspace.hpp>
 
-static std::unordered_map<MONITORID, WORKSPACEID> reusable_workspace_ids;
+static std::unordered_map<MONITORID, WORKSPACEID> next_workspace_ids;
 
-// Safe only for the workspace we are leaving: it already belongs to this
-// monitor, and with no windows Hyprland would clean it up anyway.
-bool can_reuse_empty_workspace(PHLWORKSPACE workspace, PHLMONITOR monitor) {
+// Keep allocation local to the requested monitor. Workspace rules may move a
+// newly created id elsewhere, so every candidate is checked before returning.
+static bool is_workspace_on_monitor(PHLWORKSPACE workspace, PHLMONITOR monitor) {
     return workspace != nullptr && monitor != nullptr && !workspace->inert()
-        && !workspace->m_isSpecialWorkspace && workspace->m_id > 0
-        && workspace->monitorID() == monitor->m_id && workspace->getWindows() == 0;
+        && !workspace->m_isSpecialWorkspace && workspace->monitorID() == monitor->m_id;
 }
 
-void remember_empty_workspace(PHLWORKSPACE workspace, PHLMONITOR monitor) {
-    if (can_reuse_empty_workspace(workspace, monitor))
-        reusable_workspace_ids[monitor->m_id] = workspace->m_id;
+static WORKSPACEID highest_workspace_id_on_monitor(PHLMONITOR monitor) {
+    WORKSPACEID highest_id = 0;
+    for (PHLWORKSPACE ws : g_pCompositor->getWorkspacesCopy()) {
+        if (is_workspace_on_monitor(ws, monitor) && ws->m_id > highest_id)
+            highest_id = ws->m_id;
+    }
+    return highest_id;
+}
+
+static WORKSPACEID highest_workspace_id() {
+    WORKSPACEID highest_id = 0;
+    for (PHLWORKSPACE ws : g_pCompositor->getWorkspacesCopy()) {
+        if (ws != nullptr && !ws->m_isSpecialWorkspace && ws->m_id > highest_id)
+            highest_id = ws->m_id;
+    }
+    return highest_id;
 }
 
 PHLWORKSPACE create_workspace_for_monitor(PHLMONITOR monitor) {
     if (monitor == nullptr)
         return nullptr;
 
-    const auto reusable_it = reusable_workspace_ids.find(monitor->m_id);
-    if (reusable_it != reusable_workspace_ids.end()) {
-        const WORKSPACEID reusable_id = reusable_it->second;
-        reusable_workspace_ids.erase(reusable_it);
+    WORKSPACEID& next_id = next_workspace_ids[monitor->m_id];
+    if (next_id <= 0)
+        // Start after the monitor's own range instead of from the global max;
+        // this keeps split-monitor/ranged setups from jumping unnecessarily.
+        next_id = highest_workspace_id_on_monitor(monitor);
 
-        // If the empty workspace still exists, use it directly. Otherwise ask
-        // Hyprland to recreate the same id instead of going to max+1.
-        PHLWORKSPACE reusable_workspace = g_pCompositor->getWorkspaceByID(reusable_id);
-        if (can_reuse_empty_workspace(reusable_workspace, monitor))
-            return reusable_workspace;
+    constexpr int MAX_ATTEMPTS = 10000;
+    for (int attempts = 0; attempts < MAX_ATTEMPTS; ++attempts) {
+        if (next_id >= std::numeric_limits<WORKSPACEID>::max())
+            next_id = 0;
+        ++next_id;
 
-        if (reusable_workspace == nullptr && reusable_id > 0)
-            return g_pCompositor->createNewWorkspace(reusable_id, monitor->m_id, "", false);
+        PHLWORKSPACE existing = g_pCompositor->getWorkspaceByID(next_id);
+        if (existing != nullptr)
+            continue;
+
+        PHLWORKSPACE workspace = g_pCompositor->createNewWorkspace(next_id, monitor->m_id, "", false);
+        if (workspace == nullptr)
+            continue;
+
+        // Workspace rules may redirect an id to another monitor. Do not keep
+        // probing after that, or we could create a chain of wrong workspaces.
+        if (is_workspace_on_monitor(workspace, monitor))
+            return workspace;
+
+        return nullptr;
     }
 
-    WORKSPACEID next_id = 1;
-    for (PHLWORKSPACE ws : g_pCompositor->getWorkspacesCopy()) {
-        if (ws != nullptr && !ws->m_isSpecialWorkspace && ws->m_id >= next_id)
-            next_id = ws->m_id + 1;
-    }
+    // Extremely dense layouts can fill the bounded search window. Fall back to
+    // the old global max+1 behavior rather than failing forever.
+    next_id = highest_workspace_id();
+    if (next_id >= std::numeric_limits<WORKSPACEID>::max())
+        return nullptr;
+    ++next_id;
 
-    // Fallback to the old behavior when the source workspace is not reusable.
-    return g_pCompositor->createNewWorkspace(next_id, monitor->m_id, "", false);
+    PHLWORKSPACE workspace = g_pCompositor->createNewWorkspace(next_id, monitor->m_id, "", false);
+    if (is_workspace_on_monitor(workspace, monitor))
+        return workspace;
+
+    return nullptr;
 }

@@ -79,9 +79,8 @@ void HTView::do_exit_behavior(bool exit_on_mouse) {
                     const int ws_per_layer = std::max(1, ROWS * COLS);
                     const int target_slot = cell_layer * ws_per_layer + cell_y * COLS + cell_x;
 
-                    // Right-clicking an empty cell can reuse the last empty
-                    // workspace instead of allocating a fresh max+1 id.
-                    remember_empty_workspace(monitor->m_activeWorkspace, monitor);
+                    // Keep workspace creation lazy: only create a real Hyprland
+                    // workspace when the user actually exits to this empty cell.
                     workspace = create_workspace_for_monitor(monitor);
                     if (workspace != nullptr) {
                         grid_layout->pin_workspace_to_slot(workspace->m_id, target_slot);
@@ -294,11 +293,8 @@ void HTView::move(std::string arg, bool move_window) {
                 const int ws_per_layer = std::max(1, ROWS * COLS);
                 const int target_slot = grid_layout->layer * ws_per_layer + y * COLS + x;
                 PHLWORKSPACE new_ws = nullptr;
-                // Moving from an empty workspace to an empty cell should reuse
-                // the last empty id; moving a window still needs a target, but
-                // the source may become reusable after the window leaves.
-                if (!move_window)
-                    remember_empty_workspace(active_workspace, monitor);
+                // Keep sparse layers lazy: empty cells are materialized only
+                // when navigation actually lands there.
                 new_ws = create_workspace_for_monitor(monitor);
                 if (new_ws != nullptr) {
                     grid_layout->pin_workspace_to_slot(new_ws->m_id, target_slot);
