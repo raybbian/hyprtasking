@@ -11,13 +11,22 @@ class HTLayoutGrid: public HTLayoutBase {
     PHLANIMVAR<Vector2D> offset;
 
     int get_effective_layer_count(size_t workspace_count);
+    int get_max_occupied_layer();
     int get_workspace_layer(WORKSPACEID workspace_id);
 
   public:
     HTLayoutGrid(VIEWID view_id);
     virtual ~HTLayoutGrid() = default;
 
-    std::unordered_map<WORKSPACEID, int> pinned_positions;
+    struct HTGridCell {
+        WORKSPACEID ws_id = WORKSPACE_INVALID;
+        bool occupied = false;
+        bool is_pinned = false;
+    };
+
+    // 3D grid: [layer][row][col]
+    std::vector<std::vector<std::vector<HTGridCell>>> grid_cells;
+
     int last_layer_cell = 0;
 
     void pin_workspace_to_slot(WORKSPACEID ws_id, int slot);
