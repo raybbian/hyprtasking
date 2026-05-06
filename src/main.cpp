@@ -454,6 +454,13 @@ static void notify_config_changes() {
 static void register_monitors() {
     if (ht_manager == nullptr)
         return;
+
+    // Purge views whose monitor no longer exists to prevent unbounded growth
+    // after monitor disconnect / idle / reinitialization.
+    std::erase_if(ht_manager->views, [](const PHTVIEW& view) {
+        return view == nullptr || view->get_monitor() == nullptr;
+    });
+
     for (const PHLMONITOR& monitor : g_pCompositor->m_monitors) {
         // Skip monitors that haven't finished initializing
         if (monitor->m_transformedSize.x < 1 || monitor->m_transformedSize.y < 1)

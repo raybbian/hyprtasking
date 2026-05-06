@@ -49,18 +49,56 @@ std::string HTLayoutGrid::layout_name() {
 }
 
 void HTLayoutGrid::pin_workspace_to_slot(WORKSPACEID ws_id, int slot) {
-    for (auto it = pinned_positions.begin(); it != pinned_positions.end(); ) {
-        if (it->first != ws_id && it->second == slot)
-            it = pinned_positions.erase(it);
-        else
-            ++it;
+    const int ROWS = HTConfig::value<Hyprlang::INT>("grid:rows");
+    const int COLS = HTConfig::value<Hyprlang::INT>("grid:cols");
+    const int ws_per_layer = std::max(1, ROWS * COLS);
+
+    const int target_layer = slot / ws_per_layer;
+    const int local_slot = slot % ws_per_layer;
+    const int target_y = local_slot / COLS;
+    const int target_x = local_slot % COLS;
+
+    if (target_y < 0 || target_y >= ROWS || target_x < 0 || target_x >= COLS)
+        return;
+
+    // Grow grid so the requested layer exists (resize default-initializes new cells)
+    if (target_layer >= (int)grid_cells.size()) {
+        grid_cells.resize(target_layer + 1);
+        for (int l = 0; l <= target_layer; l++) {
+            grid_cells[l].resize(ROWS);
+            for (int y = 0; y < ROWS; y++)
+                grid_cells[l][y].resize(COLS);
+        }
     }
 
-    pinned_positions[ws_id] = slot;
+    // Clear previous pin for this workspace anywhere in the grid
+    for (auto& layer : grid_cells) {
+        for (auto& row : layer) {
+            for (auto& cell : row) {
+                if (cell.ws_id == ws_id) {
+                    cell.ws_id = WORKSPACE_INVALID;
+                    cell.occupied = false;
+                    cell.is_pinned = false;
+                }
+            }
+        }
+    }
+
+    auto& cell = grid_cells[target_layer][target_y][target_x];
+    cell.ws_id = ws_id;
+    cell.occupied = true;
+    cell.is_pinned = true;
 }
 
 void HTLayoutGrid::unpin_workspace(WORKSPACEID ws_id) {
-    pinned_positions.erase(ws_id);
+    for (auto& layer : grid_cells) {
+        for (auto& row : layer) {
+            for (auto& cell : row) {
+                if (cell.ws_id == ws_id)
+                    cell.is_pinned = false;
+            }
+        }
+    }
 }
 
 std::tuple<int, int, int> HTLayoutGrid::get_grid_cell_from_global(Vector2D pos) {
@@ -96,80 +134,43 @@ int HTLayoutGrid::get_effective_layer_count(size_t workspace_count) {
     const int ws_per_layer = std::max(1, ROWS * COLS);
     const int configured_layers = std::max(1, LAYERS);
 
-    int max_slot = -1;
-    for (const auto& [ws_id, slot] : pinned_positions) {
-        if (slot > max_slot)
-            max_slot = slot;
-    }
     const int needed_by_count = (int)(workspace_count + ws_per_layer - 1) / ws_per_layer;
-    const int needed_by_pins = (max_slot >= 0) ? (max_slot / ws_per_layer + 1) : needed_by_count;
-    const int needed_layers = std::max(1, needed_by_pins);
+    const int needed_layers = std::max(1, needed_by_count);
 
-    return std::max(configured_layers, needed_layers);
+    int max_layer = std::max(configured_layers, needed_layers);
+
+    // If the grid has previously been grown by pin_workspace_to_slot,
+    // keep enough layers so those pins remain addressable.
+    if (!grid_cells.empty())
+        max_layer = std::max(max_layer, get_max_occupied_layer() + 1);
+
+    return max_layer;
+}
+
+int HTLayoutGrid::get_max_occupied_layer() {
+    int max_occupied = 0;
+    for (int l = 0; l < (int)grid_cells.size(); l++) {
+        for (int y = 0; y < (int)grid_cells[l].size(); y++) {
+            for (int x = 0; x < (int)grid_cells[l][y].size(); x++) {
+                if (grid_cells[l][y][x].ws_id != WORKSPACE_INVALID) {
+                    max_occupied = std::max(max_occupied, l);
+                    break;
+                }
+            }
+        }
+    }
+    return max_occupied;
 }
 
 int HTLayoutGrid::get_workspace_layer(WORKSPACEID workspace_id) {
-    auto pin_it = pinned_positions.find(workspace_id);
-    if (pin_it != pinned_positions.end()) {
-        const int ROWS = HTConfig::value<Hyprlang::INT>("grid:rows");
-        const int COLS = HTConfig::value<Hyprlang::INT>("grid:cols");
-        const int ws_per_layer = std::max(1, ROWS * COLS);
-        return pin_it->second / ws_per_layer;
-    }
-
-    const int ROWS = HTConfig::value<Hyprlang::INT>("grid:rows");
-    const int COLS = HTConfig::value<Hyprlang::INT>("grid:cols");
-    const int ws_per_layer = std::max(1, ROWS * COLS);
-    const std::vector<PHLWORKSPACE> workspaces = get_monitor_workspaces();
-    std::vector<WORKSPACEID> workspace_ids;
-    workspace_ids.reserve(workspaces.size());
-
-    for (PHLWORKSPACE workspace : workspaces) {
-        if (workspace != nullptr)
-            workspace_ids.push_back(workspace->m_id);
-    }
-
-    std::ranges::sort(workspace_ids);
-
-    int max_slot = -1;
-    for (const auto& [ws_id, slot] : pinned_positions) {
-        if (g_pCompositor->getWorkspaceByID(ws_id) != nullptr && slot > max_slot)
-            max_slot = slot;
-    }
-
-    const int effective_layers = std::max(get_effective_layer_count(workspace_ids.size()), max_slot / ws_per_layer + 1);
-    std::vector<WORKSPACEID> slot_to_ws(effective_layers * ws_per_layer, WORKSPACE_INVALID);
-
-    for (WORKSPACEID ws_id : workspace_ids) {
-        pin_it = pinned_positions.find(ws_id);
-        if (pin_it == pinned_positions.end())
-            continue;
-
-        if (pin_it->second >= 0 && pin_it->second < (int)slot_to_ws.size()
-            && slot_to_ws[pin_it->second] == WORKSPACE_INVALID) {
-            slot_to_ws[pin_it->second] = ws_id;
+    for (int l = 0; l < (int)grid_cells.size(); l++) {
+        for (int y = 0; y < (int)grid_cells[l].size(); y++) {
+            for (int x = 0; x < (int)grid_cells[l][y].size(); x++) {
+                if (grid_cells[l][y][x].ws_id == workspace_id)
+                    return l;
+            }
         }
     }
-
-    size_t next_free = 0;
-    for (WORKSPACEID ws_id : workspace_ids) {
-        if (pinned_positions.contains(ws_id))
-            continue;
-
-        while (next_free < slot_to_ws.size() && slot_to_ws[next_free] != WORKSPACE_INVALID)
-            ++next_free;
-
-        if (next_free >= slot_to_ws.size())
-            break;
-
-        slot_to_ws[next_free] = ws_id;
-    }
-
-    for (size_t slot = 0; slot < slot_to_ws.size(); ++slot) {
-        if (slot_to_ws[slot] == workspace_id)
-            return (int)slot / ws_per_layer;
-    }
-
     return layer;
 }
 
@@ -223,8 +224,8 @@ WORKSPACEID HTLayoutGrid::on_move_swipe_end() {
     build_overview_layout(HT_VIEW_CLOSED);
     WORKSPACEID closest = WORKSPACE_INVALID;
     double closest_dist = 1e9;
-    for (const auto& [ws_id, box] : overview_layout) {
-        const float dist_sq = offset->value().distanceSq(Vector2D {-box.box.x, -box.box.y});
+    for (const auto& [ws_id, ws_layout] : overview_layout) {
+        const float dist_sq = offset->value().distanceSq(Vector2D {-ws_layout.box.x, -ws_layout.box.y});
         if (dist_sq < closest_dist) {
             closest_dist = dist_sq;
             closest = ws_id;
@@ -239,7 +240,7 @@ void HTLayoutGrid::close_open_lerp(float perc) {
         return;
 
     double open_scale =
-        calculate_ws_box(0, 0, HT_VIEW_OPENED).w / monitor->m_transformedSize.x; // 1 / ROWS
+        calculate_ws_box(0, 0, HT_VIEW_OPENED).w / monitor->m_transformedSize.x;
     Vector2D open_pos = {0, 0};
 
     layer = get_workspace_layer(monitor->m_activeWorkspace->m_id);
@@ -272,8 +273,7 @@ void HTLayoutGrid::on_show(CallbackFun on_complete) {
     if (monitor == nullptr)
         return;
 
-    *scale = calculate_ws_box(0, 0, HT_VIEW_OPENED).w / monitor->m_transformedSize.x; // 1 / ROWS
-    // Offset for the whole grid of workspaces
+    *scale = calculate_ws_box(0, 0, HT_VIEW_OPENED).w / monitor->m_transformedSize.x;
     *offset = {0, 0};
 }
 
@@ -293,7 +293,7 @@ void HTLayoutGrid::on_hide(CallbackFun on_complete) {
     layer = get_workspace_layer(monitor->m_activeWorkspace->m_id);
     build_overview_layout(HT_VIEW_CLOSED);
     *scale = 1.;
-    // End workspace to end up on
+
     const auto active_it = overview_layout.find(monitor->m_activeWorkspace->m_id);
     if (active_it == overview_layout.end())
         return;
@@ -315,14 +315,13 @@ void HTLayoutGrid::on_move(WORKSPACEID old_id, WORKSPACEID new_id, CallbackFun o
     if (old_workspace == nullptr || new_workspace == nullptr)
         return;
 
-    // prevent the thing from animating
     old_workspace->m_renderOffset->warp();
     new_workspace->m_renderOffset->warp();
 
     layer = get_workspace_layer(new_id);
     build_overview_layout(HT_VIEW_CLOSED);
     *scale = 1.;
-    // Target workspace to animate to
+
     const auto target_it = overview_layout.find(new_id);
     if (target_it == overview_layout.end())
         return;
@@ -381,7 +380,6 @@ CBox HTLayoutGrid::calculate_ws_box(int x, int y, HTViewStage stage) {
     if (monitor == nullptr)
         return {};
 
-    // Monitor may not have its final size yet during connect/reconnect
     if (monitor->m_transformedSize.x < 1 || monitor->m_transformedSize.y < 1)
         return {};
 
@@ -405,7 +403,6 @@ CBox HTLayoutGrid::calculate_ws_box(int x, int y, HTViewStage stage) {
     const double mon_aspect = monitor->m_transformedSize.x / monitor->m_transformedSize.y;
     Vector2D start_offset {};
 
-    // make correct aspect ratio
     if (render_y * mon_aspect > render_x) {
         start_offset.y = (render_y - render_x / mon_aspect) * ROWS / 2.f;
         render_y = render_x / mon_aspect;
@@ -443,104 +440,98 @@ void HTLayoutGrid::build_overview_layout(HTViewStage stage) {
             return true;
         return lhs->m_id < rhs->m_id;
     });
-    const int ws_per_layer = std::max(1, ROWS * COLS);
     const int effective_layers = get_effective_layer_count(workspaces.size());
     layer = std::clamp(layer, 0, effective_layers - 1);
 
     overview_layout.clear();
 
-    for (auto it = pinned_positions.begin(); it != pinned_positions.end(); ) {
-        const PHLWORKSPACE workspace = g_pCompositor->getWorkspaceByID(it->first);
-        if (workspace == nullptr || workspace->inert() || workspace->m_isSpecialWorkspace)
-            it = pinned_positions.erase(it);
-        else
-            ++it;
+    // Resize grid_cells to match effective layers (only new cells get default-initialized
+    // by resize; existing cells preserve their ws_id / is_pinned state)
+    grid_cells.resize(effective_layers);
+    for (int l = 0; l < effective_layers; l++) {
+        grid_cells[l].resize(ROWS);
+        for (int y = 0; y < ROWS; y++) {
+            grid_cells[l][y].resize(COLS);
+        }
     }
 
-    const int total_slots = effective_layers * ws_per_layer;
-    std::vector<WORKSPACEID> slot_to_ws(total_slots, WORKSPACE_INVALID);
-    std::vector<bool> slot_occupied(total_slots, false);
-    std::unordered_map<WORKSPACEID, int> ws_to_slot;
-
-    std::vector<std::pair<WORKSPACEID, int>> pinned_slots;
-    pinned_slots.reserve(pinned_positions.size());
-    for (const auto& [ws_id, slot] : pinned_positions)
-        pinned_slots.emplace_back(ws_id, slot);
-
-    std::ranges::sort(pinned_slots, [](const auto& lhs, const auto& rhs) {
-        if (lhs.second != rhs.second)
-            return lhs.second < rhs.second;
-        return lhs.first < rhs.first;
-    });
-
-    // Reserve every still-valid pinned slot first, even if the workspace is not
-    // currently on this monitor. This prevents monitor switches from causing
-    // unrelated workspaces to reflow into positions that should stay stable.
-    for (const auto& [ws_id, slot] : pinned_slots) {
-        if (slot >= 0 && slot < total_slots && !slot_occupied[slot])
-            slot_occupied[slot] = true;
-    }
-
-    for (PHLWORKSPACE workspace : workspaces) {
-        if (workspace == nullptr)
-            continue;
-
-        auto pin_it = pinned_positions.find(workspace->m_id);
-        if (pin_it != pinned_positions.end()) {
-            const int slot = pin_it->second;
-            if (slot >= 0 && slot < total_slots && slot_to_ws[slot] == WORKSPACE_INVALID) {
-                slot_to_ws[slot] = workspace->m_id;
-                ws_to_slot[workspace->m_id] = slot;
-            } else {
-                pinned_positions.erase(pin_it);
+    // Clean up stale workspace references; do NOT reset occupied/pinned state
+    // for cells whose workspace is still valid, otherwise pin_workspace_to_slot
+    // results survive the next frame.
+    for (int l = 0; l < effective_layers; l++) {
+        for (int y = 0; y < (int)grid_cells[l].size(); y++) {
+            for (int x = 0; x < (int)grid_cells[l][y].size(); x++) {
+                auto& cell = grid_cells[l][y][x];
+                if (cell.ws_id != WORKSPACE_INVALID) {
+                    const PHLWORKSPACE workspace = g_pCompositor->getWorkspaceByID(cell.ws_id);
+                    if (workspace == nullptr || workspace->inert() || workspace->m_isSpecialWorkspace) {
+                        cell.ws_id = WORKSPACE_INVALID;
+                        cell.occupied = false;
+                        cell.is_pinned = false;
+                    }
+                }
             }
         }
     }
 
-    int next_free = 0;
+    // Place every workspace that belongs to this monitor: if it already has a
+    // cell in the grid (from a previous frame or a pin), keep it there; otherwise
+    // fill the first truly empty cell.
     for (PHLWORKSPACE workspace : workspaces) {
         if (workspace == nullptr)
             continue;
-        if (ws_to_slot.contains(workspace->m_id))
+
+        bool already_placed = false;
+        for (int l = 0; l < effective_layers && !already_placed; l++) {
+            for (int y = 0; y < (int)grid_cells[l].size() && !already_placed; y++) {
+                for (int x = 0; x < (int)grid_cells[l][y].size() && !already_placed; x++) {
+                    if (grid_cells[l][y][x].ws_id == workspace->m_id)
+                        already_placed = true;
+                }
+            }
+        }
+        if (already_placed)
             continue;
 
-        while (next_free < total_slots && slot_occupied[next_free])
-            ++next_free;
-
-        if (next_free >= total_slots)
-            break;
-
-        slot_to_ws[next_free] = workspace->m_id;
-        slot_occupied[next_free] = true;
-        ws_to_slot[workspace->m_id] = next_free;
-        // Remember auto-placed workspaces so the next rebuild keeps the same
-        // order instead of depending on transient compositor workspace lists.
-        pinned_positions[workspace->m_id] = next_free;
-        ++next_free;
+        bool placed = false;
+        for (int l = 0; l < effective_layers && !placed; l++) {
+            for (int y = 0; y < ROWS && !placed; y++) {
+                for (int x = 0; x < COLS && !placed; x++) {
+                    auto& cell = grid_cells[l][y][x];
+                    if (cell.ws_id == WORKSPACE_INVALID) {
+                        cell.ws_id = workspace->m_id;
+                        cell.occupied = true;
+                        cell.is_pinned = false;
+                        placed = true;
+                    }
+                }
+            }
+        }
     }
 
-    for (const auto& [ws_id, slot] : ws_to_slot) {
-        const int layer_start = layer * ws_per_layer;
-        const int layer_end = layer_start + ws_per_layer;
-        if (slot < layer_start || slot >= layer_end)
-            continue;
+    // Populate overview_layout from grid_cells for the current layer
+    if (layer >= 0 && layer < effective_layers) {
+        for (int y = 0; y < ROWS; y++) {
+            for (int x = 0; x < COLS; x++) {
+                const auto& cell = grid_cells[layer][y][x];
+                if (cell.ws_id == WORKSPACE_INVALID)
+                    continue;
 
-        int local_i = slot - layer_start;
-        int x = local_i % COLS;
-        int y = local_i / COLS;
-        PHLWORKSPACE workspace = g_pCompositor->getWorkspaceByID(ws_id);
-        if (workspace == nullptr)
-            continue;
+                PHLWORKSPACE workspace = g_pCompositor->getWorkspaceByID(cell.ws_id);
+                if (workspace == nullptr)
+                    continue;
 
-        const CBox ws_box = calculate_ws_box(x, y, stage);
-        overview_layout[ws_id] = HTWorkspace {
-            x,
-            y,
-            ws_box,
-            ws_id,
-            workspace->m_name,
-            monitor->m_id,
-        };
+                const CBox ws_box = calculate_ws_box(x, y, stage);
+                overview_layout[cell.ws_id] = HTWorkspace {
+                    x,
+                    y,
+                    ws_box,
+                    cell.ws_id,
+                    workspace->m_name,
+                    monitor->m_id,
+                };
+            }
+        }
     }
 }
 
@@ -575,8 +566,6 @@ void HTLayoutGrid::render() {
     data.box = monitor_box;
     g_pHyprRenderer->m_renderPass.add(makeUnique<CRectPassElement>(data));
 
-    // Do a dance with active workspaces: Hyprland will only properly render the
-    // current active one so make the workspace active before rendering it, etc
     const PHLWORKSPACE start_workspace = monitor->m_activeWorkspace;
     if (start_workspace == nullptr)
         return;
@@ -593,39 +582,34 @@ void HTLayoutGrid::render() {
 
     const int ROWS = HTConfig::value<Hyprlang::INT>("grid:rows");
     const int COLS = HTConfig::value<Hyprlang::INT>("grid:cols");
+    const int effective_layers = grid_cells.size();
 
-    std::unordered_map<int, WORKSPACEID> grid_to_ws;
-    for (const auto& [ws_id, ws_layout] : overview_layout) {
-        grid_to_ws[ws_layout.y * COLS + ws_layout.x] = ws_id;
-    }
+    if (layer < 0 || layer >= effective_layers)
+        return;
 
     CBox global_mon_box = {monitor->m_position, monitor->m_transformedSize};
     for (int y = 0; y < ROWS; y++) {
         for (int x = 0; x < COLS; x++) {
-            const int grid_key = y * COLS + x;
-            const bool has_ws = grid_to_ws.contains(grid_key);
+            const auto& cell = grid_cells[layer][y][x];
+            const bool has_ws = cell.ws_id != WORKSPACE_INVALID;
 
             CBox ws_box;
             WORKSPACEID ws_id = WORKSPACE_INVALID;
             if (has_ws) {
-                ws_id = grid_to_ws[grid_key];
+                ws_id = cell.ws_id;
                 const auto& ws_layout = overview_layout[ws_id];
                 ws_box = ws_layout.box;
             } else {
                 ws_box = calculate_ws_box(x, y, HT_VIEW_ANIMATING);
             }
 
-            // Skip if the box is empty
             if (ws_box.width < 0.01 || ws_box.height < 0.01)
                 continue;
 
-            // renderModif translation used by renderWorkspace is weird so need
-            // to scale the translation up as well. Geometry is also calculated from pixel size and not transformed size??
             CBox render_box = {{ws_box.pos() / scale->value()}, ws_box.size()};
             if (monitor->m_transform % 2 == 1)
                 std::swap(render_box.w, render_box.h);
 
-            // render active one last
             if (has_ws && ws_id == start_workspace->m_id && start_workspace != nullptr)
                 continue;
 
@@ -673,7 +657,6 @@ void HTLayoutGrid::render() {
                     workspace->m_visible = false;
                 }
             } else {
-                // If a workspace is not allocated, then just render the layers
                 ((render_workspace_t)(render_workspace_hook->m_original))(
                     g_pHyprRenderer.get(),
                     monitor,
@@ -694,14 +677,10 @@ void HTLayoutGrid::render() {
     );
     start_workspace->m_visible = true;
 
-    // Render active workspace last so the dragging window is always on top when let go of
     const auto active_it = overview_layout.find(start_workspace->m_id);
     if (start_workspace != nullptr && active_it != overview_layout.end()) {
         CBox ws_box = active_it->second.box;
-        // make sure box is not empty
         if (ws_box.width > 0.01 && ws_box.height > 0.01) {
-            // renderModif translation used by renderWorkspace is weird so need
-            // to scale the translation up as well. Geometry is also calculated from pixel size and not transformed size??
             CBox render_box = {{ws_box.pos() / scale->value()}, ws_box.size()};
             if (monitor->m_transform % 2 == 1)
                 std::swap(render_box.w, render_box.h);
