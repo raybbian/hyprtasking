@@ -1,11 +1,16 @@
 #include "manager.hpp"
 
+#include <algorithm>
+#include <unordered_set>
+#include <vector>
+
 #include <hyprland/src/Compositor.hpp>
 #include <hyprland/src/config/ConfigManager.hpp>
 #include <hyprland/src/desktop/DesktopTypes.hpp>
 #include <hyprland/src/managers/KeybindManager.hpp>
 #include <hyprland/src/managers/input/InputManager.hpp>
 
+#include "layout/grid.hpp"
 #include "overview.hpp"
 
 HTManager::HTManager() {
@@ -110,6 +115,35 @@ void HTManager::reset() {
     swipe_state = HT_SWIPE_NONE;
     swipe_amt = 0.0;
     views.clear();
+}
+
+void HTManager::refresh_all_grid_caches() {
+    std::vector<HTLayoutGrid*> grids;
+    grids.reserve(views.size());
+    for (PHTVIEW view : views) {
+        if (view == nullptr || view->layout == nullptr)
+            continue;
+        if (view->layout->layout_name() != "grid")
+            continue;
+        grids.push_back(static_cast<HTLayoutGrid*>(view->layout.get()));
+    }
+    // Sorted iteration so synthetic-ID assignment is stable run-to-run.
+    std::sort(grids.begin(), grids.end(), [](HTLayoutGrid* a, HTLayoutGrid* b) {
+        return a->get_view_id() < b->get_view_id();
+    });
+
+    std::unordered_set<WORKSPACEID> taken;
+    for (HTLayoutGrid* grid : grids) {
+        grid->refresh_workspace_cache(taken);
+        for (const auto& [id, slot] : grid->cache())
+            taken.insert(id);
+    }
+}
+
+void HTManager::remove_view_for_monitor_id(MONITORID mid) {
+    std::erase_if(views, [mid](const PHTVIEW& v) {
+        return v == nullptr || v->monitor_id == mid;
+    });
 }
 
 bool HTManager::has_active_view() {

@@ -1,5 +1,8 @@
 #include "grid.hpp"
 
+#include <algorithm>
+#include <unordered_set>
+
 #include <hyprland/src/Compositor.hpp>
 #include <hyprland/src/config/ConfigManager.hpp>
 #include <hyprland/src/config/ConfigValue.hpp>
@@ -39,7 +42,150 @@ HTLayoutGrid::HTLayoutGrid(VIEWID new_view_id) : HTLayoutBase(new_view_id) {
         AVARDAMAGE_NONE
     );
 
+    refresh_workspace_cache();
     init_position();
+}
+
+long long HTLayoutGrid::pack_slot(int layer, int x, int y) {
+    return ((long long)layer << 40) | ((long long)(uint32_t)y << 20) | (long long)(uint32_t)x;
+}
+
+WORKSPACEID HTLayoutGrid::slot_workspace(int layer, int x, int y) {
+    const auto it = slot_ws_cache.find(pack_slot(layer, x, y));
+    if (it == slot_ws_cache.end())
+        return WORKSPACE_INVALID;
+    return it->second;
+}
+
+void HTLayoutGrid::refresh_workspace_cache(
+    const std::unordered_set<WORKSPACEID>& extra_off_limits
+) {
+    const PHLMONITOR monitor = get_monitor();
+    if (monitor == nullptr)
+        return;
+
+    const int ROWS = HTConfig::value<Hyprlang::INT>("grid:rows");
+    const int COLS = HTConfig::value<Hyprlang::INT>("grid:cols");
+    const int LAYERS = HTConfig::value<Hyprlang::INT>("grid:layers");
+    if (ROWS <= 0 || COLS <= 0 || LAYERS <= 0)
+        return;
+
+    const auto prior = ws_slot_cache;
+
+    ws_slot_cache.clear();
+    slot_ws_cache.clear();
+
+    std::vector<HTGridSlot> slots;
+    slots.reserve((size_t)LAYERS * ROWS * COLS);
+    for (int l = 0; l < LAYERS; l++)
+        for (int y = 0; y < ROWS; y++)
+            for (int x = 0; x < COLS; x++)
+                slots.push_back(HTGridSlot {l, x, y});
+
+    std::vector<bool> taken(slots.size(), false);
+
+    auto place = [&](WORKSPACEID id, size_t slot_idx) {
+        const HTGridSlot& s = slots[slot_idx];
+        ws_slot_cache[id] = s;
+        slot_ws_cache[pack_slot(s.layer, s.x, s.y)] = id;
+        taken[slot_idx] = true;
+    };
+
+    auto find_slot_index = [&](const HTGridSlot& s) -> long long {
+        for (size_t i = 0; i < slots.size(); i++)
+            if (slots[i].layer == s.layer && slots[i].x == s.x && slots[i].y == s.y)
+                return (long long)i;
+        return -1;
+    };
+
+    auto next_free_slot = [&](size_t& cursor) -> long long {
+        while (cursor < slots.size() && taken[cursor])
+            cursor++;
+        if (cursor >= slots.size())
+            return -1;
+        return (long long)cursor;
+    };
+
+    auto place_with_prior = [&](WORKSPACEID id, size_t& cursor) -> bool {
+        if (ws_slot_cache.count(id))
+            return false;
+        const auto pit = prior.find(id);
+        if (pit != prior.end()) {
+            const long long idx = find_slot_index(pit->second);
+            if (idx >= 0 && !taken[(size_t)idx]) {
+                place(id, (size_t)idx);
+                return true;
+            }
+        }
+        const long long idx = next_free_slot(cursor);
+        if (idx < 0)
+            return false;
+        place(id, (size_t)idx);
+        return true;
+    };
+
+    // No two grids may map the same WORKSPACEID, else dragging into a slot
+    // could silently switch monitors. extra_off_limits carries IDs already
+    // claimed by sibling views in this refresh.
+    std::unordered_set<WORKSPACEID> off_limits = extra_off_limits;
+    const auto& all_rules = g_pConfigManager->getAllWorkspaceRules();
+    for (const auto& rule : all_rules) {
+        if (rule.workspaceId > 0)
+            off_limits.insert(rule.workspaceId);
+    }
+    for (const auto& w : g_pCompositor->getWorkspacesCopy()) {
+        if (w == nullptr)
+            continue;
+        if (w->monitorID() != view_id)
+            off_limits.insert(w->m_id);
+    }
+
+    size_t cursor = 0;
+
+    for (const auto& rule : all_rules) {
+        if (rule.workspaceId <= 0)
+            continue;
+        if (extra_off_limits.count(rule.workspaceId))
+            continue;
+        const auto bound = g_pConfigManager->getBoundMonitorForWS(
+            rule.workspaceName.starts_with("name:")
+                ? rule.workspaceName.substr(5)
+                : rule.workspaceName
+        );
+        if (bound == nullptr || bound->m_id != view_id)
+            continue;
+        place_with_prior(rule.workspaceId, cursor);
+    }
+
+    for (const auto& w : g_pCompositor->getWorkspacesCopy()) {
+        if (w == nullptr)
+            continue;
+        if (w->monitorID() != view_id)
+            continue;
+        if (w->m_id <= 0)
+            continue;
+        if (extra_off_limits.count(w->m_id))
+            continue;
+        place_with_prior(w->m_id, cursor);
+    }
+
+    WORKSPACEID synth_candidate = 1;
+    auto next_synth = [&]() -> WORKSPACEID {
+        while (true) {
+            if (off_limits.count(synth_candidate) || ws_slot_cache.count(synth_candidate)) {
+                synth_candidate++;
+                continue;
+            }
+            return synth_candidate++;
+        }
+    };
+
+    for (size_t i = 0; i < slots.size(); i++) {
+        if (taken[i])
+            continue;
+        const WORKSPACEID id = next_synth();
+        place(id, i);
+    }
 }
 
 std::string HTLayoutGrid::layout_name() {
@@ -287,32 +433,16 @@ void HTLayoutGrid::build_overview_layout(HTViewStage stage) {
 
     const int ROWS = HTConfig::value<Hyprlang::INT>("grid:rows");
     const int COLS = HTConfig::value<Hyprlang::INT>("grid:cols");
-    const int LAYERS = HTConfig::value<Hyprlang::INT>("grid:layers");
 
     const PHLMONITOR last_monitor = Desktop::focusState()->monitor();
     Desktop::focusState()->rawMonitorFocus(monitor);
 
     overview_layout.clear();
-
-    // ROWS*COLS workspaces
-    //           per layer
-    //           per monitor
-    //       M1
-    //  L1       L2
-    // 1  2     5  6
-    // 3  4     7  8
-    //       M2
-    //  L1       L2
-    // 9  10    13 14
-    // 11 12    15 16
-    const int ws_per_layer = ROWS*COLS;
     for (int y = 0; y < ROWS; y++) {
         for (int x = 0; x < COLS; x++) {
-            const WORKSPACEID ws_id = view_id * ws_per_layer * LAYERS + layer * ws_per_layer + y * ROWS + x + 1;
-            const PHLWORKSPACE workspace = g_pCompositor->getWorkspaceByID(ws_id);
-            if (workspace != nullptr && workspace->monitorID() != view_id) {
-                g_pCompositor->moveWorkspaceToMonitor(workspace, monitor);
-            }
+            const WORKSPACEID ws_id = slot_workspace(layer, x, y);
+            if (ws_id == WORKSPACE_INVALID)
+                continue;
             const CBox ws_box = calculate_ws_box(x, y, stage);
             overview_layout[ws_id] = HTWorkspace {x, y, ws_box};
         }

@@ -23,6 +23,9 @@ class HTManager {
     void hide_all_views();
     void show_cursor_view();
 
+    void refresh_all_grid_caches();
+    void remove_view_for_monitor_id(MONITORID mid);
+
     bool start_window_drag();
     bool end_window_drag();
     bool exit_to_workspace();

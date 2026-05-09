@@ -25,6 +25,8 @@ class HTLayoutBase {
     HTLayoutBase(VIEWID new_view_id);
     virtual ~HTLayoutBase() = default;
 
+    VIEWID get_view_id() const { return view_id; }
+
     virtual std::string layout_name() = 0;
 
     int layer = 0;

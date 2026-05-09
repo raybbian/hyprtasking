@@ -386,6 +386,14 @@ static void register_monitors() {
             monitor->m_transformedSize.y
         );
     }
+    ht_manager->refresh_all_grid_caches();
+}
+
+static void on_monitor_removed(PHLMONITOR monitor) {
+    if (ht_manager == nullptr || monitor == nullptr)
+        return;
+    ht_manager->remove_view_for_monitor_id(monitor->m_id);
+    ht_manager->refresh_all_grid_caches();
 }
 
 static void on_config_reloaded() {
@@ -406,6 +414,8 @@ static void on_config_reloaded() {
             view->change_layout(new_layout);
         }
     }
+
+    ht_manager->refresh_all_grid_caches();
 }
 
 static void init_functions() {
@@ -477,6 +487,7 @@ static void register_callbacks() {
 
     static auto P10 = Event::bus()->m_events.config.reloaded.listen(on_config_reloaded);
     static auto P11 = Event::bus()->m_events.monitor.added.listen(register_monitors);
+    static auto P12 = Event::bus()->m_events.monitor.removed.listen(on_monitor_removed);
 }
 
 static void add_dispatchers() {
