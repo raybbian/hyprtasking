@@ -11,6 +11,7 @@ class HTPassElement: public IPassElement {
     virtual bool needsLiveBlur();
     virtual bool needsPrecomputeBlur();
     virtual bool disableSimplification();
+    virtual ePassElementType type();
 
     virtual const char* passName() {
         return "HTDisableSimplification";

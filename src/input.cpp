@@ -166,8 +166,8 @@ bool HTManager::end_window_drag() {
 
     // otherwise the window leaves blur (?) artifacts on all
     // workspaces
-    dragged_window->m_movingToWorkspaceAlpha->setValueAndWarp(1.0);
-    dragged_window->m_movingFromWorkspaceAlpha->setValueAndWarp(1.0);
+    // dragged_window->m_movingToWorkspaceAlpha->setValueAndWarp(1.0);
+    // dragged_window->m_movingFromWorkspaceAlpha->setValueAndWarp(1.0);
 
     // if (o_workspace != nullptr)
     //     cursor_monitor->changeWorkspace(o_workspace.lock(), true);

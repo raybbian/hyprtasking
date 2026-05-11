@@ -1,6 +1,8 @@
 #include "grid.hpp"
 
 #include <algorithm>
+#include <hyprland/src/config/shared/complex/ComplexDataTypes.hpp>
+#include <hyprutils/animation/AnimationConfig.hpp>
 #include <unordered_set>
 
 #include <hyprland/src/Compositor.hpp>
@@ -10,7 +12,9 @@
 #include <hyprland/src/helpers/AnimatedVariable.hpp>
 #include <hyprland/src/managers/animation/AnimationManager.hpp>
 #include <hyprland/src/managers/animation/DesktopAnimationManager.hpp>
+#include <hyprland/src/config/shared/animation/AnimationTree.hpp>
 #include <hyprland/src/managers/input/InputManager.hpp>
+#include <hyprland/src/config/shared/workspace/WorkspaceRuleManager.hpp>
 #include <hyprland/src/layout/LayoutManager.hpp>
 #include <hyprland/src/render/OpenGL.hpp>
 #include <hyprland/src/render/Renderer.hpp>
@@ -27,18 +31,23 @@
 #include "src/layout/target/Target.hpp"
 
 using Hyprutils::Utils::CScopeGuard;
+using namespace Render;
+using namespace Render::GL;
+using namespace Hyprutils::Animation;
+using Config::CAnimationTreeController;
 
 HTLayoutGrid::HTLayoutGrid(VIEWID new_view_id) : HTLayoutBase(new_view_id) {
+    auto &anim_tree = Config::animationTree();
     g_pAnimationManager->createAnimation(
         {0, 0},
         offset,
-        g_pConfigManager->getAnimationPropertyConfig("workspaces"),
+        anim_tree->getAnimationPropertyConfig("workspaces"),
         AVARDAMAGE_NONE
     );
     g_pAnimationManager->createAnimation(
         1.f,
         scale,
-        g_pConfigManager->getAnimationPropertyConfig("workspaces"),
+        anim_tree->getAnimationPropertyConfig("workspaces"),
         AVARDAMAGE_NONE
     );
 
@@ -130,10 +139,11 @@ void HTLayoutGrid::refresh_workspace_cache(
     // could silently switch monitors. extra_off_limits carries IDs already
     // claimed by sibling views in this refresh.
     std::unordered_set<WORKSPACEID> off_limits = extra_off_limits;
-    const auto& all_rules = g_pConfigManager->getAllWorkspaceRules();
+    const auto& ws_manager = Config::workspaceRuleMgr();
+    const auto& all_rules = ws_manager->getAllWorkspaceRules();
     for (const auto& rule : all_rules) {
-        if (rule.workspaceId > 0)
-            off_limits.insert(rule.workspaceId);
+        if (rule.m_workspaceId > 0)
+            off_limits.insert(rule.m_workspaceId);
     }
     for (const auto& w : g_pCompositor->getWorkspacesCopy()) {
         if (w == nullptr)
@@ -509,8 +519,8 @@ void HTLayoutGrid::render() {
     static auto PACTIVECOL = CConfigValue<Hyprlang::CUSTOMTYPE>("general:col.active_border");
     static auto PINACTIVECOL = CConfigValue<Hyprlang::CUSTOMTYPE>("general:col.inactive_border");
 
-    auto* const ACTIVECOL = (CGradientValueData*)(PACTIVECOL.ptr())->getData();
-    auto* const INACTIVECOL = (CGradientValueData*)(PINACTIVECOL.ptr())->getData();
+    // auto* const ACTIVECOL = (Config::CGradientValueData*)(PACTIVECOL.ptr())->getData();
+    // auto* const INACTIVECOL = (Config::CGradientValueData*)(PINACTIVECOL.ptr())->getData();
 
     const float BORDERSIZE = HTConfig::value<Hyprlang::FLOAT>("border_size");
 
@@ -518,7 +528,7 @@ void HTLayoutGrid::render() {
 
 
     g_pHyprRenderer->damageMonitor(monitor);
-    g_pHyprOpenGL->m_renderData.pCurrentMonData->blurFBShouldRender = true;
+    g_pHyprRenderer->m_renderData.pMonitor->m_blurFBShouldRender = true;
     CBox monitor_box = {{0, 0}, monitor->m_transformedSize};
 
     CRectPassElement::SRectData data;
@@ -563,13 +573,13 @@ void HTLayoutGrid::render() {
         if (global_box.expand(BORDERSIZE).intersection(global_mon_box).empty())
             continue;
 
-        const CGradientValueData border_col =
-            monitor->m_activeWorkspace->m_id == ws_id ? *ACTIVECOL : *INACTIVECOL;
+        // const Config::CGradientValueData border_col =
+        //     monitor->m_activeWorkspace->m_id == ws_id ? *ACTIVECOL : *INACTIVECOL;
         CBox border_box = ws_layout.box;
 
         CBorderPassElement::SBorderData data;
         data.box = border_box;
-        data.grad1 = border_col;
+        // data.grad1 = border_col;
         data.borderSize = BORDERSIZE;
         g_pHyprRenderer->m_renderPass.add(makeUnique<CBorderPassElement>(data));
 
@@ -630,14 +640,14 @@ void HTLayoutGrid::render() {
             if (monitor->m_transform % 2 == 1)
                 std::swap(render_box.w, render_box.h);
 
-            const CGradientValueData border_col =
-                monitor->m_activeWorkspace->m_id == start_workspace->m_id ? *ACTIVECOL
-                                                                          : *INACTIVECOL;
+            // const Config::CGradientValueData border_col =
+            //     monitor->m_activeWorkspace->m_id == start_workspace->m_id ? *ACTIVECOL
+            //                                                               : *INACTIVECOL;
             CBox border_box = ws_box;
 
             CBorderPassElement::SBorderData data;
             data.box = border_box;
-            data.grad1 = border_col;
+            // data.grad1 = border_col;
             data.borderSize = BORDERSIZE;
             g_pHyprRenderer->m_renderPass.add(makeUnique<CBorderPassElement>(data));
 

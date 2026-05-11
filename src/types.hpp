@@ -3,7 +3,12 @@
 #include <hyprland/src/Compositor.hpp>
 #include <hyprland/src/desktop/DesktopTypes.hpp>
 #include <hyprland/src/render/Renderer.hpp>
+#include <hyprland/src/render/types.hpp>
+#include <hyprland/src/config/shared/actions/ConfigActions.hpp>
 #include <hyprutils/math/Box.hpp>
+
+using namespace Render;
+
 typedef void (*render_workspace_t)(
     void* thisptr,
     PHLMONITOR pMonitor,

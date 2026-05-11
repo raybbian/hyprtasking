@@ -5,7 +5,9 @@
 #include <hyprland/src/config/ConfigValue.hpp>
 #include <hyprland/src/helpers/MiscFunctions.hpp>
 #include <hyprland/src/managers/animation/AnimationManager.hpp>
+#include <hyprland/src/config/shared/animation/AnimationTree.hpp>
 #include <hyprland/src/managers/animation/DesktopAnimationManager.hpp>
+#include <hyprland/src/config/shared/workspace/WorkspaceRuleManager.hpp>
 #include <hyprland/src/layout/LayoutManager.hpp>
 #include <hyprland/src/managers/input/InputManager.hpp>
 #include <hyprland/src/render/pass/BorderPassElement.hpp>
@@ -18,32 +20,36 @@
 #include "../globals.hpp"
 #include "../render.hpp"
 #include "layout_base.hpp"
+#include "src/render/OpenGL.hpp"
+#include "src/render/Renderer.hpp"
 
 using Hyprutils::Utils::CScopeGuard;
+using namespace Render::GL;
 
 HTLayoutLinear::HTLayoutLinear(VIEWID new_view_id) : HTLayoutBase(new_view_id) {
+    auto &anim_tree = Config::animationTree();
     g_pAnimationManager->createAnimation(
         0.f,
         scroll_offset,
-        g_pConfigManager->getAnimationPropertyConfig("windowsMove"),
+        anim_tree->getAnimationPropertyConfig("windowsMove"),
         AVARDAMAGE_NONE
     );
     g_pAnimationManager->createAnimation(
         0.f,
         view_offset,
-        g_pConfigManager->getAnimationPropertyConfig("windowsMove"),
+        anim_tree->getAnimationPropertyConfig("windowsMove"),
         AVARDAMAGE_NONE
     );
     g_pAnimationManager->createAnimation(
         0.f,
         blur_strength,
-        g_pConfigManager->getAnimationPropertyConfig("fadeIn"),
+        anim_tree->getAnimationPropertyConfig("fadeIn"),
         AVARDAMAGE_NONE
     );
     g_pAnimationManager->createAnimation(
         0.f,
         dim_opacity,
-        g_pConfigManager->getAnimationPropertyConfig("fadeDim"),
+        anim_tree->getAnimationPropertyConfig("fadeDim"),
         AVARDAMAGE_NONE
     );
 
@@ -313,8 +319,8 @@ void HTLayoutLinear::render() {
     static auto PACTIVECOL = CConfigValue<Hyprlang::CUSTOMTYPE>("general:col.active_border");
     static auto PINACTIVECOL = CConfigValue<Hyprlang::CUSTOMTYPE>("general:col.inactive_border");
 
-    auto* const ACTIVECOL = (CGradientValueData*)(PACTIVECOL.ptr())->getData();
-    auto* const INACTIVECOL = (CGradientValueData*)(PINACTIVECOL.ptr())->getData();
+    auto* const ACTIVECOL = (Config::CGradientValueData*)(PACTIVECOL.ptr())->getData();
+    auto* const INACTIVECOL = (Config::CGradientValueData*)(PINACTIVECOL.ptr())->getData();
 
     const float BORDERSIZE = HTConfig::value<Hyprlang::FLOAT>("border_size");
     const float HEIGHT = HTConfig::value<Hyprlang::FLOAT>("linear:height") * monitor->m_scale;
@@ -323,7 +329,7 @@ void HTLayoutLinear::render() {
 
 
     g_pHyprRenderer->damageMonitor(monitor);
-    g_pHyprOpenGL->m_renderData.pCurrentMonData->blurFBShouldRender = true;
+    g_pHyprRenderer->m_renderData.pMonitor->m_blurFBShouldRender = true;
 
     // Do a dance with active workspaces: Hyprland will only properly render the
     // current active one so make the workspace active before rendering it, etc
@@ -406,7 +412,7 @@ void HTLayoutLinear::render() {
         if (global_box.intersection(global_mon_box).empty())
             continue;
 
-        const CGradientValueData border_col = workspace == big_ws ? *ACTIVECOL : *INACTIVECOL;
+        const Config::CGradientValueData border_col = workspace == big_ws ? *ACTIVECOL : *INACTIVECOL;
         CBox border_box = ws_layout.box;
 
         CBorderPassElement::SBorderData data;

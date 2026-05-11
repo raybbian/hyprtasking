@@ -225,7 +225,8 @@ static SDispatchResult dispatch_kill_hover(std::string arg) {
     const PHLWINDOW hovered_window = ht_manager->get_window_from_cursor(!cursor_view->active);
     if (hovered_window == nullptr)
         return {.success = false, .error = "hovered_window is null"};
-    g_pCompositor->closeWindow(hovered_window);
+    Config::Actions::ActionResult res = Config::Actions::closeWindow(hovered_window);
+    // TODO: error checking for action
     return {};
 }
 
@@ -343,7 +344,7 @@ static void notify_config_changes() {
         );
     }
 
-    CVarList exit_behavior {HTConfig::value<Hyprlang::STRING>("exit_behavior"), 0, 's', true};
+    Hyprutils::String::CVarList2 exit_behavior {HTConfig::value<Hyprlang::STRING>("exit_behavior"), 0, 's', true};
     if (exit_behavior.size() != 0) {
         HyprlandAPI::addNotification(
             PHANDLE,
@@ -423,8 +424,7 @@ static void init_functions() {
 
     static auto FNS2 = HyprlandAPI::findFunctionsByName(
         PHANDLE,
-        "_ZN13CHyprRenderer18shouldRenderWindowEN9Hyprutils6Memory14CS"
-        "haredPointerIN7Desktop4View7CWindowEEENS2_I8CMonitorEE"
+        "_ZN6Render13IHyprRenderer18shouldRenderWindowEN9Hyprutils6Memory14CSharedPointerIN7Desktop4View7CWindowEEE"
     );
     if (FNS2.empty())
         fail_exit("No shouldRenderWindow");
@@ -437,12 +437,11 @@ static void init_functions() {
     // This is needed so it won't break on update that adds/removes a
     // function with this name
     // This, however, requires checking for signautre changes
+    // Use this command for getting the signatures:
+    // strings /usr/bin/hyprland | grep renderWindow
     static auto FNS3 = HyprlandAPI::findFunctionsByName(
         PHANDLE,
-        "_ZN13CHyprRenderer12renderWindowEN9Hyprutils6Memory14CSha"
-        "redPointerIN7Desktop4View7CWindowEEENS2_I8CMonitorEERKNSt"
-        "6chrono10time_pointINS9_3_V212steady_clockENS9_8durationI"
-        "lSt5ratioILl1ELl1000000000EEEEEEb15eRenderPassModebb"
+        "_ZN6Render13IHyprRenderer12renderWindowEN9Hyprutils6Memory14CSharedPointerIN7Desktop4View7CWindowEEENS3_I8CMonitorEERKNSt6chrono10time_pointINSA_3_V212steady_clockENSA_8durationIlSt5ratioILl1ELl1000000000EEEEEEbNS_15eRenderPassModeEbb"
     );
     if (FNS3.empty())
         fail_exit("No renderWindow");
@@ -581,7 +580,7 @@ static void init_config() {
     HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprtasking:rows", Hyprlang::INT {-1});
     HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprtasking:exit_behavior", Hyprlang::STRING {""});
 
-    HyprlandAPI::reloadConfig();
+    // HyprlandAPI::reloadConfig();
 }
 
 APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
