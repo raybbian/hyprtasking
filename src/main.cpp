@@ -265,7 +265,13 @@ static bool hook_should_render_window(void* thisptr, PHLWINDOW window, PHLMONITO
     bool res = false;
     // if (window && monitor)
     //     res = ((should_render_window_t)(should_render_window_hook->m_original))(thisptr, window, monitor);
-    if (ht_manager == nullptr || !ht_manager->has_active_view())
+    if (ht_manager == nullptr)
+        return res;
+    if (!ht_manager->has_active_view())
+        return res;
+    if (!monitor || monitor->m_description == "")
+        return res;
+    if (monitor->m_description == "")
         return res;
 
     Log::logger->log(Log::ERR, "[Hyprtasking] should monitor:", monitor->m_description);
