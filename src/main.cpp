@@ -21,6 +21,7 @@
 
 #include "config.hpp"
 #include "globals.hpp"
+#include "layout/grid.hpp"
 #include "overview.hpp"
 #include "types.hpp"
 
@@ -163,20 +164,21 @@ static SDispatchResult change_layer(std::string arg, bool move_window) {
     if (cursor_view->layout->layout_name() != "grid")
         return {.success = false, .error = "layers are only supported in grid layout"};
 
-    const int ROWS = HTConfig::value<Hyprlang::INT>("grid:rows");
-    const int COLS = HTConfig::value<Hyprlang::INT>("grid:cols");
     const int LAYERS = HTConfig::value<Hyprlang::INT>("grid:layers");
     const int LOOP_LAYERS = HTConfig::value<Hyprlang::INT>("grid:loop_layers");
-    const int ws_per_layer = ROWS*COLS;
     const int original_layer = cursor_view->layout->layer;
 
     int resulting_layer = original_layer;
     if (arg[0] == '+' || arg[0] == '-') {
-        // relative jump
         resulting_layer += std::stoi(arg);
     } else {
-        // absolute jump
         resulting_layer = std::stoi(arg);
+    }
+
+    if (resulting_layer < 0 || resulting_layer >= LAYERS) {
+        if (!LOOP_LAYERS)
+            return {};
+        resulting_layer = ((resulting_layer % LAYERS) + LAYERS) % LAYERS;
     }
 
     const PHLMONITOR monitor = cursor_view->get_monitor();
@@ -187,28 +189,18 @@ static SDispatchResult change_layer(std::string arg, bool move_window) {
         return {.success = false, .error = "active_workspace is null"};
     const WORKSPACEID source_ws_id = active_workspace->m_id;
 
-    const int layer_delta = resulting_layer - original_layer;
-    WORKSPACEID target_ws_id = source_ws_id + layer_delta * ws_per_layer;
+    auto* grid = static_cast<HTLayoutGrid*>(cursor_view->layout.get());
+    const auto src_it = grid->cache().find(source_ws_id);
+    if (src_it == grid->cache().end())
+        return {.success = false, .error = "active workspace not in grid cache"};
 
-    // if resulting offset doesn't fit in boundaries
-    if (resulting_layer >= LAYERS || resulting_layer < 0) {
-        // Don't do anything if next is invalid and grid:loop_layers is disabled
-        if (!LOOP_LAYERS) {
-            return {};
-        }
-
-        if (resulting_layer < 0) {
-            resulting_layer = LAYERS - 1;
-        } else if (resulting_layer >= LAYERS) {
-            resulting_layer = 0;
-        }
-        target_ws_id = cursor_view->monitor_id * ws_per_layer * LAYERS + // Monitor
-                       ws_per_layer * resulting_layer +                  // Layer
-                       (source_ws_id - 1) % ws_per_layer + 1;            // X and Y of a workspace
-    }
+    const HTGridSlot src_slot = src_it->second;
+    const WORKSPACEID target_ws_id =
+        grid->slot_workspace(resulting_layer, src_slot.x, src_slot.y);
+    if (target_ws_id == WORKSPACE_INVALID)
+        return {.success = false, .error = "target slot has no workspace"};
 
     set_layer(cursor_view, resulting_layer);
-
     cursor_view->move_id(target_ws_id, move_window);
     return {};
 }

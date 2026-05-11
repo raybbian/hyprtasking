@@ -142,21 +142,41 @@ void HTLayoutGrid::refresh_workspace_cache(
 
     size_t cursor = 0;
 
-    for (const auto& rule : all_rules) {
-        if (rule.workspaceId <= 0)
+    // Sort by workspaceId so slot assignment doesn't depend on config-line order.
+    std::vector<const SWorkspaceRule*> rules_sorted;
+    rules_sorted.reserve(all_rules.size());
+    for (const auto& r : all_rules)
+        rules_sorted.push_back(&r);
+    std::sort(rules_sorted.begin(), rules_sorted.end(),
+              [](const SWorkspaceRule* a, const SWorkspaceRule* b) {
+                  return a->workspaceId < b->workspaceId;
+              });
+
+    for (const SWorkspaceRule* rule : rules_sorted) {
+        if (rule->workspaceId <= 0)
             continue;
-        if (extra_off_limits.count(rule.workspaceId))
+        if (extra_off_limits.count(rule->workspaceId))
             continue;
         const auto bound = g_pConfigManager->getBoundMonitorForWS(
-            rule.workspaceName.starts_with("name:")
-                ? rule.workspaceName.substr(5)
-                : rule.workspaceName
+            rule->workspaceName.starts_with("name:")
+                ? rule->workspaceName.substr(5)
+                : rule->workspaceName
         );
         if (bound == nullptr || bound->m_id != view_id)
             continue;
-        place_with_prior(rule.workspaceId, cursor);
+        place_with_prior(rule->workspaceId, cursor);
+
+        // Hyprland only auto-migrates persistent rules on reload; nudge
+        // anything else onto its rule-bound monitor so reload-time edits to
+        // the config take effect.
+        const PHLWORKSPACE existing = g_pCompositor->getWorkspaceByID(rule->workspaceId);
+        if (existing != nullptr && existing->m_monitor.lock() != monitor)
+            g_pCompositor->moveWorkspaceToMonitor(existing, monitor);
     }
 
+    // Sort by m_id so slot assignment is independent of Hyprland's internal
+    // m_workspaces vector order.
+    std::vector<PHLWORKSPACE> on_monitor;
     for (const auto& w : g_pCompositor->getWorkspacesCopy()) {
         if (w == nullptr)
             continue;
@@ -166,8 +186,14 @@ void HTLayoutGrid::refresh_workspace_cache(
             continue;
         if (extra_off_limits.count(w->m_id))
             continue;
-        place_with_prior(w->m_id, cursor);
+        on_monitor.push_back(w);
     }
+    std::sort(on_monitor.begin(), on_monitor.end(),
+              [](const PHLWORKSPACE& a, const PHLWORKSPACE& b) {
+                  return a->m_id < b->m_id;
+              });
+    for (const auto& w : on_monitor)
+        place_with_prior(w->m_id, cursor);
 
     WORKSPACEID synth_candidate = 1;
     auto next_synth = [&]() -> WORKSPACEID {
