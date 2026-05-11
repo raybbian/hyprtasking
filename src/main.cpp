@@ -23,7 +23,12 @@
 #include "globals.hpp"
 #include "layout/grid.hpp"
 #include "overview.hpp"
+#include "src/config/shared/actions/ConfigActions.hpp"
 #include "types.hpp"
+
+using namespace Config;
+using namespace Config::Legacy;
+using namespace Config::Actions;
 
 APICALL EXPORT std::string PLUGIN_API_VERSION() {
     return HYPRLAND_API_VERSION;
@@ -213,6 +218,12 @@ static SDispatchResult dispatch_setlayerwindow(std::string arg) {
     return change_layer(arg, true);
 }
 
+static SDispatchResult wrap(ActionResult res) {
+    if (!res)
+        return {.success = false, .error = res.error().message};
+    return {.passEvent = res->passEvent};
+}
+
 static SDispatchResult dispatch_kill_hover(std::string arg) {
     if (ht_manager == nullptr)
         return {.success = false, .error = "ht_manager is null"};
@@ -225,9 +236,8 @@ static SDispatchResult dispatch_kill_hover(std::string arg) {
     const PHLWINDOW hovered_window = ht_manager->get_window_from_cursor(!cursor_view->active);
     if (hovered_window == nullptr)
         return {.success = false, .error = "hovered_window is null"};
-    Config::Actions::ActionResult res = Config::Actions::closeWindow(hovered_window);
-    // TODO: error checking for action
-    return {};
+
+    return wrap(killWindow());
 }
 
 static void hook_render_workspace(
@@ -252,13 +262,16 @@ static void hook_render_workspace(
 }
 
 static bool hook_should_render_window(void* thisptr, PHLWINDOW window, PHLMONITOR monitor) {
-    bool ori_result =
-        ((should_render_window_t)(should_render_window_hook->m_original))(thisptr, window, monitor);
+    bool res = false;
+    // if (window && monitor)
+    //     res = ((should_render_window_t)(should_render_window_hook->m_original))(thisptr, window, monitor);
     if (ht_manager == nullptr || !ht_manager->has_active_view())
-        return ori_result;
+        return res;
+
+    Log::logger->log(Log::ERR, "[Hyprtasking] should monitor:", monitor->m_description);
     const PHTVIEW view = ht_manager->get_view_from_monitor(monitor);
     if (view == nullptr)
-        return ori_result;
+        return res;
     return view->layout->should_render_window(window);
 }
 
