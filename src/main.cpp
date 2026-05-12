@@ -237,7 +237,7 @@ static SDispatchResult dispatch_kill_hover(std::string arg) {
     if (hovered_window == nullptr)
         return {.success = false, .error = "hovered_window is null"};
 
-    return wrap(killWindow());
+    return wrap(closeWindow());
 }
 
 static void hook_render_workspace(
@@ -456,7 +456,7 @@ static void init_functions() {
     // This is needed so it won't break on update that adds/removes a
     // function with this name
     // This, however, requires checking for signautre changes
-    // Use this command for getting the signatures:
+    // Use this command to get the signature:
     // strings /usr/bin/hyprland | grep renderWindow
     static auto FNS3 = HyprlandAPI::findFunctionsByName(
         PHANDLE,
