@@ -165,13 +165,6 @@ void HTLayoutGrid::refresh_workspace_cache(
         if (bound == nullptr || bound->m_id != view_id)
             continue;
         place_with_prior(rule->workspaceId, cursor);
-
-        // Hyprland only auto-migrates persistent rules on reload; nudge
-        // anything else onto its rule-bound monitor so reload-time edits to
-        // the config take effect.
-        const PHLWORKSPACE existing = g_pCompositor->getWorkspaceByID(rule->workspaceId);
-        if (existing != nullptr && existing->m_monitor.lock() != monitor)
-            g_pCompositor->moveWorkspaceToMonitor(existing, monitor);
     }
 
     // Sort by m_id so slot assignment is independent of Hyprland's internal
@@ -192,7 +185,22 @@ void HTLayoutGrid::refresh_workspace_cache(
               [](const PHLWORKSPACE& a, const PHLWORKSPACE& b) {
                   return a->m_id < b->m_id;
               });
-    for (const auto& w : on_monitor)
+    // Settle workspaces that still have a free prior slot before assigning
+    // anyone via the cursor — otherwise a migrated workspace with no prior
+    // here would steal slot 0 and displace this monitor's resident at (0,0).
+    std::vector<PHLWORKSPACE> needs_cursor;
+    for (const auto& w : on_monitor) {
+        const auto pit = prior.find(w->m_id);
+        if (pit != prior.end()) {
+            const long long idx = find_slot_index(pit->second);
+            if (idx >= 0 && !taken[(size_t)idx]) {
+                place(w->m_id, (size_t)idx);
+                continue;
+            }
+        }
+        needs_cursor.push_back(w);
+    }
+    for (const auto& w : needs_cursor)
         place_with_prior(w->m_id, cursor);
 
     WORKSPACEID synth_candidate = 1;

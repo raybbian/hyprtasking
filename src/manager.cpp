@@ -118,6 +118,28 @@ void HTManager::reset() {
 }
 
 void HTManager::refresh_all_grid_caches() {
+    // Enforce monitor-binding rules globally first. Per-grid refresh below
+    // sees one workspace at a time on one monitor; if a rule-bound ws still
+    // lives on the wrong monitor, the first grid to refresh would claim it
+    // via Pass 2 and the rule-bound grid would then skip it via off_limits,
+    // so the migration would never happen.
+    const auto& all_rules = g_pConfigManager->getAllWorkspaceRules();
+    for (const auto& rule : all_rules) {
+        if (rule.workspaceId <= 0)
+            continue;
+        const auto bound = g_pConfigManager->getBoundMonitorForWS(
+            rule.workspaceName.starts_with("name:") ? rule.workspaceName.substr(5)
+                                                    : rule.workspaceName
+        );
+        if (bound == nullptr)
+            continue;
+        const PHLWORKSPACE ws = g_pCompositor->getWorkspaceByID(rule.workspaceId);
+        if (ws == nullptr)
+            continue;
+        if (ws->m_monitor.lock() != bound)
+            g_pCompositor->moveWorkspaceToMonitor(ws, bound);
+    }
+
     std::vector<HTLayoutGrid*> grids;
     grids.reserve(views.size());
     for (PHTVIEW view : views) {
@@ -137,6 +159,19 @@ void HTManager::refresh_all_grid_caches() {
         grid->refresh_workspace_cache(taken);
         for (const auto& [id, slot] : grid->cache())
             taken.insert(id);
+    }
+
+    // Re-anchor each inactive view's overlay on its monitor's current
+    // active workspace. Hyprland may have switched the active workspace
+    // (e.g. after rule-driven migration moved the previous one away), and
+    // without this the overlay's stored offset still points at the old
+    // slot, producing a visible jump when the overview opens.
+    for (PHTVIEW view : views) {
+        if (view == nullptr || view->layout == nullptr)
+            continue;
+        if (view->active)
+            continue;
+        view->layout->init_position();
     }
 }
 
