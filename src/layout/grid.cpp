@@ -495,7 +495,8 @@ void HTLayoutGrid::build_overview_layout(HTViewStage stage) {
             const WORKSPACEID ws_id = slot_workspace(layer, x, y);
             if (ws_id == WORKSPACE_INVALID)
                 continue;
-            const CBox ws_box = calculate_ws_box(x, y, stage);
+            CBox ws_box = calculate_ws_box(x, y, stage);
+            ws_box.round();
             overview_layout[ws_id] = HTWorkspace {x, y, ws_box};
         }
     }
@@ -580,7 +581,6 @@ void HTLayoutGrid::render() {
         data.box = border_box;
         data.grad1 = border_col;
         data.borderSize = BORDERSIZE;
-        g_pHyprRenderer->m_renderPass.add(makeUnique<CBorderPassElement>(data));
 
         if (workspace != nullptr) {
             monitor->m_activeWorkspace = workspace;
@@ -617,6 +617,7 @@ void HTLayoutGrid::render() {
                 render_box
             );
         }
+        g_pHyprRenderer->m_renderPass.add(makeUnique<CBorderPassElement>(data));
     }
 
     monitor->m_activeWorkspace = start_workspace;
@@ -648,7 +649,6 @@ void HTLayoutGrid::render() {
             data.box = border_box;
             data.grad1 = border_col;
             data.borderSize = BORDERSIZE;
-            g_pHyprRenderer->m_renderPass.add(makeUnique<CBorderPassElement>(data));
 
             ((render_workspace_t)(render_workspace_hook->m_original))(
                 g_pHyprRenderer.get(),
@@ -657,6 +657,7 @@ void HTLayoutGrid::render() {
                 time,
                 render_box
             );
+            g_pHyprRenderer->m_renderPass.add(makeUnique<CBorderPassElement>(data));
         }
     }
 
