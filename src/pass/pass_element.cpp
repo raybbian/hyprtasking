@@ -4,12 +4,8 @@ HTPassElement::HTPassElement() {
     ;
 }
 
-void HTPassElement::draw(const CRegion& damage) {
-    ;
-}
-
-ePassElementType HTPassElement::type() {
-    return EK_FRAMEBUFFER;
+std::vector<UP<IPassElement>> HTPassElement::draw(const CRegion& damage) {
+    return {};
 }
 
 bool HTPassElement::needsLiveBlur() {
@@ -17,6 +13,7 @@ bool HTPassElement::needsLiveBlur() {
 }
 
 bool HTPassElement::needsPrecomputeBlur() {
+    // hyprexpo uses false
     return true;
 }
 
