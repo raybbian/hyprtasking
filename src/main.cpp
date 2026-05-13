@@ -624,6 +624,7 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
 
 APICALL EXPORT void PLUGIN_EXIT() {
     Log::logger->log(LOG, "[Hyprtasking] Plugin exiting");
-
+    // prevent crashes
+    ht_manager->hide_all_views();
     ht_manager->reset();
 }
