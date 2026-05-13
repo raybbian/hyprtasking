@@ -263,18 +263,12 @@ static void hook_render_workspace(
 
 static bool hook_should_render_window(void* thisptr, PHLWINDOW window, PHLMONITOR monitor) {
     bool res = false;
-    // if (window && monitor)
-    //     res = ((should_render_window_t)(should_render_window_hook->m_original))(thisptr, window, monitor);
+    if (window && monitor)
+        res = ((should_render_window_t)(should_render_window_hook->m_original))(thisptr, window, monitor);
     if (ht_manager == nullptr)
         return res;
     if (!ht_manager->has_active_view())
         return res;
-    if (!monitor || monitor->m_description == "")
-        return res;
-    if (monitor->m_description == "")
-        return res;
-
-    Log::logger->log(Log::ERR, "[Hyprtasking] should monitor:", monitor->m_description);
     const PHTVIEW view = ht_manager->get_view_from_monitor(monitor);
     if (view == nullptr)
         return res;
@@ -441,9 +435,10 @@ static void init_functions() {
     Log::logger->log(LOG, "[Hyprtasking] Attempting hook {}", FNS1[0].signature);
     success = render_workspace_hook->hook();
 
+    // make sure this signature has "CMonitor"!
     static auto FNS2 = HyprlandAPI::findFunctionsByName(
         PHANDLE,
-        "_ZN6Render13IHyprRenderer18shouldRenderWindowEN9Hyprutils6Memory14CSharedPointerIN7Desktop4View7CWindowEEE"
+        "_ZN6Render13IHyprRenderer18shouldRenderWindowEN9Hyprutils6Memory14CSharedPointerIN7Desktop4View7CWindowEEENS3_I8CMonitorEE"
     );
     if (FNS2.empty())
         fail_exit("No shouldRenderWindow");
@@ -581,7 +576,7 @@ static void init_config() {
         Hyprlang::INT {0}
     );
 
-    //linear specifig
+    //linear specific
     HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprtasking:linear:blur", Hyprlang::INT {1});
     HyprlandAPI::addConfigValue(
         PHANDLE,
