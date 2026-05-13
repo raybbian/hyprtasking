@@ -4,7 +4,7 @@ HTPassElement::HTPassElement() {
     ;
 }
 
-std::vector<UP<IPassElement>> HTPassElement::draw(const CRegion& damage) {
+std::vector<UP<IPassElement>> HTPassElement::draw() {
     return {};
 }
 

@@ -34,7 +34,6 @@ using Hyprutils::Utils::CScopeGuard;
 using namespace Render;
 using namespace Render::GL;
 using namespace Hyprutils::Animation;
-using Config::CAnimationTreeController;
 
 HTLayoutGrid::HTLayoutGrid(VIEWID new_view_id) : HTLayoutBase(new_view_id) {
     auto &anim_tree = Config::animationTree();
@@ -155,28 +154,28 @@ void HTLayoutGrid::refresh_workspace_cache(
     size_t cursor = 0;
 
     // Sort by workspaceId so slot assignment doesn't depend on config-line order.
-    std::vector<const SWorkspaceRule*> rules_sorted;
+    std::vector<const Config::CWorkspaceRule*> rules_sorted;
     rules_sorted.reserve(all_rules.size());
     for (const auto& r : all_rules)
         rules_sorted.push_back(&r);
     std::sort(rules_sorted.begin(), rules_sorted.end(),
-              [](const SWorkspaceRule* a, const SWorkspaceRule* b) {
-                  return a->workspaceId < b->workspaceId;
+              [](const Config::CWorkspaceRule* a, const Config::CWorkspaceRule* b) {
+                  return a->m_workspaceId < b->m_workspaceId;
               });
 
-    for (const SWorkspaceRule* rule : rules_sorted) {
-        if (rule->workspaceId <= 0)
+    for (const Config::CWorkspaceRule* rule : rules_sorted) {
+        if (rule->m_workspaceId <= 0)
             continue;
-        if (extra_off_limits.count(rule->workspaceId))
+        if (extra_off_limits.count(rule->m_workspaceId))
             continue;
-        const auto bound = g_pConfigManager->getBoundMonitorForWS(
-            rule->workspaceName.starts_with("name:")
-                ? rule->workspaceName.substr(5)
-                : rule->workspaceName
+        const auto bound = Config::workspaceRuleMgr()->getBoundMonitorForWS(
+            rule->m_workspaceName.starts_with("name:")
+                ? rule->m_workspaceName.substr(5)
+                : rule->m_workspaceName
         );
         if (bound == nullptr || bound->m_id != view_id)
             continue;
-        place_with_prior(rule->workspaceId, cursor);
+        place_with_prior(rule->m_workspaceId, cursor);
     }
 
     // Sort by m_id so slot assignment is independent of Hyprland's internal
