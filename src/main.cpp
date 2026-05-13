@@ -244,7 +244,7 @@ static void hook_render_workspace(
     void* thisptr,
     PHLMONITOR monitor,
     PHLWORKSPACE workspace,
-   const Time::steady_tp& now,
+    const Time::steady_tp& now,
     const CBox& geometry
 ) {
     if (ht_manager == nullptr) {

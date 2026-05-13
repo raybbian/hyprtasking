@@ -515,11 +515,11 @@ void HTLayoutGrid::render() {
     if (monitor == nullptr)
         return;
 
-    static auto PACTIVECOL = CConfigValue<Hyprlang::CUSTOMTYPE>("general:col.active_border");
-    static auto PINACTIVECOL = CConfigValue<Hyprlang::CUSTOMTYPE>("general:col.inactive_border");
+    static auto PACTIVECOL = CConfigValue<Config::IComplexConfigValue>("general:col.active_border");
+    static auto PINACTIVECOL = CConfigValue<Config::IComplexConfigValue>("general:col.inactive_border");
 
-    // auto* const ACTIVECOL = (Config::CGradientValueData*)(PACTIVECOL.ptr())->getData();
-    // auto* const INACTIVECOL = (Config::CGradientValueData*)(PINACTIVECOL.ptr())->getData();
+    auto* const ACTIVECOL = (Config::CGradientValueData*)(PACTIVECOL.ptr());
+    auto* const INACTIVECOL = (Config::CGradientValueData*)(PINACTIVECOL.ptr());
 
     const float BORDERSIZE = HTConfig::value<Hyprlang::FLOAT>("border_size");
 
@@ -572,13 +572,13 @@ void HTLayoutGrid::render() {
         if (global_box.expand(BORDERSIZE).intersection(global_mon_box).empty())
             continue;
 
-        // const Config::CGradientValueData border_col =
-        //     monitor->m_activeWorkspace->m_id == ws_id ? *ACTIVECOL : *INACTIVECOL;
+        const Config::CGradientValueData border_col =
+            monitor->m_activeWorkspace->m_id == ws_id ? *ACTIVECOL : *INACTIVECOL;
         CBox border_box = ws_layout.box;
 
         CBorderPassElement::SBorderData data;
         data.box = border_box;
-        // data.grad1 = border_col;
+        data.grad1 = border_col;
         data.borderSize = BORDERSIZE;
         g_pHyprRenderer->m_renderPass.add(makeUnique<CBorderPassElement>(data));
 
@@ -639,14 +639,14 @@ void HTLayoutGrid::render() {
             if (monitor->m_transform % 2 == 1)
                 std::swap(render_box.w, render_box.h);
 
-            // const Config::CGradientValueData border_col =
-            //     monitor->m_activeWorkspace->m_id == start_workspace->m_id ? *ACTIVECOL
-            //                                                               : *INACTIVECOL;
+            const Config::CGradientValueData border_col =
+                monitor->m_activeWorkspace->m_id == start_workspace->m_id ? *ACTIVECOL
+                                                                          : *INACTIVECOL;
             CBox border_box = ws_box;
 
             CBorderPassElement::SBorderData data;
             data.box = border_box;
-            // data.grad1 = border_col;
+            data.grad1 = border_col;
             data.borderSize = BORDERSIZE;
             g_pHyprRenderer->m_renderPass.add(makeUnique<CBorderPassElement>(data));
 

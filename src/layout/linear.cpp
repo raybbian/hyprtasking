@@ -316,11 +316,11 @@ void HTLayoutLinear::render() {
     if (monitor == nullptr)
         return;
 
-    static auto PACTIVECOL = CConfigValue<Hyprlang::CUSTOMTYPE>("general:col.active_border");
-    static auto PINACTIVECOL = CConfigValue<Hyprlang::CUSTOMTYPE>("general:col.inactive_border");
+    static auto PACTIVECOL = CConfigValue<Config::IComplexConfigValue>("general:col.active_border");
+    static auto PINACTIVECOL = CConfigValue<Config::IComplexConfigValue>("general:col.inactive_border");
 
-    auto* const ACTIVECOL = (Config::CGradientValueData*)(PACTIVECOL.ptr())->getData();
-    auto* const INACTIVECOL = (Config::CGradientValueData*)(PINACTIVECOL.ptr())->getData();
+    auto* const ACTIVECOL = (Config::CGradientValueData*)(PACTIVECOL.ptr());
+    auto* const INACTIVECOL = (Config::CGradientValueData*)(PINACTIVECOL.ptr());
 
     const float BORDERSIZE = HTConfig::value<Hyprlang::FLOAT>("border_size");
     const float HEIGHT = HTConfig::value<Hyprlang::FLOAT>("linear:height") * monitor->m_scale;
