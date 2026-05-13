@@ -46,6 +46,8 @@ HTLayoutGrid::HTLayoutGrid(VIEWID new_view_id) : HTLayoutBase(new_view_id) {
     init_position();
 }
 
+// Bit layout: [layer:24][y:20][x:20]. Used purely as an unordered_map key;
+// limits are implicit and not enforced (grid dims are not validated).
 long long HTLayoutGrid::pack_slot(int layer, int x, int y) {
     return ((long long)layer << 40) | ((long long)(uint32_t)y << 20) | (long long)(uint32_t)x;
 }
@@ -397,6 +399,13 @@ void HTLayoutGrid::init_position() {
 
     if (monitor->m_activeWorkspace == nullptr)
         return;
+
+    // Sync to the layer of whatever workspace is currently active on this
+    // monitor. Fresh views (e.g. after monitor reconnect) start at layer 0,
+    // so without this the overview would open on the wrong layer.
+    const auto sit = ws_slot_cache.find(monitor->m_activeWorkspace->m_id);
+    if (sit != ws_slot_cache.end())
+        layer = sit->second.layer;
 
     build_overview_layout(HT_VIEW_CLOSED);
 

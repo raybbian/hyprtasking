@@ -33,7 +33,8 @@ https://github.com/user-attachments/assets/8d6cdfd2-2b17-4240-a117-1dbd2231ed4e
     - [x] Custom workspace layouts
     - [x] Toggle behavior
     - [x] Toggle keybind
-- [ ] Touch and gesture support
+- [x] Touchpad gesture support
+- [ ] Touchscreen support
 - [x] Overview layers
 
 ## Installation
