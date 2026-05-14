@@ -53,7 +53,6 @@ bool HTLayoutBase::should_render_window(PHLWINDOW window) {
     const PHLMONITOR monitor = get_monitor();
     if (monitor == nullptr || window == nullptr)
         return false;
-    // return true;
 
     return ((should_render_window_t)(should_render_window_hook->m_original))(
         g_pHyprRenderer.get(),

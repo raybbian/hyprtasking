@@ -1,8 +1,6 @@
 #include "grid.hpp"
 
 #include <algorithm>
-#include <hyprland/src/config/shared/complex/ComplexDataTypes.hpp>
-#include <hyprutils/animation/AnimationConfig.hpp>
 #include <unordered_set>
 
 #include <hyprland/src/Compositor.hpp>
@@ -31,9 +29,6 @@
 #include "src/layout/target/Target.hpp"
 
 using Hyprutils::Utils::CScopeGuard;
-using namespace Render;
-using namespace Render::GL;
-using namespace Hyprutils::Animation;
 
 HTLayoutGrid::HTLayoutGrid(VIEWID new_view_id) : HTLayoutBase(new_view_id) {
     auto &anim_tree = Config::animationTree();

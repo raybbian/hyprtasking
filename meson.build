@@ -15,7 +15,7 @@ endif
 
 add_project_arguments(
   [
-    '-Wno-narrowing', '-shared', '-fPIC', '--no-gnu-unique', '-ggdb'
+    '-Wno-narrowing', '-shared', '-fPIC', '--no-gnu-unique'
   ],
   language: 'cpp')
 

@@ -20,11 +20,8 @@
 #include "../globals.hpp"
 #include "../render.hpp"
 #include "layout_base.hpp"
-#include "src/render/OpenGL.hpp"
-#include "src/render/Renderer.hpp"
 
 using Hyprutils::Utils::CScopeGuard;
-using namespace Render::GL;
 
 HTLayoutLinear::HTLayoutLinear(VIEWID new_view_id) : HTLayoutBase(new_view_id) {
     auto &anim_tree = Config::animationTree();

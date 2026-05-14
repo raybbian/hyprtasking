@@ -2,6 +2,7 @@
 
 #include <hyprland/src/Compositor.hpp>
 #include <hyprland/src/SharedDefs.hpp>
+#include <hyprland/src/config/shared/actions/ConfigActions.hpp>
 #include <hyprland/src/desktop/DesktopTypes.hpp>
 #include <hyprland/src/devices/IKeyboard.hpp>
 #include <hyprland/src/helpers/Monitor.hpp>
@@ -23,11 +24,8 @@
 #include "globals.hpp"
 #include "layout/grid.hpp"
 #include "overview.hpp"
-#include "src/config/shared/actions/ConfigActions.hpp"
 #include "types.hpp"
 
-using namespace Config;
-using namespace Config::Legacy;
 using namespace Config::Actions;
 
 APICALL EXPORT std::string PLUGIN_API_VERSION() {
@@ -262,16 +260,13 @@ static void hook_render_workspace(
 }
 
 static bool hook_should_render_window(void* thisptr, PHLWINDOW window, PHLMONITOR monitor) {
-    bool res = false;
-    if (window && monitor)
-        res = ((should_render_window_t)(should_render_window_hook->m_original))(thisptr, window, monitor);
-    if (ht_manager == nullptr)
-        return res;
-    if (!ht_manager->has_active_view())
-        return res;
+    bool ori_result =
+        ((should_render_window_t)(should_render_window_hook->m_original))(thisptr, window, monitor);
+    if (ht_manager == nullptr || !ht_manager->has_active_view())
+        return ori_result;
     const PHTVIEW view = ht_manager->get_view_from_monitor(monitor);
     if (view == nullptr)
-        return res;
+        return ori_result;
     return view->layout->should_render_window(window);
 }
 
