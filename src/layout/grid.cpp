@@ -69,9 +69,9 @@ void HTLayoutGrid::refresh_workspace_cache(
     if (monitor == nullptr)
         return;
 
-    const int ROWS = HTConfig::value<Hyprlang::INT>("grid:rows");
-    const int COLS = HTConfig::value<Hyprlang::INT>("grid:cols");
-    const int LAYERS = HTConfig::value<Hyprlang::INT>("grid:layers");
+    const int ROWS = HTConfig::value<Config::INTEGER>("grid:rows");
+    const int COLS = HTConfig::value<Config::INTEGER>("grid:cols");
+    const int LAYERS = HTConfig::value<Config::INTEGER>("grid:layers");
     if (ROWS <= 0 || COLS <= 0 || LAYERS <= 0)
         return;
 
@@ -233,9 +233,9 @@ std::string HTLayoutGrid::layout_name() {
 }
 
 WORKSPACEID HTLayoutGrid::get_ws_id_in_direction(int x, int y, std::string& direction) {
-    const int LOOP = HTConfig::value<Hyprlang::INT>("grid:loop");
-    const int ROWS = HTConfig::value<Hyprlang::INT>("grid:rows");
-    const int COLS = HTConfig::value<Hyprlang::INT>("grid:cols");
+    const int LOOP = HTConfig::value<Config::INTEGER>("grid:loop");
+    const int ROWS = HTConfig::value<Config::INTEGER>("grid:rows");
+    const int COLS = HTConfig::value<Config::INTEGER>("grid:cols");
 
     if (direction == "up") {
         y--;
@@ -261,9 +261,9 @@ void HTLayoutGrid::on_move_swipe(Vector2D delta) {
     if (monitor == nullptr)
         return;
 
-    const float MOVE_DISTANCE = HTConfig::value<Hyprlang::FLOAT>("gestures:move_distance");
-    const int ROWS = HTConfig::value<Hyprlang::INT>("grid:rows");
-    const int COLS = HTConfig::value<Hyprlang::INT>("grid:cols");
+    const float MOVE_DISTANCE = HTConfig::value<Config::FLOAT>("gestures:move_distance");
+    const int ROWS = HTConfig::value<Config::INTEGER>("grid:rows");
+    const int COLS = HTConfig::value<Config::INTEGER>("grid:cols");
     const CBox min_ws = calculate_ws_box(0, 0, HT_VIEW_CLOSED);
     const CBox max_ws = calculate_ws_box(COLS - 1, ROWS - 1, HT_VIEW_CLOSED);
 
@@ -430,10 +430,10 @@ CBox HTLayoutGrid::calculate_ws_box(int x, int y, HTViewStage stage) {
     if (monitor->m_transformedSize.x < 1 || monitor->m_transformedSize.y < 1)
         return {};
 
-    const int ROWS = HTConfig::value<Hyprlang::INT>("grid:rows");
-    const int COLS = HTConfig::value<Hyprlang::INT>("grid:cols");
-    const int GAPS_USE_ASPECT_RATIO = HTConfig::value<Hyprlang::INT>("grid:gaps_use_aspect_ratio");
-    const float GAP_SIZE = HTConfig::value<Hyprlang::FLOAT>("gap_size") * monitor->m_scale;
+    const int ROWS = HTConfig::value<Config::INTEGER>("grid:rows");
+    const int COLS = HTConfig::value<Config::INTEGER>("grid:cols");
+    const int GAPS_USE_ASPECT_RATIO = HTConfig::value<Config::INTEGER>("grid:gaps_use_aspect_ratio");
+    const float GAP_SIZE = HTConfig::value<Config::FLOAT>("gap_size") * monitor->m_scale;
     const Vector2D gaps = {
         GAP_SIZE,
         GAPS_USE_ASPECT_RATIO
@@ -478,8 +478,8 @@ void HTLayoutGrid::build_overview_layout(HTViewStage stage) {
     if (monitor == nullptr)
         return;
 
-    const int ROWS = HTConfig::value<Hyprlang::INT>("grid:rows");
-    const int COLS = HTConfig::value<Hyprlang::INT>("grid:cols");
+    const int ROWS = HTConfig::value<Config::INTEGER>("grid:rows");
+    const int COLS = HTConfig::value<Config::INTEGER>("grid:cols");
 
     const PHLMONITOR last_monitor = Desktop::focusState()->monitor();
     Desktop::focusState()->rawMonitorFocus(monitor);
@@ -517,7 +517,7 @@ void HTLayoutGrid::render() {
     auto* const ACTIVECOL = (Config::CGradientValueData*)(PACTIVECOL.ptr());
     auto* const INACTIVECOL = (Config::CGradientValueData*)(PINACTIVECOL.ptr());
 
-    const float BORDERSIZE = HTConfig::value<Hyprlang::FLOAT>("border_size");
+    const float BORDERSIZE = HTConfig::value<Config::FLOAT>("border_size");
 
     const auto time = Time::steadyNow();
 
@@ -527,7 +527,7 @@ void HTLayoutGrid::render() {
     CBox monitor_box = {{0, 0}, monitor->m_transformedSize};
 
     CRectPassElement::SRectData data;
-    data.color = CHyprColor {HTConfig::value<Hyprlang::INT>("bg_color")}.stripA();
+    data.color = CHyprColor {HTConfig::value<Config::INTEGER>("bg_color")}.stripA();
     data.box = monitor_box;
     g_pHyprRenderer->m_renderPass.add(makeUnique<CRectPassElement>(data));
 

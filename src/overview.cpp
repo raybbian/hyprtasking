@@ -22,7 +22,8 @@ HTView::HTView(MONITORID in_monitor_id) {
     closing = false;
     navigating = false;
 
-    change_layout(HTConfig::value<Hyprlang::STRING>("layout"));
+    std::string val = HTConfig::value<Config::STRING>("layout");
+    change_layout(val);
 }
 
 void HTView::change_layout(const std::string& layout_name) {
@@ -57,7 +58,7 @@ void HTView::do_exit_behavior(bool exit_on_mouse) {
         return layout->get_ws_id_from_global(mouse_coords);
     };
 
-    const int EXIT_ON_HOVERED = HTConfig::value<Hyprlang::INT>("exit_on_hovered");
+    const int EXIT_ON_HOVERED = HTConfig::value<Config::INTEGER>("exit_on_hovered");
 
     const WORKSPACEID ws_id =
         (exit_on_mouse || EXIT_ON_HOVERED) ? try_get_hover_id() : monitor->m_activeWorkspace->m_id;
@@ -119,7 +120,7 @@ void HTView::hide(bool exit_on_mouse) {
     g_pCompositor->scheduleFrameForMonitor(monitor);
 }
 
-void HTView::warp_window(Hyprlang::INT warp, PHLWINDOW window) {
+void HTView::warp_window(Config::INTEGER warp, PHLWINDOW window) {
     // taken from Hyprland:
     // https://github.com/hyprwm/Hyprland/blob/ea42041f936d5810c5cfa45d6bece12dde2fd9b6/src/managers/KeybindManager.cpp#L1319
     if (warp > 0) {
@@ -158,13 +159,13 @@ void HTView::move_id(WORKSPACEID ws_id, bool move_window) {
         g_pCompositor->moveWindowToWorkspaceSafe(hovered_window, other_workspace);
     }
 
-    Hyprlang::INT warp;
+    Config::INTEGER warp;
 
     if (move_window) {
         Desktop::focusState()->fullWindowFocus(hovered_window, Desktop::FOCUS_REASON_CLICK);
-        warp = *CConfigValue<Hyprlang::INT>("plugin:hyprtasking:warp_on_move_window");
+        warp = *CConfigValue<Config::INTEGER>("plugin:hyprtasking:warp_on_move_window");
     } else {
-        warp = *CConfigValue<Hyprlang::INT>("cursor:warp_on_change_workspace");
+        warp = *CConfigValue<Config::INTEGER>("cursor:warp_on_change_workspace");
     }
     warp_window(warp, hovered_window);
 

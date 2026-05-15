@@ -216,14 +216,14 @@ bool HTManager::swipe_update(IPointer::SSwipeUpdateEvent e) {
     if (cursor_view == nullptr)
         return false;
 
-    const int ENABLED = HTConfig::value<Hyprlang::INT>("gestures:enabled");
+    const int ENABLED = HTConfig::value<Config::INTEGER>("gestures:enabled");
     if (!ENABLED)
         return false;
 
-    const unsigned int MOVE_FINGERS = HTConfig::value<Hyprlang::INT>("gestures:move_fingers");
-    const float OPEN_DISTANCE = HTConfig::value<Hyprlang::FLOAT>("gestures:open_distance");
-    const unsigned int OPEN_FINGERS = HTConfig::value<Hyprlang::INT>("gestures:open_fingers");
-    const int OPEN_POSITIVE = HTConfig::value<Hyprlang::INT>("gestures:open_positive");
+    const unsigned int MOVE_FINGERS = HTConfig::value<Config::INTEGER>("gestures:move_fingers");
+    const float OPEN_DISTANCE = HTConfig::value<Config::FLOAT>("gestures:open_distance");
+    const unsigned int OPEN_FINGERS = HTConfig::value<Config::INTEGER>("gestures:open_fingers");
+    const int OPEN_POSITIVE = HTConfig::value<Config::INTEGER>("gestures:open_positive");
 
     bool res = false;
     char swipe_direction = 0;
@@ -290,7 +290,7 @@ bool HTManager::swipe_end() {
 
     switch (swipe_state) {
         case HT_SWIPE_OPEN: {
-            const float OPEN_DISTANCE = HTConfig::value<Hyprlang::FLOAT>("gestures:open_distance");
+            const float OPEN_DISTANCE = HTConfig::value<Config::FLOAT>("gestures:open_distance");
             const float swipe_perc = 1.0 - std::clamp(swipe_amt / OPEN_DISTANCE, 0.01f, 1.0f);
             if (swipe_perc >= 0.5) {
                 cursor_view->show(false);

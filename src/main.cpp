@@ -170,8 +170,8 @@ static SDispatchResult change_layer(std::string arg, bool move_window) {
     if (cursor_view->layout->layout_name() != "grid")
         return {.success = false, .error = "layers are only supported in grid layout"};
 
-    const int LAYERS = HTConfig::value<Hyprlang::INT>("grid:layers");
-    const int LOOP_LAYERS = HTConfig::value<Hyprlang::INT>("grid:loop_layers");
+    const int LAYERS = HTConfig::value<Config::INTEGER>("grid:layers");
+    const int LOOP_LAYERS = HTConfig::value<Config::INTEGER>("grid:loop_layers");
     const int original_layer = cursor_view->layout->layer;
 
     int resulting_layer = original_layer;
@@ -296,8 +296,8 @@ static void on_mouse_button(IPointer::SButtonEvent e, Event::SCallbackInfo& info
 
     const bool pressed = e.state == WL_POINTER_BUTTON_STATE_PRESSED;
 
-    const unsigned int drag_button = HTConfig::value<Hyprlang::INT>("drag_button");
-    const unsigned int select_button = HTConfig::value<Hyprlang::INT>("select_button");
+    const unsigned int drag_button = HTConfig::value<Config::INTEGER>("drag_button");
+    const unsigned int select_button = HTConfig::value<Config::INTEGER>("select_button");
 
     if (pressed && e.button == drag_button) {
         info.cancelled = ht_manager->start_window_drag();
@@ -386,8 +386,8 @@ static void on_config_reloaded() {
     for (PHTVIEW& view : ht_manager->views) {
         if (view == nullptr)
             continue;
-        const Hyprlang::STRING new_layout = HTConfig::value<Hyprlang::STRING>("layout");
-        if (HTConfig::value<Hyprlang::INT>("close_overview_on_reload")
+        const Config::STRING new_layout = HTConfig::value<Config::STRING>("layout");
+        if (HTConfig::value<Config::INTEGER>("close_overview_on_reload")
             || view->layout->layout_name() != new_layout) {
             Log::logger->log(LOG, "[Hyprtasking] Closing overview on config reload");
             view->hide(false);
@@ -480,51 +480,60 @@ static void add_dispatchers() {
     HyprlandAPI::addDispatcherV2(PHANDLE, "hyprtasking:setlayerwindow", dispatch_setlayerwindow);
 }
 
-template <typename T, typename Def>
-inline void addConfigValue(std::string name, const char* descr, Def&& value) {
-    SP<Config::Values::IValue> ivalue = makeConfigValue<T>(("plugin:hyprtasking:" + name).c_str(), descr, std::forward<Def>(value));
-    const auto RET = Config::mgr()->registerPluginValue(PHANDLE, ivalue);
-    if (!RET) {
-        Log::logger->log(ERR, "[Hyprtasking] could not register value \"{}\": {}", ivalue->name(), RET.error());
-    }
-}
+// in case anyone wants to fix this template:
+// template <typename T, typename Def>
+// inline void addConfigValue(std::string name, const char* descr, Def&& value) {
+//     SP<Config::Values::IValue> ivalue = makeConfigValue<T>(("plugin:hyprtasking:" + name).c_str(), descr, std::forward<Def>(value));
+//     const auto RET = Config::mgr()->registerPluginValue(PHANDLE, ivalue);
+//     if (!RET) {
+//         Log::logger->log(ERR, "[Hyprtasking] could not register value \"{}\": {}", ivalue->name(), RET.error());
+//     }
+// }
+
+#define addConfigValue(T, config, descr, value) do { \
+    SP<Config::Values::IValue> ivalue = makeShared<T>("plugin:hyprtasking:" config, (descr), (value)); \
+    const auto RET = Config::mgr()->registerPluginValue(PHANDLE, ivalue); \
+    if (!RET) { \
+        Log::logger->log(ERR, "[Hyprtasking] could not register value \"{}\"", ivalue->name()); \
+    } \
+} while (0)
 
 static void init_config() {
-    addConfigValue<CStringValue>("layout", "layout", "grid");
+    addConfigValue(CStringValue, "layout", "layout", "grid");
 
     // general
-    addConfigValue<CIntValue>  ("bg_color", "background color", 0x000000FF);
-    addConfigValue<CFloatValue>("gap_size", "plugin:hyprtasking:gap size", 8.f);
+    addConfigValue(CIntValue, "bg_color", "background color", 0x000000FF);
+    addConfigValue(CFloatValue, "gap_size", "gap size", 8.f);
 
-    addConfigValue<CFloatValue>("border_size", "border size", 4.f);
-    addConfigValue<CIntValue>  ("exit_on_hovered", "exit on hovered", 0);
-    addConfigValue<CIntValue>  ("warp_on_move_window", "warp on move window", 1);
-    addConfigValue<CIntValue>  ("close_overview_on_reload", "close overview on reload", 1);
+    addConfigValue(CFloatValue, "border_size", "border size", 4.f);
+    addConfigValue(CIntValue, "exit_on_hovered", "exit on hovered", 0);
+    addConfigValue(CIntValue, "warp_on_move_window", "warp on move window", 1);
+    addConfigValue(CIntValue, "close_overview_on_reload", "close overview on reload", 1);
 
-    addConfigValue<CIntValue>  ("drag_button", "drag button", BTN_LEFT);
-    addConfigValue<CIntValue>  ("select_button", "select button", BTN_RIGHT);
+    addConfigValue(CIntValue, "drag_button", "drag button", BTN_LEFT);
+    addConfigValue(CIntValue, "select_button", "select button", BTN_RIGHT);
 
     // swipe
-    addConfigValue<CIntValue>  ("gestures:enabled", "enabled", 1);
-    addConfigValue<CIntValue>  ("gestures:move_fingers", "move fingers", 3);
-    addConfigValue<CFloatValue>("gestures:move_distance", "move distance", 300.0);
-    addConfigValue<CIntValue>  ("gestures:open_fingers", "open fingers", 4);
-    addConfigValue<CFloatValue>("gestures:open_distance", "open distance", 300.0);
-    addConfigValue<CIntValue>  ("gestures:open_positive", "open positive", 1);
+    addConfigValue(CIntValue, "gestures:enabled", "enabled", 1);
+    addConfigValue(CIntValue, "gestures:move_fingers", "move fingers", 3);
+    addConfigValue(CFloatValue, "gestures:move_distance", "move distance", 300.0);
+    addConfigValue(CIntValue, "gestures:open_fingers", "open fingers", 4);
+    addConfigValue(CFloatValue, "gestures:open_distance", "open distance", 300.0);
+    addConfigValue(CIntValue, "gestures:open_positive", "open positive", 1);
 
     // grid specific
-    addConfigValue<CIntValue>  ("grid:rows", "rows", 3);
-    addConfigValue<CIntValue>  ("grid:cols", "cols", 3);
-    addConfigValue<CIntValue>  ("grid:layers", "layers", 1);
-    addConfigValue<CIntValue>  ("grid:loop_layers", "loop layers", 1);
-    addConfigValue<CIntValue>  ("grid:loop", "loop", 0);
-    addConfigValue<CIntValue>  ("grid:gaps_use_aspect_ratio", "gaps use aspect ratio", 0);
+    addConfigValue(CIntValue, "grid:rows", "rows", 3);
+    addConfigValue(CIntValue, "grid:cols", "cols", 3);
+    addConfigValue(CIntValue, "grid:layers", "layers", 1);
+    addConfigValue(CIntValue, "grid:loop_layers", "loop layers", 1);
+    addConfigValue(CIntValue, "grid:loop", "loop", 0);
+    addConfigValue(CIntValue, "grid:gaps_use_aspect_ratio", "gaps use aspect ratio", 0);
 
     //linear specific
-    addConfigValue<CIntValue>  ("linear:blur", "blur", 1);
-    addConfigValue<CFloatValue>("linear:height", "height", 300.f);
-    addConfigValue<CFloatValue>("linear:scroll_speed", "scroll speed", 1.f);
-    addConfigValue<CIntValue>  ("linear:top", "top", 0);
+    addConfigValue(CIntValue, "linear:blur", "blur", 1);
+    addConfigValue(CFloatValue, "linear:height", "height", 300.f);
+    addConfigValue(CFloatValue, "linear:scroll_speed", "scroll speed", 1.f);
+    addConfigValue(CIntValue, "linear:top", "top", 0);
 
     // HyprlandAPI::reloadConfig();
 }

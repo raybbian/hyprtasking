@@ -61,7 +61,7 @@ void HTLayoutLinear::close_open_lerp(float perc) {
     const PHLMONITOR monitor = get_monitor();
     if (monitor == nullptr)
         return;
-    const float HEIGHT = HTConfig::value<Hyprlang::FLOAT>("linear:height") * monitor->m_scale;
+    const float HEIGHT = HTConfig::value<Config::FLOAT>("linear:height") * monitor->m_scale;
 
     view_offset->resetAllCallbacks();
     blur_strength->resetAllCallbacks();
@@ -81,7 +81,7 @@ void HTLayoutLinear::on_show(CallbackFun on_complete) {
     if (monitor == nullptr)
         return;
 
-    const float HEIGHT = HTConfig::value<Hyprlang::FLOAT>("linear:height") * monitor->m_scale;
+    const float HEIGHT = HTConfig::value<Config::FLOAT>("linear:height") * monitor->m_scale;
     *view_offset = HEIGHT;
     *blur_strength = 2.0;
     *dim_opacity = 0.4;
@@ -112,7 +112,7 @@ void HTLayoutLinear::on_move(WORKSPACEID old_id, WORKSPACEID new_id, CallbackFun
     if (monitor == nullptr)
         return;
 
-    const float GAP_SIZE = HTConfig::value<Hyprlang::FLOAT>("gap_size") * monitor->m_scale;
+    const float GAP_SIZE = HTConfig::value<Config::FLOAT>("gap_size") * monitor->m_scale;
 
     const PHLWORKSPACE new_ws = g_pCompositor->getWorkspaceByID(new_id);
     if (new_ws == nullptr)
@@ -139,7 +139,7 @@ bool HTLayoutLinear::on_mouse_axis(double delta) {
     if (monitor == nullptr)
         return false;
 
-    const float GAP_SIZE = HTConfig::value<Hyprlang::FLOAT>("gap_size") * monitor->m_scale;
+    const float GAP_SIZE = HTConfig::value<Config::FLOAT>("gap_size") * monitor->m_scale;
 
     const float total_ws_width =
         (overview_layout.size() * (GAP_SIZE + calculate_ws_box(0, 0, HT_VIEW_ANIMATING).w))
@@ -152,7 +152,7 @@ bool HTLayoutLinear::on_mouse_axis(double delta) {
     }
 
     double new_offset = scroll_offset->goal()
-        + delta * HTConfig::value<Hyprlang::FLOAT>("linear:scroll_speed") * -10.f;
+        + delta * HTConfig::value<Config::FLOAT>("linear:scroll_speed") * -10.f;
 
     const float max_x = new_offset
         + (overview_layout.size() * (GAP_SIZE + calculate_ws_box(0, 0, HT_VIEW_ANIMATING).w))
@@ -171,7 +171,7 @@ bool HTLayoutLinear::on_mouse_axis(double delta) {
 }
 
 const float calculate_y(float size_y, float offset_value, float max_offset) {
-    const bool top = HTConfig::value<Hyprlang::FLOAT>("linear:top");
+    const bool top = HTConfig::value<Config::FLOAT>("linear:top");
     if (top)
         return offset_value - max_offset;
     return size_y - offset_value;
@@ -182,7 +182,7 @@ bool HTLayoutLinear::should_manage_mouse() {
     if (monitor == nullptr)
         return 1;
 
-    const float HEIGHT = HTConfig::value<Hyprlang::FLOAT>("linear:height") * monitor->m_scale;
+    const float HEIGHT = HTConfig::value<Config::FLOAT>("linear:height") * monitor->m_scale;
 
     const Vector2D mouse_coords = g_pInputManager->getMouseCoordsInternal();
     CBox scaled_view_box = {
@@ -249,8 +249,8 @@ CBox HTLayoutLinear::calculate_ws_box(int x, int y, HTViewStage stage) {
     if (monitor->m_transformedSize.x < 1 || monitor->m_transformedSize.y < 1)
         return {};
 
-    const float HEIGHT = HTConfig::value<Hyprlang::FLOAT>("linear:height") * monitor->m_scale;
-    const float GAP_SIZE = HTConfig::value<Hyprlang::FLOAT>("gap_size") * monitor->m_scale;
+    const float HEIGHT = HTConfig::value<Config::FLOAT>("linear:height") * monitor->m_scale;
+    const float GAP_SIZE = HTConfig::value<Config::FLOAT>("gap_size") * monitor->m_scale;
 
     if (HEIGHT < 0 || HEIGHT > monitor->m_transformedSize.y)
         return {};
@@ -319,8 +319,8 @@ void HTLayoutLinear::render() {
     auto* const ACTIVECOL = (Config::CGradientValueData*)(PACTIVECOL.ptr());
     auto* const INACTIVECOL = (Config::CGradientValueData*)(PINACTIVECOL.ptr());
 
-    const float BORDERSIZE = HTConfig::value<Hyprlang::FLOAT>("border_size");
-    const float HEIGHT = HTConfig::value<Hyprlang::FLOAT>("linear:height") * monitor->m_scale;
+    const float BORDERSIZE = HTConfig::value<Config::FLOAT>("border_size");
+    const float HEIGHT = HTConfig::value<Config::FLOAT>("linear:height") * monitor->m_scale;
 
     const auto time = Time::steadyNow();
 
@@ -366,7 +366,7 @@ void HTLayoutLinear::render() {
     CRectPassElement::SRectData blur_data;
     blur_data.color = CHyprColor(0, 0, 0, dim_opacity->value());
     blur_data.box = mon_box;
-    blur_data.blur = (bool)HTConfig::value<Hyprlang::INT>("linear:blur");
+    blur_data.blur = (bool)HTConfig::value<Config::INTEGER>("linear:blur");
     blur_data.blurA = blur_strength->value();
     g_pHyprRenderer->m_renderPass.add(makeUnique<CRectPassElement>(blur_data));
 
@@ -385,7 +385,7 @@ void HTLayoutLinear::render() {
     };
 
     CRectPassElement::SRectData data;
-    data.color = CHyprColor {HTConfig::value<Hyprlang::INT>("bg_color")}.stripA();
+    data.color = CHyprColor {HTConfig::value<Config::INTEGER>("bg_color")}.stripA();
     data.box = view_box;
     g_pHyprRenderer->m_renderPass.add(makeUnique<CRectPassElement>(data));
 
