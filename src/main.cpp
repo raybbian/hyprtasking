@@ -16,17 +16,20 @@
 #include <hyprland/src/plugins/PluginSystem.hpp>
 #include <hyprland/src/render/Renderer.hpp>
 #include <hyprland/src/event/EventBus.hpp>
+#include <hyprland/src/config/values/ConfigValues.hpp>
 #include <hyprlang.hpp>
 #include <hyprutils/math/Box.hpp>
 #include <hyprutils/math/Vector2D.hpp>
 
 #include "config.hpp"
+#include "config/ConfigManager.hpp"
 #include "globals.hpp"
 #include "layout/grid.hpp"
 #include "overview.hpp"
 #include "types.hpp"
 
 using namespace Config::Actions;
+using namespace Config::Values;
 
 APICALL EXPORT std::string PLUGIN_API_VERSION() {
     return HYPRLAND_API_VERSION;
@@ -341,28 +344,6 @@ static void cancel_event(Event::SCallbackInfo& info) {
     info.cancelled = true;
 }
 
-static void notify_config_changes() {
-    const int ROWS = HTConfig::value<Hyprlang::INT>("rows");
-    if (ROWS != -1) {
-        HyprlandAPI::addNotification(
-            PHANDLE,
-            "[Hyprtasking] plugin:hyprtasking:rows has moved to plugin:hyprtasking:grid:rows in the config.",
-            CHyprColor {1.0, 0.2, 0.2, 1.0},
-            20000
-        );
-    }
-
-    Hyprutils::String::CVarList2 exit_behavior {HTConfig::value<Hyprlang::STRING>("exit_behavior"), 0, 's', true};
-    if (exit_behavior.size() != 0) {
-        HyprlandAPI::addNotification(
-            PHANDLE,
-            "[Hyprtasking] plugin:hyprtasking:exit_behavior is deprecated. Hyprtasking will always exit to the active workspace, which is changed when interacting with the plugin.",
-            CHyprColor {1.0, 0.2, 0.2, 1.0},
-            20000
-        );
-    }
-}
-
 static void register_monitors() {
     if (ht_manager == nullptr)
         return;
@@ -398,8 +379,6 @@ static void on_monitor_removed(PHLMONITOR monitor) {
 }
 
 static void on_config_reloaded() {
-    notify_config_changes();
-
     if (ht_manager == nullptr)
         return;
 
@@ -501,93 +480,51 @@ static void add_dispatchers() {
     HyprlandAPI::addDispatcherV2(PHANDLE, "hyprtasking:setlayerwindow", dispatch_setlayerwindow);
 }
 
+template <typename T, typename Def>
+inline void addConfigValue(std::string name, const char* descr, Def&& value) {
+    SP<Config::Values::IValue> ivalue = makeConfigValue<T>(("plugin:hyprtasking:" + name).c_str(), descr, std::forward<Def>(value));
+    const auto RET = Config::mgr()->registerPluginValue(PHANDLE, ivalue);
+    if (!RET) {
+        Log::logger->log(ERR, "[Hyprtasking] could not register value \"{}\": {}", ivalue->name(), RET.error());
+    }
+}
+
 static void init_config() {
-    HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprtasking:layout", Hyprlang::STRING {"grid"});
+    addConfigValue<CStringValue>("layout", "layout", "grid");
 
     // general
-    HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprtasking:bg_color", Hyprlang::INT {0x000000FF});
-    HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprtasking:gap_size", Hyprlang::FLOAT {8.f});
-    HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprtasking:border_size", Hyprlang::FLOAT {4.f});
-    HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprtasking:exit_on_hovered", Hyprlang::INT {0});
-    HyprlandAPI::addConfigValue(
-        PHANDLE,
-        "plugin:hyprtasking:warp_on_move_window",
-        Hyprlang::INT {1}
-    );
-    HyprlandAPI::addConfigValue(
-        PHANDLE,
-        "plugin:hyprtasking:close_overview_on_reload",
-        Hyprlang::INT {1}
-    );
+    addConfigValue<CIntValue>  ("bg_color", "background color", 0x000000FF);
+    addConfigValue<CFloatValue>("gap_size", "plugin:hyprtasking:gap size", 8.f);
 
-    HyprlandAPI::addConfigValue(
-        PHANDLE,
-        "plugin:hyprtasking:drag_button",
-        Hyprlang::INT {BTN_LEFT}
-    );
-    HyprlandAPI::addConfigValue(
-        PHANDLE,
-        "plugin:hyprtasking:select_button",
-        Hyprlang::INT {BTN_RIGHT}
-    );
+    addConfigValue<CFloatValue>("border_size", "border size", 4.f);
+    addConfigValue<CIntValue>  ("exit_on_hovered", "exit on hovered", 0);
+    addConfigValue<CIntValue>  ("warp_on_move_window", "warp on move window", 1);
+    addConfigValue<CIntValue>  ("close_overview_on_reload", "close overview on reload", 1);
+
+    addConfigValue<CIntValue>  ("drag_button", "drag button", BTN_LEFT);
+    addConfigValue<CIntValue>  ("select_button", "select button", BTN_RIGHT);
 
     // swipe
-    HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprtasking:gestures:enabled", Hyprlang::INT {1});
-    HyprlandAPI::addConfigValue(
-        PHANDLE,
-        "plugin:hyprtasking:gestures:move_fingers",
-        Hyprlang::INT {3}
-    );
-    HyprlandAPI::addConfigValue(
-        PHANDLE,
-        "plugin:hyprtasking:gestures:move_distance",
-        Hyprlang::FLOAT {300.0}
-    );
-    HyprlandAPI::addConfigValue(
-        PHANDLE,
-        "plugin:hyprtasking:gestures:open_fingers",
-        Hyprlang::INT {4}
-    );
-    HyprlandAPI::addConfigValue(
-        PHANDLE,
-        "plugin:hyprtasking:gestures:open_distance",
-        Hyprlang::FLOAT {300.0}
-    );
-    HyprlandAPI::addConfigValue(
-        PHANDLE,
-        "plugin:hyprtasking:gestures:open_positive",
-        Hyprlang::INT {1}
-    );
+    addConfigValue<CIntValue>  ("gestures:enabled", "enabled", 1);
+    addConfigValue<CIntValue>  ("gestures:move_fingers", "move fingers", 3);
+    addConfigValue<CFloatValue>("gestures:move_distance", "move distance", 300.0);
+    addConfigValue<CIntValue>  ("gestures:open_fingers", "open fingers", 4);
+    addConfigValue<CFloatValue>("gestures:open_distance", "open distance", 300.0);
+    addConfigValue<CIntValue>  ("gestures:open_positive", "open positive", 1);
 
     // grid specific
-    HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprtasking:grid:rows", Hyprlang::INT {3});
-    HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprtasking:grid:cols", Hyprlang::INT {3});
-    HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprtasking:grid:layers", Hyprlang::INT {1});
-    HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprtasking:grid:loop_layers", Hyprlang::INT {1});
-    HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprtasking:grid:loop", Hyprlang::INT {0});
-    HyprlandAPI::addConfigValue(
-        PHANDLE,
-        "plugin:hyprtasking:grid:gaps_use_aspect_ratio",
-        Hyprlang::INT {0}
-    );
+    addConfigValue<CIntValue>  ("grid:rows", "rows", 3);
+    addConfigValue<CIntValue>  ("grid:cols", "cols", 3);
+    addConfigValue<CIntValue>  ("grid:layers", "layers", 1);
+    addConfigValue<CIntValue>  ("grid:loop_layers", "loop layers", 1);
+    addConfigValue<CIntValue>  ("grid:loop", "loop", 0);
+    addConfigValue<CIntValue>  ("grid:gaps_use_aspect_ratio", "gaps use aspect ratio", 0);
 
     //linear specific
-    HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprtasking:linear:blur", Hyprlang::INT {1});
-    HyprlandAPI::addConfigValue(
-        PHANDLE,
-        "plugin:hyprtasking:linear:height",
-        Hyprlang::FLOAT {300.f}
-    );
-    HyprlandAPI::addConfigValue(
-        PHANDLE,
-        "plugin:hyprtasking:linear:scroll_speed",
-        Hyprlang::FLOAT {1.f}
-    );
-    HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprtasking:linear:top", Hyprlang::INT {0});
-
-    // Old config value, warning about updates
-    HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprtasking:rows", Hyprlang::INT {-1});
-    HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprtasking:exit_behavior", Hyprlang::STRING {""});
+    addConfigValue<CIntValue>  ("linear:blur", "blur", 1);
+    addConfigValue<CFloatValue>("linear:height", "height", 300.f);
+    addConfigValue<CFloatValue>("linear:scroll_speed", "scroll speed", 1.f);
+    addConfigValue<CIntValue>  ("linear:top", "top", 0);
 
     // HyprlandAPI::reloadConfig();
 }
