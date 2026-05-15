@@ -4,13 +4,15 @@
 </div>
 
 > [!Important]
-> - Supports Hyprland release `v0.46.2-v0.54.0`.
+> - Supports Hyprland release `v0.46.2-v0.54.3`.
 
 https://github.com/user-attachments/assets/8d6cdfd2-2b17-4240-a117-1dbd2231ed4e
 
 #### [Jump To Installation](#Installation)
 
 #### [See Configuration](#Configuration)
+
+#### [Check out additional scripts](./scripts/)
 
 ## Roadmap
 
@@ -110,6 +112,9 @@ hyprctl plugin load "$(realpath libhyprtasking.so)"
     - Use the directional dispatchers `hyprtasking:move` to switch to a workspace
 - Window management:
     - **Left click** to drag and drop windows around
+
+> [!NOTE]
+> You can configure mouse buttons. See [below](#configuration)
 
 ## Configuration
 
