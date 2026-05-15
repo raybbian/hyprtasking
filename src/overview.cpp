@@ -153,13 +153,13 @@ void HTView::move_id(WORKSPACEID ws_id, bool move_window) {
     if (other_workspace == nullptr)
         return;
 
+    monitor->changeWorkspace(other_workspace);
     if (move_window && should_move) {
         g_pCompositor->moveWindowToWorkspaceSafe(hovered_window, other_workspace);
     }
 
     Hyprlang::INT warp;
 
-    monitor->changeWorkspace(other_workspace);
     if (move_window) {
         Desktop::focusState()->fullWindowFocus(hovered_window, Desktop::FOCUS_REASON_CLICK);
         warp = *CConfigValue<Hyprlang::INT>("plugin:hyprtasking:warp_on_move_window");
