@@ -37,7 +37,7 @@ APICALL EXPORT std::string PLUGIN_API_VERSION() {
 }
 
 #define DISPATCHER(name) static int lua_##name(lua_State* L) { \
-    const auto RESULT = dispatch("hyprtasking:" + std::string(luaL_optstring(L, 1, (#name))));   \
+    const auto RESULT = dispatch("hyprtasking:"#name " " + std::string(luaL_optstring(L, 1, "")));   \
     if (!RESULT.success) \
         return luaL_error(L, "%s", RESULT.error.c_str()); \
     return 0; \
@@ -52,7 +52,7 @@ static SDispatchResult dispatch(std::string arg) {
 
     const auto DISPATCHER = g_pKeybindManager->m_dispatchers.find(DISPATCHSTR);
     if (DISPATCHER == g_pKeybindManager->m_dispatchers.end())
-        return {.success = false, .error = "invalid dispatcher"};
+        return {.success = false, .error = "invalid dispatcher: "+ arg};
 
     SDispatchResult res = DISPATCHER->second(DISPATCHARG);
 
@@ -178,13 +178,13 @@ DISPATCHER(toggle) {
             ht_manager->hide_all_views();
         else
             ht_manager->show_all_views();
-    } else if (arg == "cursor") {
+    } else if (arg == "cursor" || arg == "") {
         if (ht_manager->cursor_view_active())
             ht_manager->hide_all_views();
         else
             ht_manager->show_cursor_view();
     } else {
-        return {.success = false, .error = "invalid arg"};
+        return {.success = false, .error = "invalid arg: " + arg};
     }
     return {};
 }
