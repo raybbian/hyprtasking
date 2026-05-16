@@ -37,7 +37,7 @@ APICALL EXPORT std::string PLUGIN_API_VERSION() {
 }
 
 #define DISPATCHER(name) static int lua_##name(lua_State* L) { \
-    const auto RESULT = dispatch(luaL_optstring(L, 1, (#name)));   \
+    const auto RESULT = dispatch("hyprtasking:" + std::string(luaL_optstring(L, 1, (#name))));   \
     if (!RESULT.success) \
         return luaL_error(L, "%s", RESULT.error.c_str()); \
     return 0; \
