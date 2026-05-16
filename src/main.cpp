@@ -20,6 +20,7 @@
 #include <hyprlang.hpp>
 #include <hyprutils/math/Box.hpp>
 #include <hyprutils/math/Vector2D.hpp>
+#include <lua.hpp>
 
 #include "config.hpp"
 #include "config/ConfigManager.hpp"
@@ -35,15 +36,14 @@ APICALL EXPORT std::string PLUGIN_API_VERSION() {
     return HYPRLAND_API_VERSION;
 }
 
-static SDispatchResult dispatch_if(std::string arg, bool is_active) {
-    if (ht_manager == nullptr)
-        return {.passEvent = true, .success = false, .error = "ht_manager is null"};
-    PHTVIEW cursor_view = ht_manager->get_view_from_cursor();
-    if (cursor_view == nullptr)
-        return {.passEvent = true, .success = false, .error = "cursor_view is null"};
-    if (cursor_view->active != is_active)
-        return {.passEvent = true, .success = false, .error = "predicate not met"};
+#define DISPATCHER(name) static int lua_##name(lua_State* L) { \
+    const auto RESULT = dispatch(luaL_optstring(L, 1, (#name)));   \
+    if (!RESULT.success) \
+        return luaL_error(L, "%s", RESULT.error.c_str()); \
+    return 0; \
+} static SDispatchResult dispatch_##name(std::string arg)
 
+static SDispatchResult dispatch(std::string arg) {
     const auto DISPATCHSTR = arg.substr(0, arg.find_first_of(' '));
 
     auto DISPATCHARG = std::string();
@@ -67,65 +67,15 @@ static SDispatchResult dispatch_if(std::string arg, bool is_active) {
     return res;
 }
 
-static SDispatchResult dispatch_if_not_active(std::string arg) {
-    return dispatch_if(arg, false);
-}
-
-static SDispatchResult dispatch_if_active(std::string arg) {
-    return dispatch_if(arg, true);
-}
-
-static SDispatchResult dispatch_toggle_view(std::string arg) {
+static SDispatchResult dispatch_if(std::string arg, bool is_active) {
     if (ht_manager == nullptr)
-        return {.success = false, .error = "ht_manager is null"};
-
-    if (arg == "all") {
-        if (ht_manager->has_active_view())
-            ht_manager->hide_all_views();
-        else
-            ht_manager->show_all_views();
-    } else if (arg == "cursor") {
-        if (ht_manager->cursor_view_active())
-            ht_manager->hide_all_views();
-        else
-            ht_manager->show_cursor_view();
-    } else {
-        return {.success = false, .error = "invalid arg"};
-    }
-    return {};
-}
-
-// Forward declaration
-static SDispatchResult change_layer(std::string arg, bool move_window);
-
-static SDispatchResult dispatch_move(std::string arg) {
-    if (ht_manager == nullptr)
-        return {.success = false, .error = "ht_manager is null"};
-    const PHTVIEW cursor_view = ht_manager->get_view_from_cursor();
+        return {.passEvent = true, .success = false, .error = "ht_manager is null"};
+    PHTVIEW cursor_view = ht_manager->get_view_from_cursor();
     if (cursor_view == nullptr)
-        return {.success = false, .error = "cursor_view is null"};
-    if (arg == "in") {
-        return change_layer("-1", false);
-    } if (arg == "out") {
-        return change_layer("+1", false);
-    }
-    cursor_view->move(arg, false);
-    return {};
-}
-
-static SDispatchResult dispatch_move_window(std::string arg) {
-    if (ht_manager == nullptr)
-        return {.success = false, .error = "ht_manager is null"};
-    const PHTVIEW cursor_view = ht_manager->get_view_from_cursor();
-    if (cursor_view == nullptr)
-        return {.success = false, .error = "cursor_view is null"};
-    cursor_view->move(arg, true);
-    if (arg == "in") {
-        return change_layer("-1", true);
-    } if (arg == "out") {
-        return change_layer("+1", true);
-    }
-    return {};
+        return {.passEvent = true, .success = false, .error = "cursor_view is null"};
+    if (cursor_view->active != is_active)
+        return {.passEvent = true, .success = false, .error = "predicate not met"};
+    return dispatch(arg);
 }
 
 static void set_layer(PHTVIEW view, int new_layer) {
@@ -211,11 +161,69 @@ static SDispatchResult change_layer(std::string arg, bool move_window) {
     return {};
 }
 
-static SDispatchResult dispatch_setlayer(std::string arg) {
+DISPATCHER(if_not_active)  {
+    return dispatch_if(arg, false);
+}
+
+DISPATCHER(if_active) {
+    return dispatch_if(arg, true);
+}
+
+DISPATCHER(toggle) {
+    if (ht_manager == nullptr)
+        return {.success = false, .error = "ht_manager is null"};
+
+    if (arg == "all") {
+        if (ht_manager->has_active_view())
+            ht_manager->hide_all_views();
+        else
+            ht_manager->show_all_views();
+    } else if (arg == "cursor") {
+        if (ht_manager->cursor_view_active())
+            ht_manager->hide_all_views();
+        else
+            ht_manager->show_cursor_view();
+    } else {
+        return {.success = false, .error = "invalid arg"};
+    }
+    return {};
+}
+
+DISPATCHER(move) {
+    if (ht_manager == nullptr)
+        return {.success = false, .error = "ht_manager is null"};
+    const PHTVIEW cursor_view = ht_manager->get_view_from_cursor();
+    if (cursor_view == nullptr)
+        return {.success = false, .error = "cursor_view is null"};
+    if (arg == "in") {
+        return change_layer("-1", false);
+    } if (arg == "out") {
+        return change_layer("+1", false);
+    }
+    cursor_view->move(arg, false);
+    return {};
+}
+
+DISPATCHER(movewindow) {
+    if (ht_manager == nullptr)
+        return {.success = false, .error = "ht_manager is null"};
+    const PHTVIEW cursor_view = ht_manager->get_view_from_cursor();
+    if (cursor_view == nullptr)
+        return {.success = false, .error = "cursor_view is null"};
+    cursor_view->move(arg, true);
+    if (arg == "in") {
+        return change_layer("-1", true);
+    } if (arg == "out") {
+        return change_layer("+1", true);
+    }
+    return {};
+}
+
+DISPATCHER(setlayer) {
     return change_layer(arg, false);
 }
 
-static SDispatchResult dispatch_setlayerwindow(std::string arg) {
+DISPATCHER(setlayerwindow) {
     return change_layer(arg, true);
 }
 
@@ -225,7 +233,7 @@ static SDispatchResult wrap(ActionResult res) {
     return {.passEvent = res->passEvent};
 }
 
-static SDispatchResult dispatch_kill_hover(std::string arg) {
+DISPATCHER(killhovered) {
     if (ht_manager == nullptr)
         return {.success = false, .error = "ht_manager is null"};
 
@@ -469,15 +477,22 @@ static void register_callbacks() {
     static auto P12 = Event::bus()->m_events.monitor.removed.listen(on_monitor_removed);
 }
 
+
+// every dispatcher funciton must have DISPATCHER(name) this to work
+#define add_dispatcher(name) { \
+    HyprlandAPI::addDispatcherV2(PHANDLE, "hyprtasking:" #name, dispatch_##name); \
+    HyprlandAPI::addLuaFunction(PHANDLE, "hyprtasking", #name, lua_##name); \
+}
+
 static void add_dispatchers() {
-    HyprlandAPI::addDispatcherV2(PHANDLE, "hyprtasking:if_not_active", dispatch_if_not_active);
-    HyprlandAPI::addDispatcherV2(PHANDLE, "hyprtasking:if_active", dispatch_if_active);
-    HyprlandAPI::addDispatcherV2(PHANDLE, "hyprtasking:toggle", dispatch_toggle_view);
-    HyprlandAPI::addDispatcherV2(PHANDLE, "hyprtasking:move", dispatch_move);
-    HyprlandAPI::addDispatcherV2(PHANDLE, "hyprtasking:movewindow", dispatch_move_window);
-    HyprlandAPI::addDispatcherV2(PHANDLE, "hyprtasking:killhovered", dispatch_kill_hover);
-    HyprlandAPI::addDispatcherV2(PHANDLE, "hyprtasking:setlayer", dispatch_setlayer);
-    HyprlandAPI::addDispatcherV2(PHANDLE, "hyprtasking:setlayerwindow", dispatch_setlayerwindow);
+    add_dispatcher(if_not_active);
+    add_dispatcher(if_active);
+    add_dispatcher(toggle);
+    add_dispatcher(move);
+    add_dispatcher(movewindow);
+    add_dispatcher(killhovered);
+    add_dispatcher(setlayer);
+    add_dispatcher(setlayerwindow);
 }
 
 // in case anyone wants to fix this template:
