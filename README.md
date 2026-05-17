@@ -254,11 +254,11 @@ plugin {
 
 - `hyprtasking:if_not_active, ARG` same as above, but if the overview is not active.
 
-- `hyprtasking:toggle, ARG` takes in 1 argument that is either `cursor` or `all`
+- `hyprtasking:toggle [, ARG]` takes 1 optional argument that is either `cursor` or `all`
     - if the argument is `all`, then
         - if all overviews are hidden, then all overviews will be shown
         - otherwise all overviews will be hidden
-    - if the argument is `cursor`, then
+    - if the argument is `cursor` or no argument is given, then
         - if current monitor's overview is hidden, then it will be shown
         - otherwise all overviews will be hidden
 

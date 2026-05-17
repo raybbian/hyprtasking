@@ -36,8 +36,8 @@ APICALL EXPORT std::string PLUGIN_API_VERSION() {
     return HYPRLAND_API_VERSION;
 }
 
-#define DISPATCHER(name, default_arg) static int lua_##name(lua_State* L) { \
-    const auto RESULT = dispatch("hyprtasking:"#name " " + std::string(luaL_optstring(L, 1, (default_arg))));   \
+#define DISPATCHER(name) static int lua_##name(lua_State* L) { \
+    const auto RESULT = dispatch("hyprtasking:"#name " " + std::string(luaL_optstring(L, 1, "")));   \
     if (!RESULT.success) \
         return luaL_error(L, "%s", RESULT.error.c_str()); \
     return 0; \
@@ -164,15 +164,15 @@ static SDispatchResult change_layer(std::string arg, bool move_window) {
     return {};
 }
 
-DISPATCHER(if_not_active, "")  {
+DISPATCHER(if_not_active)  {
     return dispatch_if(arg, false);
 }
 
-DISPATCHER(if_active, "") {
+DISPATCHER(if_active) {
     return dispatch_if(arg, true);
 }
 
-DISPATCHER(toggle, "cursor") {
+DISPATCHER(toggle) {
     if (ht_manager == nullptr)
         return {.success = false, .error = "ht_manager is null"};
 
@@ -181,7 +181,7 @@ DISPATCHER(toggle, "cursor") {
             ht_manager->hide_all_views();
         else
             ht_manager->show_all_views();
-    } else if (arg == "cursor") {
+    } else if (arg == "cursor" || arg == "") {
         if (ht_manager->cursor_view_active())
             ht_manager->hide_all_views();
         else
@@ -192,7 +192,7 @@ DISPATCHER(toggle, "cursor") {
     return {};
 }
 
-DISPATCHER(move, "") {
+DISPATCHER(move) {
     if (ht_manager == nullptr)
         return {.success = false, .error = "ht_manager is null"};
     const PHTVIEW cursor_view = ht_manager->get_view_from_cursor();
@@ -207,7 +207,7 @@ DISPATCHER(move, "") {
     return {};
 }
 
-DISPATCHER(movewindow, "") {
+DISPATCHER(movewindow) {
     if (ht_manager == nullptr)
         return {.success = false, .error = "ht_manager is null"};
     const PHTVIEW cursor_view = ht_manager->get_view_from_cursor();
@@ -222,11 +222,11 @@ DISPATCHER(movewindow, "") {
     return {};
 }
 
-DISPATCHER(setlayer, "") {
+DISPATCHER(setlayer) {
     return change_layer(arg, false);
 }
 
-DISPATCHER(setlayerwindow, "") {
+DISPATCHER(setlayerwindow) {
     return change_layer(arg, true);
 }
 
@@ -237,7 +237,7 @@ static SDispatchResult wrap(ActionResult res) {
     return {.passEvent = res->passEvent};
 }
 
-DISPATCHER(killhovered, "") {
+DISPATCHER(killhovered) {
     if (ht_manager == nullptr)
         return {.success = false, .error = "ht_manager is null"};
 
