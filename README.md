@@ -115,6 +115,73 @@ hyprctl plugin load "$(realpath libhyprtasking.so)"
 
 Example below:
 
+```lua
+hl.bind("SUPER + TAB", function() hl.plugin.hyprtasking.toggle("cursor") end)
+hl.bind("SUPER + SPACE", function() hl.plugin.hyprtasking.toggle("all") end)
+
+hl.bind("SUPER + X", function() hl.plugin.hyprtasking.killhovered() end)
+
+hl.bind("SUPER + H", function() hl.plugin.hyprtasking.move("left") end)
+hl.bind("SUPER + J", function() hl.plugin.hyprtasking.move("down") end)
+hl.bind("SUPER + K", function() hl.plugin.hyprtasking.move("up") end)
+hl.bind("SUPER + L", function() hl.plugin.hyprtasking.move("right") end)
+
+hl.bind("SUPER + A", function() hl.plugin.hyprtasking.move("out") end)
+hl.bind("SUPER + SHIFT + A", function() hl.plugin.hyprtasking.movewindow("out") end)
+
+hl.bind("SUPER + CTRL + 1", function() hl.plugin.hyprtasking.setlayer(1) end)
+hl.bind("SUPER + CTRL + 2", function() hl.plugin.hyprtasking.setlayer(2) end)
+
+
+hl.config({
+	plugin = {
+		hyprtasking = {
+		    layout = "grid",
+
+		    gap_size = 10,
+		    bg_color = 0xff26233a,
+		    border_size = 2,
+		    exit_on_hovered = false,
+		    warp_on_move_window = 1,
+		    close_overview_on_reload = false,
+
+		    drag_button = 0x110,   -- left mouse button
+		    select_button = 0x111, -- right mouse button
+
+		    gestures = {
+		        enabled = true,
+		        move_fingers = 3,
+		        move_distance = 300,
+		        open_fingers = 4,
+		        open_distance = 300,
+		        open_positive = true,
+		    },
+
+		    grid = {
+		        rows = 3,
+		        cols = 3,
+		        loop = false,
+		        layers = 2,
+		        loop_layers = true,
+		        gaps_use_aspect_ratio = true,
+		    },
+
+		    linear = {
+		        top = false,
+		        height = 400,
+		        scroll_speed = 1.0,
+		        blur = false,
+		    }
+		}
+	},
+})
+
+```
+
+<details><summary>
+Click here to see the old hyprlang syntax
+</summary>
+
 ```
 bind = SUPER, tab, hyprtasking:toggle, cursor
 bind = SUPER, space, hyprtasking:toggle, all
@@ -139,12 +206,12 @@ plugin {
     hyprtasking {
         layout = grid
 
-        gap_size = 20
+        gap_size = 10
         bg_color = 0xff26233a
-        border_size = 4
+        border_size = 2
         exit_on_hovered = false
         warp_on_move_window = 1
-        close_overview_on_reload = true
+        close_overview_on_reload = false
 
         drag_button = 0x110 # left mouse button
         select_button = 0x111 # right mouse button
@@ -165,7 +232,7 @@ plugin {
             loop = false
             layers = 2
             loop_layers = true
-            gaps_use_aspect_ratio = false
+            gaps_use_aspect_ratio = true
         }
 
         linear {
@@ -177,6 +244,8 @@ plugin {
     }
 }
 ```
+
+</details>
 
 ### Dispatchers
 
