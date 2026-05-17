@@ -36,8 +36,10 @@ APICALL EXPORT std::string PLUGIN_API_VERSION() {
     return HYPRLAND_API_VERSION;
 }
 
-#define DISPATCHER(name) static int lua_##name(lua_State* L) { \
-    const auto RESULT = dispatch("hyprtasking:"#name " " + std::string(luaL_optstring(L, 1, "")));   \
+#define DISPATCHER(name) \
+static SDispatchResult dispatch_##name(std::string arg); \
+static int lua_##name(lua_State* L) { \
+    const auto RESULT = dispatch_##name(luaL_optstring(L, 1, ""));   \
     if (!RESULT.success) \
         return luaL_error(L, "%s", RESULT.error.c_str()); \
     return 0; \
