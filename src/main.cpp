@@ -74,7 +74,8 @@ static SDispatchResult dispatch_if(std::string arg, bool is_active) {
     PHTVIEW cursor_view = ht_manager->get_view_from_cursor();
     if (cursor_view == nullptr)
         return {.passEvent = true, .success = false, .error = "cursor_view is null"};
-    // silently exit
+    // silently exit with no error cuz hyprland
+    // does not have support for error silencing on lua side
     if (cursor_view->active != is_active)
         return {};
     return dispatch(arg);
@@ -487,6 +488,19 @@ static void register_callbacks() {
     HyprlandAPI::addLuaFunction(PHANDLE, "hyprtasking", #name, lua_##name); \
 }
 
+static int lua_is_active(lua_State* L) {
+    if (ht_manager == nullptr) {
+        luaL_error(L, "%s", "ht_manager is null");
+        return false;
+    }
+    PHTVIEW cursor_view = ht_manager->get_view_from_cursor();
+    if (cursor_view == nullptr) {
+        luaL_error(L, "%s", "ht_manager is null");
+        return false;
+    }
+    return cursor_view->active;
+}
+
 static void add_dispatchers() {
     add_dispatcher(if_not_active);
     add_dispatcher(if_active);
@@ -496,6 +510,7 @@ static void add_dispatchers() {
     add_dispatcher(killhovered);
     add_dispatcher(setlayer);
     add_dispatcher(setlayerwindow);
+    HyprlandAPI::addLuaFunction(PHANDLE, "hyprtasking", "is_active", lua_is_active); \
 }
 
 // in case anyone wants to fix this template:
