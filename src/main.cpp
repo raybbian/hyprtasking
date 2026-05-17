@@ -513,16 +513,6 @@ static void add_dispatchers() {
     HyprlandAPI::addLuaFunction(PHANDLE, "hyprtasking", "is_active", lua_is_active); \
 }
 
-// in case anyone wants to fix this template:
-// template <typename T, typename Def>
-// inline void addConfigValue(std::string name, const char* descr, Def&& value) {
-//     SP<Config::Values::IValue> ivalue = makeConfigValue<T>(("plugin:hyprtasking:" + name).c_str(), descr, std::forward<Def>(value));
-//     const auto RET = Config::mgr()->registerPluginValue(PHANDLE, ivalue);
-//     if (!RET) {
-//         Log::logger->log(ERR, "[Hyprtasking] could not register value \"{}\": {}", ivalue->name(), RET.error());
-//     }
-// }
-
 #define addConfigValue(T, config, descr, value) do { \
     SP<Config::Values::IValue> ivalue = makeShared<T>("plugin:hyprtasking:" config, (descr), (value)); \
     const auto RET = Config::mgr()->registerPluginValue(PHANDLE, ivalue); \
