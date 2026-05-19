@@ -33,6 +33,7 @@ class HTView {
 
     void show(bool recalculate = true);
     void hide(bool exit_on_mouse);
+    void reset_for_monitor_change();
 
     void move_id(WORKSPACEID ws_id, bool move_window);
     // arg is up, down, left, right;

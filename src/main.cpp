@@ -451,7 +451,7 @@ static void notify_config_changes() {
     }
 }
 
-static void register_monitors() {
+static void register_monitors(bool reset_existing_views) {
     if (ht_manager == nullptr)
         return;
 
@@ -468,7 +468,9 @@ static void register_monitors() {
 
         const PHTVIEW view = ht_manager->get_view_from_monitor(monitor);
         if (view != nullptr) {
-            if (!view->active)
+            if (reset_existing_views)
+                view->reset_for_monitor_change();
+            else if (!view->active)
                 view->layout->init_position();
             continue;
         }
@@ -482,6 +484,14 @@ static void register_monitors() {
             monitor->m_transformedSize.y
         );
     }
+}
+
+static void register_monitors() {
+    register_monitors(false);
+}
+
+static void resync_monitor_layouts() {
+    register_monitors(true);
 }
 
 static void on_config_reloaded() {
@@ -572,7 +582,12 @@ static void register_callbacks() {
     static auto P9 = Event::bus()->m_events.gesture.swipe.end.listen(on_swipe_end);
 
     static auto P10 = Event::bus()->m_events.config.reloaded.listen(on_config_reloaded);
-    static auto P11 = Event::bus()->m_events.monitor.added.listen(register_monitors);
+    static auto P11 = Event::bus()->m_events.monitor.added.listen([] (PHLMONITOR monitor) { resync_monitor_layouts(); });
+    static auto P12 = Event::bus()->m_events.monitor.removed.listen([] (PHLMONITOR monitor) { resync_monitor_layouts(); });
+    static auto P13 = Event::bus()->m_events.monitor.layoutChanged.listen(resync_monitor_layouts);
+    static auto P14 = Event::bus()->m_events.workspace.moveToMonitor.listen(
+        [] (PHLWORKSPACE workspace, PHLMONITOR monitor) { resync_monitor_layouts(); }
+    );
 }
 
 static void add_dispatchers() {

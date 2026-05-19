@@ -152,6 +152,21 @@ void HTView::hide(bool exit_on_mouse) {
     g_pCompositor->scheduleFrameForMonitor(monitor);
 }
 
+void HTView::reset_for_monitor_change() {
+    active = false;
+    closing = false;
+    navigating = false;
+
+    const PHLMONITOR monitor = get_monitor();
+    if (monitor == nullptr)
+        return;
+
+    layout->init_position();
+    Cursor::overrideController->unsetOverride(Cursor::CURSOR_OVERRIDE_UNKNOWN);
+    g_pHyprRenderer->damageMonitor(monitor);
+    g_pCompositor->scheduleFrameForMonitor(monitor);
+}
+
 void HTView::warp_window(Hyprlang::INT warp, PHLWINDOW window) {
     // taken from Hyprland:
     // https://github.com/hyprwm/Hyprland/blob/ea42041f936d5810c5cfa45d6bece12dde2fd9b6/src/managers/KeybindManager.cpp#L1319
