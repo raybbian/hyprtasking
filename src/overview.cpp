@@ -60,6 +60,9 @@ HTView::HTView(MONITORID in_monitor_id) {
     closing = false;
     navigating = false;
 
+    if (PHLMONITOR monitor = g_pCompositor->getMonitorFromID(monitor_id))
+        monitor_name = monitor->m_name;
+
     change_layout(HTConfig::value_string("layout"));
 }
 

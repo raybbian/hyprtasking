@@ -476,14 +476,42 @@ static void register_monitors(bool reset_existing_views) {
     if (ht_manager == nullptr)
         return;
 
-    // Purge views whose monitor no longer exists to prevent unbounded growth
-    // after monitor disconnect / idle / reinitialization.
+    // Reconnect orphaned views after DPMS/monitor reconnect (m_id changes,
+    // but m_name is stable across cycles).
+    for (const PHLMONITOR& monitor : g_pCompositor->m_monitors) {
+        if (monitor->m_transformedSize.x < 1 || monitor->m_transformedSize.y < 1)
+            continue;
+
+        for (PHTVIEW view : ht_manager->views) {
+            if (view == nullptr)
+                continue;
+            if (view->get_monitor() != nullptr)
+                continue; // still attached to a live monitor
+
+            // View exists but monitor is gone – check if the *same* physical
+            // monitor is reconnecting under a new id.  m_name (e.g. "DP-1")
+            // is stable across DPMS cycles, unlike m_id.
+            if (view->monitor_name == monitor->m_name) {
+                view->monitor_id = monitor->m_id;
+                view->monitor_name = monitor->m_name;
+                view->reset_for_monitor_change();
+                Log::logger->log(
+                    LOG,
+                    "[Hyprtasking] Reconnected view for monitor {} with new id {}",
+                    monitor->m_name,
+                    monitor->m_id
+                );
+                break;
+            }
+        }
+    }
+
+    // Purge views whose monitor no longer exists and could not be reconnected.
     std::erase_if(ht_manager->views, [](const PHTVIEW& view) {
         return view == nullptr || view->get_monitor() == nullptr;
     });
 
     for (const PHLMONITOR& monitor : g_pCompositor->m_monitors) {
-        // Skip monitors that haven't finished initializing
         if (monitor->m_transformedSize.x < 1 || monitor->m_transformedSize.y < 1)
             continue;
 
@@ -495,7 +523,10 @@ static void register_monitors(bool reset_existing_views) {
                 view->layout->init_position();
             continue;
         }
-        ht_manager->views.push_back(makeShared<HTView>(monitor->m_id));
+
+        auto new_view = makeShared<HTView>(monitor->m_id);
+        new_view->monitor_name = monitor->m_name;
+        ht_manager->views.push_back(new_view);
 
         Log::logger->log(
             LOG,

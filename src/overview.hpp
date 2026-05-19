@@ -23,6 +23,7 @@ class HTView {
     void change_layout(const std::string& layout_name);
 
     MONITORID monitor_id;
+    std::string monitor_name;
 
     SP<HTLayoutBase> layout;
 

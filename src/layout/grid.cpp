@@ -631,8 +631,6 @@ void HTLayoutGrid::render() {
         }
     }
 
-    // CScopeGuard restore_workspace handles the final cleanup above
-
     const auto active_it = overview_layout.find(start_workspace->m_id);
     if (start_workspace != nullptr && active_it != overview_layout.end()) {
         CBox ws_box = active_it->second.box;
