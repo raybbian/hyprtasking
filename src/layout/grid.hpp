@@ -6,6 +6,13 @@
 #include "layout_base.hpp"
 
 class HTLayoutGrid: public HTLayoutBase {
+  public:
+    struct HTGridCell {
+        WORKSPACEID ws_id = WORKSPACE_INVALID;
+        bool occupied = false;
+        bool is_pinned = false;
+    };
+
   private:
     PHLANIMVAR<float> scale;
     PHLANIMVAR<Vector2D> offset;
@@ -13,18 +20,14 @@ class HTLayoutGrid: public HTLayoutBase {
     int get_effective_layer_count(size_t workspace_count);
     int get_max_occupied_layer();
     int get_workspace_layer(WORKSPACEID workspace_id);
+    HTGridCell* cell_at(int layer, int y, int x);
+    const HTGridCell* cell_at(int layer, int y, int x) const;
+    HTGridCell* find_cell(WORKSPACEID ws_id);
 
   public:
     HTLayoutGrid(VIEWID view_id);
     virtual ~HTLayoutGrid() = default;
 
-    struct HTGridCell {
-        WORKSPACEID ws_id = WORKSPACE_INVALID;
-        bool occupied = false;
-        bool is_pinned = false;
-    };
-
-    // 3D grid: [layer][row][col]
     std::vector<std::vector<std::vector<HTGridCell>>> grid_cells;
 
     int last_layer_cell = 0;

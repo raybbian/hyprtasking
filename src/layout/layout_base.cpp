@@ -1,25 +1,28 @@
-#include <any>
-#include <sstream>
-
-#define private public
 #include <hyprland/src/config/ConfigManager.hpp>
 #include <hyprland/src/desktop/DesktopTypes.hpp>
+#include <hyprland/src/managers/animation/DesktopAnimationManager.hpp>
 #include <hyprland/src/managers/input/InputManager.hpp>
+#include <hyprland/src/layout/LayoutManager.hpp>
+// Hyprland exposes render pass internals privately; this targeted workaround is
+// still required for CRenderPass::m_passElements cleanup in supported versions.
+#define private public
 #include <hyprland/src/render/Renderer.hpp>
-#include <hyprland/src/render/pass/ClearPassElement.hpp>
 #undef private
+#include <hyprland/src/render/pass/BorderPassElement.hpp>
+#include <hyprland/src/render/pass/ClearPassElement.hpp>
 
+#include "../config.hpp"
 #include "../globals.hpp"
 #include "../pass/pass_element.hpp"
+#include "../render.hpp"
 #include "../types.hpp"
 #include "layout_base.hpp"
 
-HTLayoutBase::HTLayoutBase(VIEWID new_view_id) : view_id(new_view_id) {
-    ;
+HTLayoutBase::HTLayoutBase(VIEWID new_view_id)
+    : view_id(new_view_id), par_view(ht_manager != nullptr ? ht_manager->get_view_from_id(new_view_id) : nullptr) {
 }
 
 void HTLayoutBase::on_move_swipe(Vector2D delta) {
-    ;
 }
 
 WORKSPACEID HTLayoutBase::on_move_swipe_end() {
@@ -66,17 +69,97 @@ float HTLayoutBase::drag_window_scale() {
 }
 
 void HTLayoutBase::init_position() {
-    ;
 }
 
 void HTLayoutBase::build_overview_layout(HTViewStage stage) {
-    ;
 }
 
 void HTLayoutBase::render() {
+    update_render_cache();
+
     CClearPassElement::SClearData data;
     data.color = CHyprColor {0};
     g_pHyprRenderer->m_renderPass.add(makeUnique<CClearPassElement>(data));
+}
+
+void HTLayoutBase::update_render_cache() {
+    cached_border_size = HTConfig::value_float("border_size");
+}
+
+void HTLayoutBase::render_workspace(PHLWORKSPACE ws, CBox render_box, bool is_active) {
+    const PHLMONITOR monitor = get_monitor();
+    if (monitor == nullptr)
+        return;
+
+    if (ws != nullptr) {
+        monitor->m_activeWorkspace = ws;
+        g_pDesktopAnimationManager->startAnimation(
+            ws,
+            CDesktopAnimationManager::ANIMATION_TYPE_IN,
+            false,
+            true
+        );
+        ws->m_visible = true;
+    }
+
+    ((render_workspace_t)(render_workspace_hook->m_original))(
+        g_pHyprRenderer.get(),
+        monitor,
+        ws,
+        Time::steadyNow(),
+        render_box
+    );
+
+    if (ws == nullptr || is_active)
+        return;
+
+    g_pDesktopAnimationManager->startAnimation(
+        ws,
+        CDesktopAnimationManager::ANIMATION_TYPE_OUT,
+        false,
+        true
+    );
+    ws->m_visible = false;
+}
+
+void HTLayoutBase::render_dragged_window() {
+    const PHLMONITOR monitor = get_monitor();
+    if (monitor == nullptr)
+        return;
+
+    const PHTVIEW cursor_view = ht_manager->get_view_from_cursor();
+    if (cursor_view == nullptr)
+        return;
+
+    const SP<Layout::ITarget> target = g_layoutManager->dragController()->target();
+    if (target == nullptr)
+        return;
+
+    const PHLWINDOW dragged_window = target->window();
+    if (dragged_window == nullptr)
+        return;
+
+    const Vector2D mouse_coords = g_pInputManager->getMouseCoordsInternal();
+    const CBox window_box = dragged_window->getWindowMainSurfaceBox()
+                                .translate(-mouse_coords)
+                                .scale(cursor_view->layout->drag_window_scale())
+                                .translate(mouse_coords);
+    if (!window_box.intersection(monitor->logicalBox()).empty())
+        render_window_at_box(dragged_window, monitor, Time::steadyNow(), window_box);
+}
+
+void HTLayoutBase::render_border(CBox box, bool is_active) {
+    static auto PACTIVECOL = CConfigValue<Hyprlang::CUSTOMTYPE>("general:col.active_border");
+    static auto PINACTIVECOL = CConfigValue<Hyprlang::CUSTOMTYPE>("general:col.inactive_border");
+
+    auto* const active_col = (CGradientValueData*)(PACTIVECOL.ptr())->getData();
+    auto* const inactive_col = (CGradientValueData*)(PINACTIVECOL.ptr())->getData();
+
+    CBorderPassElement::SBorderData data;
+    data.box = box;
+    data.grad1 = is_active ? *active_col : *inactive_col;
+    data.borderSize = cached_border_size;
+    g_pHyprRenderer->m_renderPass.add(makeUnique<CBorderPassElement>(data));
 }
 
 const std::string CLEAR_PASS_ELEMENT_NAME = "CClearPassElement";
@@ -89,11 +172,9 @@ void HTLayoutBase::post_render() {
         return res;
     });
     g_pHyprRenderer->m_renderPass.add(makeUnique<HTPassElement>());
-    // g_pHyprOpenGL->setDamage(CRegion {CBox {0, 0, INT32_MAX, INT32_MAX}});
 }
 
 PHLMONITOR HTLayoutBase::get_monitor() {
-    const auto par_view = ht_manager->get_view_from_id(view_id);
     if (par_view == nullptr)
         return nullptr;
     return par_view->get_monitor();

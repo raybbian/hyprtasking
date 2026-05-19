@@ -19,11 +19,8 @@
 #include <hyprutils/utils/ScopeGuard.hpp>
 
 #include "../config.hpp"
-#include "../globals.hpp"
 #include "../overview.hpp"
-#include "../render.hpp"
 #include "../types.hpp"
-#include "src/layout/target/Target.hpp"
 
 using Hyprutils::Utils::CScopeGuard;
 
@@ -48,9 +45,41 @@ std::string HTLayoutGrid::layout_name() {
     return "grid";
 }
 
+HTLayoutGrid::HTGridCell* HTLayoutGrid::cell_at(int target_layer, int y, int x) {
+    if (target_layer < 0 || target_layer >= (int)grid_cells.size())
+        return nullptr;
+    if (y < 0 || y >= (int)grid_cells[target_layer].size())
+        return nullptr;
+    if (x < 0 || x >= (int)grid_cells[target_layer][y].size())
+        return nullptr;
+    return &grid_cells[target_layer][y][x];
+}
+
+const HTLayoutGrid::HTGridCell* HTLayoutGrid::cell_at(int target_layer, int y, int x) const {
+    if (target_layer < 0 || target_layer >= (int)grid_cells.size())
+        return nullptr;
+    if (y < 0 || y >= (int)grid_cells[target_layer].size())
+        return nullptr;
+    if (x < 0 || x >= (int)grid_cells[target_layer][y].size())
+        return nullptr;
+    return &grid_cells[target_layer][y][x];
+}
+
+HTLayoutGrid::HTGridCell* HTLayoutGrid::find_cell(WORKSPACEID ws_id) {
+    for (auto& layer_cells : grid_cells) {
+        for (auto& row : layer_cells) {
+            for (auto& cell : row) {
+                if (cell.ws_id == ws_id)
+                    return &cell;
+            }
+        }
+    }
+    return nullptr;
+}
+
 void HTLayoutGrid::pin_workspace_to_slot(WORKSPACEID ws_id, int slot) {
-    const int ROWS = HTConfig::value<Hyprlang::INT>("grid:rows");
-    const int COLS = HTConfig::value<Hyprlang::INT>("grid:cols");
+    const int ROWS = HTConfig::value("grid:rows");
+    const int COLS = HTConfig::value("grid:cols");
     const int ws_per_layer = std::max(1, ROWS * COLS);
 
     const int target_layer = slot / ws_per_layer;
@@ -61,7 +90,6 @@ void HTLayoutGrid::pin_workspace_to_slot(WORKSPACEID ws_id, int slot) {
     if (target_y < 0 || target_y >= ROWS || target_x < 0 || target_x >= COLS)
         return;
 
-    // Grow grid so the requested layer exists (resize default-initializes new cells)
     if (target_layer >= (int)grid_cells.size()) {
         grid_cells.resize(target_layer + 1);
         for (int l = 0; l <= target_layer; l++) {
@@ -71,34 +99,21 @@ void HTLayoutGrid::pin_workspace_to_slot(WORKSPACEID ws_id, int slot) {
         }
     }
 
-    // Clear previous pin for this workspace anywhere in the grid
-    for (auto& layer : grid_cells) {
-        for (auto& row : layer) {
-            for (auto& cell : row) {
-                if (cell.ws_id == ws_id) {
-                    cell.ws_id = WORKSPACE_INVALID;
-                    cell.occupied = false;
-                    cell.is_pinned = false;
-                }
-            }
-        }
+    if (HTGridCell* cell = find_cell(ws_id)) {
+        cell->ws_id = WORKSPACE_INVALID;
+        cell->occupied = false;
+        cell->is_pinned = false;
     }
 
-    auto& cell = grid_cells[target_layer][target_y][target_x];
+    auto& cell = *cell_at(target_layer, target_y, target_x);
     cell.ws_id = ws_id;
     cell.occupied = true;
     cell.is_pinned = true;
 }
 
 void HTLayoutGrid::unpin_workspace(WORKSPACEID ws_id) {
-    for (auto& layer : grid_cells) {
-        for (auto& row : layer) {
-            for (auto& cell : row) {
-                if (cell.ws_id == ws_id)
-                    cell.is_pinned = false;
-            }
-        }
-    }
+    if (HTGridCell* cell = find_cell(ws_id))
+        cell->is_pinned = false;
 }
 
 std::tuple<int, int, int> HTLayoutGrid::get_grid_cell_from_global(Vector2D pos) {
@@ -111,8 +126,8 @@ std::tuple<int, int, int> HTLayoutGrid::get_grid_cell_from_global(Vector2D pos) 
 
     build_overview_layout(HT_VIEW_ANIMATING);
 
-    const int ROWS = HTConfig::value<Hyprlang::INT>("grid:rows");
-    const int COLS = HTConfig::value<Hyprlang::INT>("grid:cols");
+    const int ROWS = HTConfig::value("grid:rows");
+    const int COLS = HTConfig::value("grid:cols");
 
     Vector2D rel = (pos - monitor->m_position) * monitor->m_scale;
 
@@ -128,9 +143,9 @@ std::tuple<int, int, int> HTLayoutGrid::get_grid_cell_from_global(Vector2D pos) 
 }
 
 int HTLayoutGrid::get_effective_layer_count(size_t workspace_count) {
-    const int ROWS = HTConfig::value<Hyprlang::INT>("grid:rows");
-    const int COLS = HTConfig::value<Hyprlang::INT>("grid:cols");
-    const int LAYERS = HTConfig::value<Hyprlang::INT>("grid:layers");
+    const int ROWS = HTConfig::value("grid:rows");
+    const int COLS = HTConfig::value("grid:cols");
+    const int LAYERS = HTConfig::value("grid:layers");
     const int ws_per_layer = std::max(1, ROWS * COLS);
     const int configured_layers = std::max(1, LAYERS);
 
@@ -152,7 +167,8 @@ int HTLayoutGrid::get_max_occupied_layer() {
     for (int l = 0; l < (int)grid_cells.size(); l++) {
         for (int y = 0; y < (int)grid_cells[l].size(); y++) {
             for (int x = 0; x < (int)grid_cells[l][y].size(); x++) {
-                if (grid_cells[l][y][x].ws_id != WORKSPACE_INVALID) {
+                const HTGridCell* cell = cell_at(l, y, x);
+                if (cell != nullptr && cell->ws_id != WORKSPACE_INVALID) {
                     max_occupied = std::max(max_occupied, l);
                     break;
                 }
@@ -163,21 +179,19 @@ int HTLayoutGrid::get_max_occupied_layer() {
 }
 
 int HTLayoutGrid::get_workspace_layer(WORKSPACEID workspace_id) {
-    for (int l = 0; l < (int)grid_cells.size(); l++) {
-        for (int y = 0; y < (int)grid_cells[l].size(); y++) {
-            for (int x = 0; x < (int)grid_cells[l][y].size(); x++) {
-                if (grid_cells[l][y][x].ws_id == workspace_id)
-                    return l;
-            }
-        }
-    }
+    if (const HTGridCell* cell = find_cell(workspace_id))
+        for (int l = 0; l < (int)grid_cells.size(); l++)
+            for (int y = 0; y < (int)grid_cells[l].size(); y++)
+                for (int x = 0; x < (int)grid_cells[l][y].size(); x++)
+                    if (cell_at(l, y, x) == cell)
+                        return l;
     return layer;
 }
 
 WORKSPACEID HTLayoutGrid::get_ws_id_in_direction(int x, int y, std::string& direction) {
-    const int LOOP = HTConfig::value<Hyprlang::INT>("grid:loop");
-    const int ROWS = HTConfig::value<Hyprlang::INT>("grid:rows");
-    const int COLS = HTConfig::value<Hyprlang::INT>("grid:cols");
+    const int LOOP = HTConfig::value("grid:loop");
+    const int ROWS = HTConfig::value("grid:rows");
+    const int COLS = HTConfig::value("grid:cols");
 
     if (direction == "up") {
         y--;
@@ -203,9 +217,9 @@ void HTLayoutGrid::on_move_swipe(Vector2D delta) {
     if (monitor == nullptr)
         return;
 
-    const float MOVE_DISTANCE = HTConfig::value<Hyprlang::FLOAT>("gestures:move_distance");
-    const int ROWS = HTConfig::value<Hyprlang::INT>("grid:rows");
-    const int COLS = HTConfig::value<Hyprlang::INT>("grid:cols");
+    const float MOVE_DISTANCE = HTConfig::value_float("gestures:move_distance");
+    const int ROWS = HTConfig::value("grid:rows");
+    const int COLS = HTConfig::value("grid:cols");
     const CBox min_ws = calculate_ws_box(0, 0, HT_VIEW_CLOSED);
     const CBox max_ws = calculate_ws_box(COLS - 1, ROWS - 1, HT_VIEW_CLOSED);
 
@@ -306,7 +320,6 @@ void HTLayoutGrid::on_move(WORKSPACEID old_id, WORKSPACEID new_id, CallbackFun o
             offset->setCallbackOnEnd(on_complete);
     });
 
-    const PHTVIEW par_view = ht_manager->get_view_from_id(view_id);
     if (par_view == nullptr || par_view->active)
         return;
 
@@ -383,10 +396,10 @@ CBox HTLayoutGrid::calculate_ws_box(int x, int y, HTViewStage stage) {
     if (monitor->m_transformedSize.x < 1 || monitor->m_transformedSize.y < 1)
         return {};
 
-    const int ROWS = HTConfig::value<Hyprlang::INT>("grid:rows");
-    const int COLS = HTConfig::value<Hyprlang::INT>("grid:cols");
-    const int GAPS_USE_ASPECT_RATIO = HTConfig::value<Hyprlang::INT>("grid:gaps_use_aspect_ratio");
-    const float GAP_SIZE = HTConfig::value<Hyprlang::FLOAT>("gap_size") * monitor->m_scale;
+    const int ROWS = HTConfig::value("grid:rows");
+    const int COLS = HTConfig::value("grid:cols");
+    const int GAPS_USE_ASPECT_RATIO = HTConfig::value("grid:gaps_use_aspect_ratio");
+    const float GAP_SIZE = HTConfig::value_float("gap_size") * monitor->m_scale;
     const Vector2D gaps = {
         GAP_SIZE,
         GAPS_USE_ASPECT_RATIO
@@ -430,8 +443,8 @@ void HTLayoutGrid::build_overview_layout(HTViewStage stage) {
     if (monitor == nullptr)
         return;
 
-    const int ROWS = HTConfig::value<Hyprlang::INT>("grid:rows");
-    const int COLS = HTConfig::value<Hyprlang::INT>("grid:cols");
+    const int ROWS = HTConfig::value("grid:rows");
+    const int COLS = HTConfig::value("grid:cols");
     std::vector<PHLWORKSPACE> workspaces = get_monitor_workspaces();
     std::ranges::sort(workspaces, [](const PHLWORKSPACE& lhs, const PHLWORKSPACE& rhs) {
         if (lhs == nullptr)
@@ -445,8 +458,6 @@ void HTLayoutGrid::build_overview_layout(HTViewStage stage) {
 
     overview_layout.clear();
 
-    // Resize grid_cells to match effective layers (only new cells get default-initialized
-    // by resize; existing cells preserve their ws_id / is_pinned state)
     grid_cells.resize(effective_layers);
     for (int l = 0; l < effective_layers; l++) {
         grid_cells[l].resize(ROWS);
@@ -455,53 +466,38 @@ void HTLayoutGrid::build_overview_layout(HTViewStage stage) {
         }
     }
 
-    // Clean up stale workspace references; do NOT reset occupied/pinned state
-    // for cells whose workspace is still valid, otherwise pin_workspace_to_slot
-    // results survive the next frame.
     for (int l = 0; l < effective_layers; l++) {
         for (int y = 0; y < (int)grid_cells[l].size(); y++) {
             for (int x = 0; x < (int)grid_cells[l][y].size(); x++) {
-                auto& cell = grid_cells[l][y][x];
-                if (cell.ws_id != WORKSPACE_INVALID) {
-                    const PHLWORKSPACE workspace = g_pCompositor->getWorkspaceByID(cell.ws_id);
+                HTGridCell* cell = cell_at(l, y, x);
+                if (cell != nullptr && cell->ws_id != WORKSPACE_INVALID) {
+                    const PHLWORKSPACE workspace = g_pCompositor->getWorkspaceByID(cell->ws_id);
                     if (!is_monitor_workspace(workspace)) {
-                        cell.ws_id = WORKSPACE_INVALID;
-                        cell.occupied = false;
-                        cell.is_pinned = false;
+                        cell->ws_id = WORKSPACE_INVALID;
+                        cell->occupied = false;
+                        cell->is_pinned = false;
                     }
                 }
             }
         }
     }
 
-    // Place every workspace that belongs to this monitor: if it already has a
-    // cell in the grid (from a previous frame or a pin), keep it there; otherwise
-    // fill the first truly empty cell.
     for (PHLWORKSPACE workspace : workspaces) {
         if (workspace == nullptr)
             continue;
 
-        bool already_placed = false;
-        for (int l = 0; l < effective_layers && !already_placed; l++) {
-            for (int y = 0; y < (int)grid_cells[l].size() && !already_placed; y++) {
-                for (int x = 0; x < (int)grid_cells[l][y].size() && !already_placed; x++) {
-                    if (grid_cells[l][y][x].ws_id == workspace->m_id)
-                        already_placed = true;
-                }
-            }
-        }
-        if (already_placed)
+        if (find_cell(workspace->m_id) != nullptr)
             continue;
 
         bool placed = false;
         for (int l = 0; l < effective_layers && !placed; l++) {
             for (int y = 0; y < ROWS && !placed; y++) {
                 for (int x = 0; x < COLS && !placed; x++) {
-                    auto& cell = grid_cells[l][y][x];
-                    if (cell.ws_id == WORKSPACE_INVALID) {
-                        cell.ws_id = workspace->m_id;
-                        cell.occupied = true;
-                        cell.is_pinned = false;
+                    HTGridCell* cell = cell_at(l, y, x);
+                    if (cell != nullptr && cell->ws_id == WORKSPACE_INVALID) {
+                        cell->ws_id = workspace->m_id;
+                        cell->occupied = true;
+                        cell->is_pinned = false;
                         placed = true;
                     }
                 }
@@ -509,24 +505,23 @@ void HTLayoutGrid::build_overview_layout(HTViewStage stage) {
         }
     }
 
-    // Populate overview_layout from grid_cells for the current layer
     if (layer >= 0 && layer < effective_layers) {
         for (int y = 0; y < ROWS; y++) {
             for (int x = 0; x < COLS; x++) {
-                const auto& cell = grid_cells[layer][y][x];
-                if (cell.ws_id == WORKSPACE_INVALID)
+                const HTGridCell* cell = cell_at(layer, y, x);
+                if (cell == nullptr || cell->ws_id == WORKSPACE_INVALID)
                     continue;
 
-                PHLWORKSPACE workspace = g_pCompositor->getWorkspaceByID(cell.ws_id);
+                PHLWORKSPACE workspace = g_pCompositor->getWorkspaceByID(cell->ws_id);
                 if (workspace == nullptr)
                     continue;
 
                 const CBox ws_box = calculate_ws_box(x, y, stage);
-                overview_layout[cell.ws_id] = HTWorkspace {
+                overview_layout[cell->ws_id] = HTWorkspace {
                     x,
                     y,
                     ws_box,
-                    cell.ws_id,
+                    cell->ws_id,
                     workspace->m_name,
                     monitor->m_id,
                 };
@@ -546,23 +541,16 @@ void HTLayoutGrid::render() {
     if (monitor == nullptr)
         return;
 
-    static auto PACTIVECOL = CConfigValue<Hyprlang::CUSTOMTYPE>("general:col.active_border");
-    static auto PINACTIVECOL = CConfigValue<Hyprlang::CUSTOMTYPE>("general:col.inactive_border");
-
-    auto* const ACTIVECOL = (CGradientValueData*)(PACTIVECOL.ptr())->getData();
-    auto* const INACTIVECOL = (CGradientValueData*)(PINACTIVECOL.ptr())->getData();
-
-    const float BORDERSIZE = HTConfig::value<Hyprlang::FLOAT>("border_size");
-
-    const auto time = Time::steadyNow();
-
+    const int bg_color = HTConfig::value("bg_color");
+    const float border_size = cached_border_size;
+    const float scale_value = scale->value();
 
     g_pHyprRenderer->damageMonitor(monitor);
     g_pHyprOpenGL->m_renderData.pCurrentMonData->blurFBShouldRender = true;
     CBox monitor_box = {{0, 0}, monitor->m_transformedSize};
 
     CRectPassElement::SRectData data;
-    data.color = CHyprColor {HTConfig::value<Hyprlang::INT>("bg_color")}.stripA();
+    data.color = CHyprColor {bg_color}.stripA();
     data.box = monitor_box;
     g_pHyprRenderer->m_renderPass.add(makeUnique<CRectPassElement>(data));
 
@@ -593,8 +581,8 @@ void HTLayoutGrid::render() {
 
     build_overview_layout(HT_VIEW_ANIMATING);
 
-    const int ROWS = HTConfig::value<Hyprlang::INT>("grid:rows");
-    const int COLS = HTConfig::value<Hyprlang::INT>("grid:cols");
+    const int ROWS = HTConfig::value("grid:rows");
+    const int COLS = HTConfig::value("grid:cols");
     const int effective_layers = grid_cells.size();
 
     if (layer < 0 || layer >= effective_layers)
@@ -603,13 +591,13 @@ void HTLayoutGrid::render() {
     CBox global_mon_box = {monitor->m_position, monitor->m_transformedSize};
     for (int y = 0; y < ROWS; y++) {
         for (int x = 0; x < COLS; x++) {
-            const auto& cell = grid_cells[layer][y][x];
-            const bool has_ws = cell.ws_id != WORKSPACE_INVALID;
+            const HTGridCell* cell = cell_at(layer, y, x);
+            const bool has_ws = cell != nullptr && cell->ws_id != WORKSPACE_INVALID;
 
             CBox ws_box;
             WORKSPACEID ws_id = WORKSPACE_INVALID;
             if (has_ws) {
-                ws_id = cell.ws_id;
+                ws_id = cell->ws_id;
                 const auto& ws_layout = overview_layout[ws_id];
                 ws_box = ws_layout.box;
             } else {
@@ -619,7 +607,7 @@ void HTLayoutGrid::render() {
             if (ws_box.width < 0.01 || ws_box.height < 0.01)
                 continue;
 
-            CBox render_box = {{ws_box.pos() / scale->value()}, ws_box.size()};
+            CBox render_box = {{ws_box.pos() / scale_value}, ws_box.size()};
             if (monitor->m_transform % 2 == 1)
                 std::swap(render_box.w, render_box.h);
 
@@ -627,56 +615,18 @@ void HTLayoutGrid::render() {
                 continue;
 
             CBox global_box = {ws_box.pos() + monitor->m_position, ws_box.size()};
-            if (global_box.expand(BORDERSIZE).intersection(global_mon_box).empty())
+            if (global_box.expand(border_size).intersection(global_mon_box).empty())
                 continue;
 
-            const CGradientValueData border_col =
-                (has_ws && start_workspace->m_id == ws_id) ? *ACTIVECOL : *INACTIVECOL;
-            CBox border_box = ws_box;
-
-            CBorderPassElement::SBorderData data;
-            data.box = border_box;
-            data.grad1 = border_col;
-            data.borderSize = BORDERSIZE;
-            g_pHyprRenderer->m_renderPass.add(makeUnique<CBorderPassElement>(data));
+            render_border(ws_box, has_ws && start_workspace->m_id == ws_id);
 
             if (has_ws) {
                 const PHLWORKSPACE workspace = get_workspace_from_layout(ws_id);
 
-                if (workspace != nullptr) {
-                    monitor->m_activeWorkspace = workspace;
-                    g_pDesktopAnimationManager->startAnimation(
-                        workspace,
-                        CDesktopAnimationManager::ANIMATION_TYPE_IN,
-                        false,
-                        true
-                    );
-                    workspace->m_visible = true;
-
-                    ((render_workspace_t)(render_workspace_hook->m_original))(
-                        g_pHyprRenderer.get(),
-                        monitor,
-                        workspace,
-                        time,
-                        render_box
-                    );
-
-                    g_pDesktopAnimationManager->startAnimation(
-                        workspace,
-                        CDesktopAnimationManager::ANIMATION_TYPE_OUT,
-                        false,
-                        true
-                    );
-                    workspace->m_visible = false;
-                }
+                if (workspace != nullptr)
+                    render_workspace(workspace, render_box, false);
             } else {
-                ((render_workspace_t)(render_workspace_hook->m_original))(
-                    g_pHyprRenderer.get(),
-                    monitor,
-                    nullptr,
-                    time,
-                    render_box
-                );
+                render_workspace(nullptr, render_box, false);
             }
         }
     }
@@ -694,45 +644,14 @@ void HTLayoutGrid::render() {
     if (start_workspace != nullptr && active_it != overview_layout.end()) {
         CBox ws_box = active_it->second.box;
         if (ws_box.width > 0.01 && ws_box.height > 0.01) {
-            CBox render_box = {{ws_box.pos() / scale->value()}, ws_box.size()};
+            CBox render_box = {{ws_box.pos() / scale_value}, ws_box.size()};
             if (monitor->m_transform % 2 == 1)
                 std::swap(render_box.w, render_box.h);
 
-            const CGradientValueData border_col =
-                monitor->m_activeWorkspace->m_id == start_workspace->m_id ? *ACTIVECOL
-                                                                          : *INACTIVECOL;
-            CBox border_box = ws_box;
-
-            CBorderPassElement::SBorderData data;
-            data.box = border_box;
-            data.grad1 = border_col;
-            data.borderSize = BORDERSIZE;
-            g_pHyprRenderer->m_renderPass.add(makeUnique<CBorderPassElement>(data));
-
-            ((render_workspace_t)(render_workspace_hook->m_original))(
-                g_pHyprRenderer.get(),
-                monitor,
-                start_workspace,
-                time,
-                render_box
-            );
+            render_border(ws_box, monitor->m_activeWorkspace->m_id == start_workspace->m_id);
+            render_workspace(start_workspace, render_box, true);
         }
     }
 
-    const PHTVIEW cursor_view = ht_manager->get_view_from_cursor();
-    if (cursor_view == nullptr)
-        return;
-    const SP<Layout::ITarget> target = g_layoutManager->dragController()->target();
-    if (target == nullptr)
-        return;
-    const PHLWINDOW dragged_window = target->window();
-    if (dragged_window == nullptr)
-        return;
-    const Vector2D mouse_coords = g_pInputManager->getMouseCoordsInternal();
-    const CBox window_box = dragged_window->getWindowMainSurfaceBox()
-                                .translate(-mouse_coords)
-                                .scale(cursor_view->layout->drag_window_scale())
-                                .translate(mouse_coords);
-    if (!window_box.intersection(monitor->logicalBox()).empty())
-        render_window_at_box(dragged_window, monitor, time, window_box);
+    render_dragged_window();
 }

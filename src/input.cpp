@@ -13,6 +13,37 @@
 #include "layout/grid.hpp"
 #include "workspace.hpp"
 
+namespace {
+PHLWORKSPACE create_workspace_at_grid_cell(SP<HTLayoutGrid> grid, PHLMONITOR monitor, Vector2D pos) {
+    if (grid == nullptr || monitor == nullptr || !monitor->logicalBox().containsPoint(pos))
+        return nullptr;
+
+    const auto [cell_x, cell_y, cell_layer] = grid->get_grid_cell_from_global(pos);
+    if (cell_x < 0 || cell_y < 0 || cell_layer < 0)
+        return nullptr;
+
+    grid->layer = cell_layer;
+    const int ROWS = static_cast<Hyprlang::INT>(HTConfig::value("grid:rows"));
+    const int COLS = static_cast<Hyprlang::INT>(HTConfig::value("grid:cols"));
+    const int ws_per_layer = std::max(1, ROWS * COLS);
+    const int target_slot = cell_layer * ws_per_layer + cell_y * COLS + cell_x;
+
+    PHLWORKSPACE workspace = create_workspace_for_monitor(monitor);
+    if (workspace != nullptr)
+        grid->pin_workspace_to_slot(workspace->m_id, target_slot);
+
+    return workspace;
+}
+
+bool is_valid_grid_cell(SP<HTLayoutGrid> grid, PHLMONITOR monitor, Vector2D pos) {
+    if (grid == nullptr || monitor == nullptr || !monitor->logicalBox().containsPoint(pos))
+        return false;
+
+    const auto [cell_x, cell_y, cell_layer] = grid->get_grid_cell_from_global(pos);
+    return cell_x >= 0 && cell_y >= 0 && cell_layer >= 0;
+}
+}
+
 bool HTManager::start_window_drag() {
     const PHLMONITOR cursor_monitor = g_pCompositor->getMonitorFromCursor();
     const PHTVIEW cursor_view = get_view_from_monitor(cursor_monitor);
@@ -21,7 +52,6 @@ bool HTManager::start_window_drag() {
         return false;
 
     if (!cursor_view->layout->should_manage_mouse()) {
-        // hide all views if should not manage mouse but active
         hide_all_views();
         return true;
     }
@@ -31,37 +61,22 @@ bool HTManager::start_window_drag() {
     PHLWORKSPACE cursor_workspace = cursor_view->layout->get_workspace_from_layout(workspace_id);
     bool hit_empty_grid_cell = false;
 
-    // If left click on non-workspace workspace (empty cell), create workspace there
     if (cursor_workspace == nullptr && workspace_id == WORKSPACE_INVALID) {
         const SP<HTLayoutGrid> grid_layout = Hyprutils::Memory::dynamicPointerCast<HTLayoutGrid, HTLayoutBase>(cursor_view->layout);
-        if (grid_layout != nullptr && cursor_monitor->logicalBox().containsPoint(mouse_coords)) {
-            const auto [cell_x, cell_y, cell_layer] = grid_layout->get_grid_cell_from_global(mouse_coords);
-            if (cell_x >= 0 && cell_y >= 0 && cell_layer >= 0) {
-                hit_empty_grid_cell = true;
-                grid_layout->layer = cell_layer;
-                const int ROWS = HTConfig::value<Hyprlang::INT>("grid:rows");
-                const int COLS = HTConfig::value<Hyprlang::INT>("grid:cols");
-                const int ws_per_layer = std::max(1, ROWS * COLS);
-                const int target_slot = cell_layer * ws_per_layer + cell_y * COLS + cell_x;
-                // Create the target lazily only when dragging really enters an
-                // empty grid cell.
-                cursor_workspace = create_workspace_for_monitor(cursor_monitor);
-                if (cursor_workspace != nullptr) {
-                    grid_layout->pin_workspace_to_slot(cursor_workspace->m_id, target_slot);
-                    workspace_id = cursor_workspace->m_id;
-                }
-            }
-        }
+        hit_empty_grid_cell = is_valid_grid_cell(grid_layout, cursor_monitor, mouse_coords);
+        cursor_workspace = create_workspace_at_grid_cell(grid_layout, cursor_monitor, mouse_coords);
+        if (cursor_workspace != nullptr)
+            workspace_id = cursor_workspace->m_id;
     }
 
-    // If still no workspace, do nothing
-    // Still consume clicks on valid empty grid cells so failed allocation does
-    // not leak a mouse press through the overview.
     if (cursor_workspace == nullptr)
         return hit_empty_grid_cell;
 
-    // PHLWORKSPACEREF o_workspace = cursor_monitor->m_activeWorkspace;
-    cursor_monitor->changeWorkspace(cursor_workspace, true);
+    const PHLMONITOR ws_monitor = g_pCompositor->getMonitorFromID(cursor_workspace->monitorID());
+    if (ws_monitor != nullptr)
+        ws_monitor->changeWorkspace(cursor_workspace, true);
+    else
+        cursor_monitor->changeWorkspace(cursor_workspace, true);
 
     const Vector2D workspace_coords =
         cursor_view->layout->global_to_local_ws_unscaled(mouse_coords, workspace_id)
@@ -98,9 +113,6 @@ bool HTManager::start_window_drag() {
         }
     }
 
-    // if (o_workspace != nullptr)
-    //     cursor_monitor->changeWorkspace(o_workspace.lock(), true);
-
     return true;
 }
 
@@ -112,13 +124,11 @@ bool HTManager::end_window_drag() {
         return false;
     }
 
-    // Required if dragging and dropping from active to inactive
     if (!cursor_view->active || cursor_view->closing) {
         g_pKeybindManager->changeMouseBindMode(MBIND_INVALID);
         return false;
     }
 
-    // For linear layout: if dropping on big workspace, just pass on
     if (!cursor_view->layout->should_manage_mouse()) {
         g_pKeybindManager->changeMouseBindMode(MBIND_INVALID);
         return false;
@@ -128,8 +138,6 @@ bool HTManager::end_window_drag() {
     if (target == nullptr)
         return false;
 
-    // If not dragging window or drag is not move, then we just let go (supposed to prevent it
-    // from messing up resize on border, but it should be good because above?)
     const PHLWINDOW dragged_window = target->window();
     if (dragged_window == nullptr || g_layoutManager->dragController()->mode() != MBIND_MOVE) {
         g_pKeybindManager->changeMouseBindMode(MBIND_INVALID);
@@ -165,29 +173,11 @@ bool HTManager::end_window_drag() {
                     cursor_workspace->m_id
                 );
             } else {
-                const auto [cell_x, cell_y, cell_layer] = grid_layout->get_grid_cell_from_global(mouse_coords);
-                if (cell_x >= 0 && cell_y >= 0 && cell_layer >= 0) {
-                    grid_layout->layer = cell_layer;
-
-                    const int ROWS = HTConfig::value<Hyprlang::INT>("grid:rows");
-                    const int COLS = HTConfig::value<Hyprlang::INT>("grid:cols");
-                    const int ws_per_layer = std::max(1, ROWS * COLS);
-                    const int target_slot = cell_layer * ws_per_layer + cell_y * COLS + cell_x;
-
-                    cursor_workspace = create_workspace_for_monitor(cursor_monitor);
-                    if (cursor_workspace != nullptr) {
-                        grid_layout->pin_workspace_to_slot(cursor_workspace->m_id, target_slot);
-                        Log::logger->log(
-                            LOG,
-                            "[Hyprtasking] Created workspace {} at slot ({}, {}) for drop",
-                            cursor_workspace->m_id,
-                            cell_x,
-                            cell_y
-                        );
-                    } else {
-                        g_pKeybindManager->changeMouseBindMode(MBIND_INVALID);
-                        return false;
-                    }
+                const bool hit_empty_grid_cell = is_valid_grid_cell(grid_layout, cursor_monitor, mouse_coords);
+                cursor_workspace = create_workspace_at_grid_cell(grid_layout, cursor_monitor, mouse_coords);
+                if (cursor_workspace == nullptr && hit_empty_grid_cell) {
+                    g_pKeybindManager->changeMouseBindMode(MBIND_INVALID);
+                    return false;
                 }
             }
         } else {
@@ -227,8 +217,11 @@ bool HTManager::end_window_drag() {
         cursor_workspace->m_name
     );
 
-    // PHLWORKSPACEREF o_workspace = cursor_monitor->m_activeWorkspace;
-    cursor_monitor->changeWorkspace(cursor_workspace, true);
+    const PHLMONITOR drop_monitor = g_pCompositor->getMonitorFromID(cursor_workspace->monitorID());
+    if (drop_monitor != nullptr)
+        drop_monitor->changeWorkspace(cursor_workspace, true);
+    else
+        cursor_monitor->changeWorkspace(cursor_workspace, true);
 
     g_pCompositor->moveWindowToWorkspaceSafe(dragged_window, cursor_workspace);
 
@@ -241,13 +234,8 @@ bool HTManager::end_window_drag() {
     g_pKeybindManager->changeMouseBindMode(MBIND_INVALID);
     g_pPointerManager->warpTo(mouse_coords);
 
-    // otherwise the window leaves blur (?) artifacts on all
-    // workspaces
     dragged_window->m_movingToWorkspaceAlpha->setValueAndWarp(1.0);
     dragged_window->m_movingFromWorkspaceAlpha->setValueAndWarp(1.0);
-
-    // if (o_workspace != nullptr)
-    //     cursor_monitor->changeWorkspace(o_workspace.lock(), true);
 
     // Do not return true and cancel the event! Mouse release requires some stuff to be done for
     // floating windows to be unfocused properly
@@ -293,14 +281,14 @@ bool HTManager::swipe_update(IPointer::SSwipeUpdateEvent e) {
     if (cursor_view == nullptr)
         return false;
 
-    const int ENABLED = HTConfig::value<Hyprlang::INT>("gestures:enabled");
+    const int ENABLED = static_cast<Hyprlang::INT>(HTConfig::value("gestures:enabled"));
     if (!ENABLED)
         return false;
 
-    const unsigned int MOVE_FINGERS = HTConfig::value<Hyprlang::INT>("gestures:move_fingers");
-    const float OPEN_DISTANCE = HTConfig::value<Hyprlang::FLOAT>("gestures:open_distance");
-    const unsigned int OPEN_FINGERS = HTConfig::value<Hyprlang::INT>("gestures:open_fingers");
-    const int OPEN_POSITIVE = HTConfig::value<Hyprlang::INT>("gestures:open_positive");
+    const unsigned int MOVE_FINGERS = static_cast<Hyprlang::INT>(HTConfig::value("gestures:move_fingers"));
+    const float OPEN_DISTANCE = HTConfig::value_float("gestures:open_distance");
+    const unsigned int OPEN_FINGERS = static_cast<Hyprlang::INT>(HTConfig::value("gestures:open_fingers"));
+    const int OPEN_POSITIVE = static_cast<Hyprlang::INT>(HTConfig::value("gestures:open_positive"));
 
     bool res = false;
     char swipe_direction = 0;
@@ -368,7 +356,7 @@ bool HTManager::swipe_end() {
 
     switch (swipe_state) {
         case HT_SWIPE_OPEN: {
-            const float OPEN_DISTANCE = HTConfig::value<Hyprlang::FLOAT>("gestures:open_distance");
+            const float OPEN_DISTANCE = HTConfig::value_float("gestures:open_distance");
             const float swipe_perc = 1.0 - std::clamp(swipe_amt / OPEN_DISTANCE, 0.01f, 1.0f);
             if (swipe_perc >= 0.5) {
                 cursor_view->show(false);

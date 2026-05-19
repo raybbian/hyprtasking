@@ -17,13 +17,50 @@
 #include "src/desktop/state/FocusState.hpp"
 #include "workspace.hpp"
 
+namespace {
+void exit_to_grid_cell(
+    SP<HTLayoutGrid> grid,
+    PHLMONITOR monitor,
+    Vector2D mouse_coords,
+    WORKSPACEID& ws_id,
+    PHLWORKSPACE& workspace
+) {
+    if (grid == nullptr || monitor == nullptr)
+        return;
+
+    const auto [cell_x, cell_y, cell_layer] = grid->get_grid_cell_from_global(mouse_coords);
+    if (cell_x < 0 || cell_y < 0 || cell_layer < 0)
+        return;
+
+    grid->layer = cell_layer;
+    const int ROWS = static_cast<Hyprlang::INT>(HTConfig::value("grid:rows"));
+    const int COLS = static_cast<Hyprlang::INT>(HTConfig::value("grid:cols"));
+    const int ws_per_layer = std::max(1, ROWS * COLS);
+    const int target_slot = cell_layer * ws_per_layer + cell_y * COLS + cell_x;
+
+    workspace = create_workspace_for_monitor(monitor);
+    if (workspace == nullptr)
+        return;
+
+    grid->pin_workspace_to_slot(workspace->m_id, target_slot);
+    ws_id = workspace->m_id;
+    Log::logger->log(
+        LOG,
+        "[Hyprtasking] Using workspace {} at slot ({}, {}) on right-click exit",
+        workspace->m_id,
+        cell_x,
+        cell_y
+    );
+}
+}
+
 HTView::HTView(MONITORID in_monitor_id) {
     monitor_id = in_monitor_id;
     active = false;
     closing = false;
     navigating = false;
 
-    change_layout(HTConfig::value<Hyprlang::STRING>("layout"));
+    change_layout(HTConfig::value_string("layout"));
 }
 
 void HTView::change_layout(const std::string& layout_name) {
@@ -58,50 +95,33 @@ void HTView::do_exit_behavior(bool exit_on_mouse) {
         return layout->get_ws_id_from_global(mouse_coords);
     };
 
-    const int EXIT_ON_HOVERED = HTConfig::value<Hyprlang::INT>("exit_on_hovered");
+    const int EXIT_ON_HOVERED = static_cast<Hyprlang::INT>(HTConfig::value("exit_on_hovered"));
 
     const bool use_hovered = exit_on_mouse || EXIT_ON_HOVERED;
     WORKSPACEID ws_id = use_hovered ? try_get_hover_id() : monitor->m_activeWorkspace->m_id;
     PHLWORKSPACE workspace = use_hovered ? layout->get_workspace_from_layout(ws_id)
-                                         : monitor->m_activeWorkspace;
+                                          : monitor->m_activeWorkspace;
 
-    if (use_hovered && ws_id == WORKSPACE_INVALID && layout->layout_name() == "grid") {
+    if (use_hovered && ws_id == WORKSPACE_INVALID) {
         const PHLMONITOR cursor_monitor = g_pCompositor->getMonitorFromCursor();
-        if (cursor_monitor == monitor) {
-            const Vector2D mouse_coords = g_pInputManager->getMouseCoordsInternal();
-            const SP<HTLayoutGrid> grid_layout = Hyprutils::Memory::dynamicPointerCast<HTLayoutGrid, HTLayoutBase>(layout);
-            if (grid_layout != nullptr) {
-                const auto [cell_x, cell_y, cell_layer] = grid_layout->get_grid_cell_from_global(mouse_coords);
-                if (cell_x >= 0 && cell_y >= 0 && cell_layer >= 0) {
-                    grid_layout->layer = cell_layer;
-                    const int ROWS = HTConfig::value<Hyprlang::INT>("grid:rows");
-                    const int COLS = HTConfig::value<Hyprlang::INT>("grid:cols");
-                    const int ws_per_layer = std::max(1, ROWS * COLS);
-                    const int target_slot = cell_layer * ws_per_layer + cell_y * COLS + cell_x;
-
-                    // Keep workspace creation lazy: only create a real Hyprland
-                    // workspace when the user actually exits to this empty cell.
-                    workspace = create_workspace_for_monitor(monitor);
-                    if (workspace != nullptr) {
-                        grid_layout->pin_workspace_to_slot(workspace->m_id, target_slot);
-                        ws_id = workspace->m_id;
-                        Log::logger->log(
-                            LOG,
-                            "[Hyprtasking] Using workspace {} at slot ({}, {}) on right-click exit",
-                            workspace->m_id,
-                            cell_x,
-                            cell_y
-                        );
-                    }
-                }
-            }
-        }
+        if (cursor_monitor == monitor)
+            exit_to_grid_cell(
+                Hyprutils::Memory::dynamicPointerCast<HTLayoutGrid, HTLayoutBase>(layout),
+                monitor,
+                g_pInputManager->getMouseCoordsInternal(),
+                ws_id,
+                workspace
+            );
     }
 
     if (workspace == nullptr)
         return;
 
-    monitor->changeWorkspace(workspace);
+    const PHLMONITOR ws_monitor = g_pCompositor->getMonitorFromID(workspace->monitorID());
+    if (ws_monitor != nullptr)
+        ws_monitor->changeWorkspace(workspace);
+    else
+        monitor->changeWorkspace(workspace);
 }
 
 void HTView::show(bool recalculate) {
@@ -204,9 +224,12 @@ void HTView::move_id(WORKSPACEID ws_id, bool move_window) {
         g_pCompositor->moveWindowToWorkspaceSafe(hovered_window, other_workspace);
     }
 
-    Hyprlang::INT warp;
-
-    monitor->changeWorkspace(other_workspace);
+    const PHLMONITOR ws_monitor = g_pCompositor->getMonitorFromID(other_workspace->monitorID());
+    if (ws_monitor != nullptr)
+        ws_monitor->changeWorkspace(other_workspace);
+    else
+        monitor->changeWorkspace(other_workspace);
+    Hyprlang::INT warp = 0;
     if (move_window) {
         Desktop::focusState()->fullWindowFocus(hovered_window, Desktop::FOCUS_REASON_CLICK);
         warp = *CConfigValue<Hyprlang::INT>("plugin:hyprtasking:warp_on_move_window");
@@ -238,6 +261,7 @@ void HTView::move(std::string arg, bool move_window) {
     if (arg != "up" && arg != "down" && arg != "left" && arg != "right")
         return;
 
+    const SP<HTLayoutGrid> grid_layout = Hyprutils::Memory::dynamicPointerCast<HTLayoutGrid, HTLayoutBase>(layout);
     const PHLMONITOR monitor = get_monitor();
     if (monitor == nullptr)
         return;
@@ -251,21 +275,17 @@ void HTView::move(std::string arg, bool move_window) {
     if (!active && !navigating)
         layout->init_position();
 
-    // if moving a window, the up/down/left/right should be relative to the window (and cursor) and not necessarily the active workspace
     const WORKSPACEID source_ws_id =
         move_window ? hovered_window->workspaceID() : active_workspace->m_id;
     layout->build_overview_layout(HT_VIEW_CLOSED);
     const auto ws_layout_it = layout->overview_layout.find(source_ws_id);
     HTLayoutBase::HTWorkspace ws_layout;
     if (ws_layout_it == layout->overview_layout.end()) {
-        // After changing to an empty layer, the active workspace may not be in
-        // overview_layout yet. Keep moving from the same grid cell instead.
-        const SP<HTLayoutGrid> grid_layout = Hyprutils::Memory::dynamicPointerCast<HTLayoutGrid, HTLayoutBase>(layout);
         if (grid_layout == nullptr || !active)
             return;
 
-        const int ROWS = HTConfig::value<Hyprlang::INT>("grid:rows");
-        const int COLS = HTConfig::value<Hyprlang::INT>("grid:cols");
+        const int ROWS = static_cast<Hyprlang::INT>(HTConfig::value("grid:rows"));
+        const int COLS = static_cast<Hyprlang::INT>(HTConfig::value("grid:cols"));
         const int cell = grid_layout->last_layer_cell;
         if (cell < 0 || cell >= ROWS * COLS)
             return;
@@ -274,48 +294,39 @@ void HTView::move(std::string arg, bool move_window) {
         ws_layout.y = cell / COLS;
     } else {
         ws_layout = ws_layout_it->second;
-        const SP<HTLayoutGrid> grid_layout = Hyprutils::Memory::dynamicPointerCast<HTLayoutGrid, HTLayoutBase>(layout);
         if (grid_layout != nullptr) {
-            const int COLS = HTConfig::value<Hyprlang::INT>("grid:cols");
+            const int COLS = static_cast<Hyprlang::INT>(HTConfig::value("grid:cols"));
             grid_layout->last_layer_cell = ws_layout.y * COLS + ws_layout.x;
         }
     }
     const WORKSPACEID id = layout->get_ws_id_in_direction(ws_layout.x, ws_layout.y, arg);
 
-    if (id == WORKSPACE_INVALID && layout->layout_name() == "grid") {
-        // Moving inside a sparse layer should still be able to land on an empty
-        // grid cell, including wrapped cells when grid:loop is enabled.
-        const SP<HTLayoutGrid> grid_layout = Hyprutils::Memory::dynamicPointerCast<HTLayoutGrid, HTLayoutBase>(layout);
-        if (grid_layout != nullptr) {
-            int x = ws_layout.x, y = ws_layout.y;
-            const int LOOP = HTConfig::value<Hyprlang::INT>("grid:loop");
-            const int ROWS = HTConfig::value<Hyprlang::INT>("grid:rows");
-            const int COLS = HTConfig::value<Hyprlang::INT>("grid:cols");
-            if (arg == "up") {
-                y--;
-            } else if (arg == "down") {
-                y++;
-            } else if (arg == "right") {
-                x++;
-            } else if (arg == "left") {
-                x--;
-            }
-            if (LOOP) {
-                x = (x + COLS) % COLS;
-                y = (y + ROWS) % ROWS;
-            }
-            if (x >= 0 && x < COLS && y >= 0 && y < ROWS) {
-                const int ws_per_layer = std::max(1, ROWS * COLS);
-                const int target_slot = grid_layout->layer * ws_per_layer + y * COLS + x;
-                PHLWORKSPACE new_ws = nullptr;
-                // Keep sparse layers lazy: empty cells are materialized only
-                // when navigation actually lands there.
-                new_ws = create_workspace_for_monitor(monitor);
-                if (new_ws != nullptr) {
-                    grid_layout->pin_workspace_to_slot(new_ws->m_id, target_slot);
-                    move_id(new_ws->m_id, move_window);
-                    return;
-                }
+    if (id == WORKSPACE_INVALID && grid_layout != nullptr) {
+        int x = ws_layout.x, y = ws_layout.y;
+        const int LOOP = static_cast<Hyprlang::INT>(HTConfig::value("grid:loop"));
+        const int ROWS = static_cast<Hyprlang::INT>(HTConfig::value("grid:rows"));
+        const int COLS = static_cast<Hyprlang::INT>(HTConfig::value("grid:cols"));
+        if (arg == "up") {
+            y--;
+        } else if (arg == "down") {
+            y++;
+        } else if (arg == "right") {
+            x++;
+        } else if (arg == "left") {
+            x--;
+        }
+        if (LOOP) {
+            x = (x + COLS) % COLS;
+            y = (y + ROWS) % ROWS;
+        }
+        if (x >= 0 && x < COLS && y >= 0 && y < ROWS) {
+            const int ws_per_layer = std::max(1, ROWS * COLS);
+            const int target_slot = grid_layout->layer * ws_per_layer + y * COLS + x;
+            PHLWORKSPACE new_ws = create_workspace_for_monitor(monitor);
+            if (new_ws != nullptr) {
+                grid_layout->pin_workspace_to_slot(new_ws->m_id, target_slot);
+                move_id(new_ws->m_id, move_window);
+                return;
             }
         }
     }

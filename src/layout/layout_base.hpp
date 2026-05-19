@@ -10,6 +10,9 @@
 
 #include "../types.hpp"
 
+class HTView;
+typedef SP<HTView> PHTVIEW;
+
 enum HTViewStage {
     HT_VIEW_ANIMATING,
     HT_VIEW_OPENED,
@@ -18,8 +21,15 @@ enum HTViewStage {
 
 class HTLayoutBase {
   protected:
-    // Same as monitor_id of the parent view
     VIEWID view_id;
+    PHTVIEW par_view;
+
+    float cached_border_size = 0.f;
+
+    void update_render_cache();
+    void render_workspace(PHLWORKSPACE ws, CBox render_box, bool is_active);
+    void render_dragged_window();
+    void render_border(CBox box, bool is_active);
 
   public:
     using CallbackFun = Hyprutils::Animation::CBaseAnimatedVariable::CallbackFun;
@@ -42,37 +52,25 @@ class HTLayoutBase {
     virtual CBox calculate_ws_box(int x, int y, HTViewStage stage) = 0;
     std::unordered_map<WORKSPACEID, HTWorkspace> overview_layout;
 
-    // Warp the show/hide animations to perc (from closed to open)
     virtual void close_open_lerp(float perc) = 0;
     virtual void on_show(CallbackFun on_complete = nullptr) = 0;
     virtual void on_hide(CallbackFun on_complete = nullptr) = 0;
     virtual void
     on_move(WORKSPACEID old_id, WORKSPACEID new_id, CallbackFun on_complete = nullptr) = 0;
     virtual void on_move_swipe(Vector2D delta);
-    // Returns the workspace id that the swipe should snap to
     virtual WORKSPACEID on_move_swipe_end();
 
-    // Get the workspace up/down left/right relative to the workspace at (x, y)
     virtual WORKSPACEID get_ws_id_in_direction(int x, int y, std::string& direction);
 
-    // Return true if should cancel
     virtual bool on_mouse_axis(double delta);
 
-    // Should return true if when active, hyprtasking should manage the mouse button actions
-    // (warping to appropriate position and smoothing the drag window, if it exists)
     virtual bool should_manage_mouse();
-    // Called assuming that at least one overview is active (not nec on this monitor)
     virtual bool should_render_window(PHLWINDOW window);
-    // The scale the drag window should be rendered at (about the mouse cursor)
     virtual float drag_window_scale();
-    // Only to be called when closed, init/reset the position in case of config/monitor change
     virtual void init_position();
-    // Populate overview_layout as if the overview was at a given stage
     virtual void build_overview_layout(HTViewStage stage);
-    // Render the overview
     virtual void render();
 
-    // Prevent simplification from happening in the plugin, remove all clear pass objects
     void post_render();
 
     PHLMONITOR get_monitor();

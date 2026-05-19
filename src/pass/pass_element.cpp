@@ -1,11 +1,9 @@
 #include "pass_element.hpp"
 
 HTPassElement::HTPassElement() {
-    ;
 }
 
 void HTPassElement::draw(const CRegion& damage) {
-    ;
 }
 
 bool HTPassElement::needsLiveBlur() {

@@ -92,40 +92,32 @@ static SDispatchResult dispatch_toggle_view(std::string arg) {
     return {};
 }
 
-// Forward declaration
 static SDispatchResult change_layer(std::string arg, bool move_window);
+static SDispatchResult dispatch_move_impl(std::string arg, bool move_window);
 
 static SDispatchResult dispatch_move(std::string arg) {
-    if (ht_manager == nullptr)
-        return {.success = false, .error = "ht_manager is null"};
-    const PHTVIEW cursor_view = ht_manager->get_view_from_cursor();
-    if (cursor_view == nullptr)
-        return {.success = false, .error = "cursor_view is null"};
-    if (arg == "in") {
-        return change_layer("-1", false);
-    } if (arg == "out") {
-        return change_layer("+1", false);
-    }
-    if (arg != "up" && arg != "down" && arg != "left" && arg != "right")
-        return {.success = false, .error = "invalid arg"};
-    cursor_view->move(arg, false);
-    return {};
+    return dispatch_move_impl(arg, false);
 }
 
 static SDispatchResult dispatch_move_window(std::string arg) {
+    return dispatch_move_impl(arg, true);
+}
+
+static SDispatchResult dispatch_move_impl(std::string arg, bool move_window) {
     if (ht_manager == nullptr)
         return {.success = false, .error = "ht_manager is null"};
     const PHTVIEW cursor_view = ht_manager->get_view_from_cursor();
     if (cursor_view == nullptr)
         return {.success = false, .error = "cursor_view is null"};
     if (arg == "in") {
-        return change_layer("-1", true);
-    } if (arg == "out") {
-        return change_layer("+1", true);
+        return change_layer("-1", move_window);
+    }
+    if (arg == "out") {
+        return change_layer("+1", move_window);
     }
     if (arg != "up" && arg != "down" && arg != "left" && arg != "right")
         return {.success = false, .error = "invalid arg"};
-    cursor_view->move(arg, true);
+    cursor_view->move(arg, move_window);
     return {};
 }
 
@@ -133,21 +125,7 @@ static void set_layer(PHTVIEW view, int new_layer) {
     if (view == nullptr)
         return;
 
-    // HACK: Prevent no focus when closing the view
-    // Makes layers less responsive and less buggy
-    // Ideally we would wait for it to close and then update
-    // Or update the destination as the offset is changing
-    // If you wanna fix this, then test it
-    // on a multimonitor setup with this command:
-    //   hyprctl dispatch --batch 'dispatch hyprtasking:setlayer -1;
-    //   dispatch hyprtasking:move left;
-    //   dispatch hyprtasking:toggle cursor;
-    //   dispatch hyprtasking:setlayer -1;
-    //   dispatch hyprtasking:toggle cursor;
-    //   dispatch hyprtasking:toggle cursor;
-    //   dispatch hyprtasking:move down;
-    //   dispatch hyprtasking:setlayer +1;
-    //   dispatch hyprtasking:toggle cursor'
+    // Avoid focus loss while a view is closing.
     if (view->closing)
         return;
     Log::logger->log(
@@ -158,6 +136,99 @@ static void set_layer(PHTVIEW view, int new_layer) {
         new_layer
     );
     view->layout->layer = new_layer;
+}
+
+static bool calculate_target_layer(
+    std::string arg,
+    int original_layer,
+    int effective_layers,
+    bool loop_layers,
+    int& resulting_layer
+) {
+    resulting_layer = original_layer;
+    if (arg[0] == '+' || arg[0] == '-')
+        resulting_layer += std::stoi(arg);
+    else
+        resulting_layer = std::stoi(arg);
+
+    if (resulting_layer >= 0 && resulting_layer < effective_layers)
+        return true;
+    if (!loop_layers)
+        return false;
+
+    resulting_layer %= effective_layers;
+    if (resulting_layer < 0)
+        resulting_layer += effective_layers;
+    return true;
+}
+
+static PHLWORKSPACE find_or_create_target_workspace(
+    PHTVIEW cursor_view,
+    PHLMONITOR monitor,
+    SP<HTLayoutGrid> grid_layout,
+    int source_cell,
+    int target_slot,
+    int resulting_layer,
+    int original_layer,
+    int cols
+) {
+    set_layer(cursor_view, resulting_layer);
+    cursor_view->layout->build_overview_layout(HT_VIEW_CLOSED);
+
+    WORKSPACEID target_ws_id = cursor_view->layout->get_ws_id_from_xy(source_cell % cols, source_cell / cols);
+    PHLWORKSPACE target_workspace = nullptr;
+
+    if (target_ws_id == WORKSPACE_INVALID) {
+        target_workspace = create_workspace_for_monitor(monitor);
+        if (target_workspace == nullptr) {
+            set_layer(cursor_view, original_layer);
+            cursor_view->layout->build_overview_layout(HT_VIEW_CLOSED);
+            return nullptr;
+        }
+        target_ws_id = target_workspace->m_id;
+    } else {
+        target_workspace = cursor_view->layout->get_workspace_from_layout(target_ws_id);
+    }
+
+    grid_layout->pin_workspace_to_slot(target_ws_id, target_slot);
+    cursor_view->layout->build_overview_layout(HT_VIEW_CLOSED);
+
+    if (target_workspace == nullptr)
+        target_workspace = cursor_view->layout->get_workspace_from_layout(target_ws_id);
+
+    if (target_workspace != nullptr)
+        return target_workspace;
+
+    set_layer(cursor_view, original_layer);
+    cursor_view->layout->build_overview_layout(HT_VIEW_CLOSED);
+    return nullptr;
+}
+
+static void apply_layer_change(
+    PHTVIEW cursor_view,
+    PHLMONITOR monitor,
+    WORKSPACEID source_ws_id,
+    PHLWORKSPACE target_workspace,
+    bool move_window
+) {
+    if (move_window) {
+        const PHLWINDOW hovered_window = ht_manager->get_window_from_cursor();
+        if (hovered_window != nullptr)
+            g_pCompositor->moveWindowToWorkspaceSafe(hovered_window, target_workspace);
+    }
+
+    const PHLMONITOR ws_monitor = g_pCompositor->getMonitorFromID(target_workspace->monitorID());
+    if (ws_monitor != nullptr)
+        ws_monitor->changeWorkspace(target_workspace);
+    else
+        monitor->changeWorkspace(target_workspace);
+
+    cursor_view->layout->build_overview_layout(HT_VIEW_CLOSED);
+    g_pHyprRenderer->damageMonitor(monitor);
+    g_pCompositor->scheduleFrameForMonitor(monitor);
+
+    if (!cursor_view->active)
+        cursor_view->layout->on_move(source_ws_id, target_workspace->m_id);
 }
 
 static SDispatchResult change_layer(std::string arg, bool move_window) {
@@ -173,10 +244,10 @@ static SDispatchResult change_layer(std::string arg, bool move_window) {
     if (cursor_view->layout->layout_name() != "grid")
         return {.success = false, .error = "layers are only supported in grid layout"};
 
-    const int ROWS = HTConfig::value<Hyprlang::INT>("grid:rows");
-    const int COLS = HTConfig::value<Hyprlang::INT>("grid:cols");
-    const int LAYERS = HTConfig::value<Hyprlang::INT>("grid:layers");
-    const int LOOP_LAYERS = HTConfig::value<Hyprlang::INT>("grid:loop_layers");
+    const int ROWS = static_cast<Hyprlang::INT>(HTConfig::value("grid:rows"));
+    const int COLS = static_cast<Hyprlang::INT>(HTConfig::value("grid:cols"));
+    const int LAYERS = static_cast<Hyprlang::INT>(HTConfig::value("grid:layers"));
+    const int LOOP_LAYERS = static_cast<Hyprlang::INT>(HTConfig::value("grid:loop_layers"));
     const int ws_per_layer = std::max(1, ROWS * COLS);
 
     const PHLMONITOR monitor = cursor_view->get_monitor();
@@ -194,14 +265,6 @@ static SDispatchResult change_layer(std::string arg, bool move_window) {
     const auto active_it = cursor_view->layout->overview_layout.find(source_ws_id);
     if (active_it == cursor_view->layout->overview_layout.end() && !cursor_view->active)
         return {.success = false, .error = "active workspace not in layout"};
-
-    const int original_layer = cursor_view->layout->layer;
-    int resulting_layer = original_layer;
-    if (arg[0] == '+' || arg[0] == '-') {
-        resulting_layer += std::stoi(arg);
-    } else {
-        resulting_layer = std::stoi(arg);
-    }
 
     int source_cell = 0;
     if (active_it != cursor_view->layout->overview_layout.end()) {
@@ -226,18 +289,10 @@ static SDispatchResult change_layer(std::string arg, bool move_window) {
     const int needed_layers = std::max(1, (int)(monitor_workspaces.size() + ws_per_layer - 1) / ws_per_layer);
     const int effective_layers = std::max(configured_layers, needed_layers);
 
-    // if resulting offset doesn't fit in boundaries
-    if (resulting_layer >= effective_layers || resulting_layer < 0) {
-        // Don't do anything if next is invalid and grid:loop_layers is disabled
-        if (!LOOP_LAYERS)
-            return {};
-        resulting_layer %= effective_layers;
-        if (resulting_layer < 0)
-            resulting_layer += effective_layers;
-    }
-
-    WORKSPACEID target_ws_id = WORKSPACE_INVALID;
-    const int target_slot = resulting_layer * ws_per_layer + source_cell;
+    const int original_layer = cursor_view->layout->layer;
+    int resulting_layer = original_layer;
+    if (!calculate_target_layer(arg, original_layer, effective_layers, LOOP_LAYERS, resulting_layer))
+        return {};
 
     // Preserve the currently visible grid before changing layers, otherwise a
     // rebuild may auto-pack workspaces and make the same cell point elsewhere.
@@ -246,55 +301,21 @@ static SDispatchResult change_layer(std::string arg, bool move_window) {
         grid_layout->pin_workspace_to_slot(ws_id, slot);
     }
 
-    set_layer(cursor_view, resulting_layer);
-    cursor_view->layout->build_overview_layout(HT_VIEW_CLOSED);
-    target_ws_id = cursor_view->layout->get_ws_id_from_xy(source_cell % COLS, source_cell / COLS);
-
-    PHLWORKSPACE target_workspace = nullptr;
-
-    if (target_ws_id == WORKSPACE_INVALID) {
-        target_workspace = create_workspace_for_monitor(monitor);
-        if (target_workspace == nullptr) {
-            set_layer(cursor_view, original_layer);
-            cursor_view->layout->build_overview_layout(HT_VIEW_CLOSED);
-            return {};
-        }
-
-        grid_layout->pin_workspace_to_slot(target_workspace->m_id, target_slot);
-        target_ws_id = target_workspace->m_id;
-        // Newly created workspaces may not be in overview_layout yet, so keep
-        // the pointer instead of looking it up immediately.
-    } else {
-        grid_layout->pin_workspace_to_slot(target_ws_id, target_slot);
-        target_workspace = cursor_view->layout->get_workspace_from_layout(target_ws_id);
-    }
-
-    cursor_view->layout->build_overview_layout(HT_VIEW_CLOSED);
+    const int target_slot = resulting_layer * ws_per_layer + source_cell;
+    const PHLWORKSPACE target_workspace = find_or_create_target_workspace(
+        cursor_view,
+        monitor,
+        grid_layout,
+        source_cell,
+        target_slot,
+        resulting_layer,
+        original_layer,
+        COLS
+    );
     if (target_workspace == nullptr)
-        target_workspace = cursor_view->layout->get_workspace_from_layout(target_ws_id);
-
-    if (target_workspace == nullptr) {
-        set_layer(cursor_view, original_layer);
-        cursor_view->layout->build_overview_layout(HT_VIEW_CLOSED);
         return {};
-    }
 
-    if (move_window) {
-        const PHLWINDOW hovered_window = ht_manager->get_window_from_cursor();
-        if (hovered_window != nullptr)
-            g_pCompositor->moveWindowToWorkspaceSafe(hovered_window, target_workspace);
-    }
-
-    monitor->changeWorkspace(target_workspace);
-    cursor_view->layout->build_overview_layout(HT_VIEW_CLOSED);
-    g_pHyprRenderer->damageMonitor(monitor);
-    g_pCompositor->scheduleFrameForMonitor(monitor);
-
-    if (!cursor_view->active) {
-        cursor_view->layout->on_move(source_ws_id, target_ws_id);
-        return {};
-    }
-
+    apply_layer_change(cursor_view, monitor, source_ws_id, target_workspace, move_window);
     return {};
 }
 
@@ -381,8 +402,8 @@ static void on_mouse_button(IPointer::SButtonEvent e, Event::SCallbackInfo& info
 
     const bool pressed = e.state == WL_POINTER_BUTTON_STATE_PRESSED;
 
-    const unsigned int drag_button = HTConfig::value<Hyprlang::INT>("drag_button");
-    const unsigned int select_button = HTConfig::value<Hyprlang::INT>("select_button");
+    const unsigned int drag_button = static_cast<Hyprlang::INT>(HTConfig::value("drag_button"));
+    const unsigned int select_button = static_cast<Hyprlang::INT>(HTConfig::value("select_button"));
 
     if (pressed && e.button == drag_button) {
         info.cancelled = ht_manager->start_window_drag();
@@ -430,7 +451,7 @@ static void cancel_event(Event::SCallbackInfo& info) {
 }
 
 static void notify_config_changes() {
-    const int ROWS = HTConfig::value<Hyprlang::INT>("rows");
+    const int ROWS = static_cast<Hyprlang::INT>(HTConfig::value("rows"));
     if (ROWS != -1) {
         HyprlandAPI::addNotification(
             PHANDLE,
@@ -440,7 +461,7 @@ static void notify_config_changes() {
         );
     }
 
-    CVarList exit_behavior {HTConfig::value<Hyprlang::STRING>("exit_behavior"), 0, 's', true};
+    CVarList exit_behavior {HTConfig::value_string("exit_behavior"), 0, 's', true};
     if (exit_behavior.size() != 0) {
         HyprlandAPI::addNotification(
             PHANDLE,
@@ -504,8 +525,8 @@ static void on_config_reloaded() {
     for (PHTVIEW& view : ht_manager->views) {
         if (view == nullptr)
             continue;
-        const Hyprlang::STRING new_layout = HTConfig::value<Hyprlang::STRING>("layout");
-        if (HTConfig::value<Hyprlang::INT>("close_overview_on_reload")
+        const Hyprlang::STRING new_layout = HTConfig::value_string("layout");
+        if (static_cast<Hyprlang::INT>(HTConfig::value("close_overview_on_reload"))
             || view->layout->layout_name() != new_layout) {
             Log::logger->log(LOG, "[Hyprtasking] Closing overview on config reload");
             view->hide(false);
@@ -537,10 +558,6 @@ static void init_functions() {
     Log::logger->log(LOG, "[Hyprtasking] Attempting hook {}", FNS2[0].signature);
     success = should_render_window_hook->hook() && success;
 
-    // Right now (in v0.54.0) there are several "renderWindow" functions
-    // This is needed so it won't break on update that adds/removes a
-    // function with this name
-    // This, however, requires checking for signautre changes
     static auto FNS3 = HyprlandAPI::findFunctionsByName(
         PHANDLE,
         "_ZN13CHyprRenderer12renderWindowEN9Hyprutils6Memory14CSha"
@@ -570,12 +587,9 @@ static void register_callbacks() {
     static auto P2 = Event::bus()->m_events.input.mouse.move.listen(on_mouse_move);
     static auto P3 = Event::bus()->m_events.input.mouse.axis.listen(on_mouse_axis);
 
-    // TODO: support touch
     static auto P4 = Event::bus()->m_events.input.touch.down.listen([&] (ITouch::SDownEvent e, Event::SCallbackInfo i) { cancel_event(i); } );
     static auto P5 = Event::bus()->m_events.input.touch.up.listen([&] (ITouch::SUpEvent e, Event::SCallbackInfo i) { cancel_event(i); } );
     static auto P6 = Event::bus()->m_events.input.touch.motion.listen([&] (ITouch::SMotionEvent e, Event::SCallbackInfo i) { cancel_event(i); } );
-    // static auto P7 = Event::bus()->m_events.input.touch.cancel.listen([&] (ITouch::SCancelEvent e, Event::SCallbackInfo i) { cancel_event(i); } );
-
 
     static auto P7 = Event::bus()->m_events.gesture.swipe.begin.listen(on_swipe_begin);
     static auto P8 = Event::bus()->m_events.gesture.swipe.update.listen(on_swipe_update);
@@ -604,7 +618,6 @@ static void add_dispatchers() {
 static void init_config() {
     HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprtasking:layout", Hyprlang::STRING {"grid"});
 
-    // general
     HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprtasking:bg_color", Hyprlang::INT {0x000000FF});
     HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprtasking:gap_size", Hyprlang::FLOAT {8.f});
     HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprtasking:border_size", Hyprlang::FLOAT {4.f});
@@ -631,7 +644,6 @@ static void init_config() {
         Hyprlang::INT {BTN_RIGHT}
     );
 
-    // swipe
     HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprtasking:gestures:enabled", Hyprlang::INT {1});
     HyprlandAPI::addConfigValue(
         PHANDLE,
@@ -659,7 +671,6 @@ static void init_config() {
         Hyprlang::INT {1}
     );
 
-    // grid specific
     HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprtasking:grid:rows", Hyprlang::INT {3});
     HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprtasking:grid:cols", Hyprlang::INT {3});
     HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprtasking:grid:layers", Hyprlang::INT {1});
@@ -671,7 +682,6 @@ static void init_config() {
         Hyprlang::INT {0}
     );
 
-    //linear specifig
     HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprtasking:linear:blur", Hyprlang::INT {1});
     HyprlandAPI::addConfigValue(
         PHANDLE,

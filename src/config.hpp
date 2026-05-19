@@ -2,36 +2,44 @@
 
 #include <hyprland/src/plugins/PluginAPI.hpp>
 #include <hyprutils/math/Vector2D.hpp>
+#include <string>
+#include <unordered_map>
 
 #include "globals.hpp"
 
 namespace HTConfig {
 
-template<typename T>
-concept ptr_type = std::same_as<T, Hyprlang::STRING>;
-
-template<ptr_type T>
-inline T value(std::string config) {
-    static std::unordered_map<std::string, T const*> cache;
+inline Hyprlang::INT value(std::string config) {
+    static std::unordered_map<std::string, Hyprlang::INT* const*> cache;
 
     if (!cache.count(config))
-        cache[config] =
-            (T const*)HyprlandAPI::getConfigValue(PHANDLE, "plugin:hyprtasking:" + config)
-                ->getDataStaticPtr();
-    return *cache[config];
+        cache[config] = (Hyprlang::INT* const*)HyprlandAPI::getConfigValue(
+                            PHANDLE,
+                            "plugin:hyprtasking:" + config
+                        )->getDataStaticPtr();
+    return **cache[config];
 }
 
-template<typename T>
-inline T value(std::string config)
-    requires(!ptr_type<T>)
-{
-    static std::unordered_map<std::string, T* const*> cache;
+inline Hyprlang::FLOAT value_float(std::string config) {
+    static std::unordered_map<std::string, Hyprlang::FLOAT* const*> cache;
 
     if (!cache.count(config))
-        cache[config] =
-            (T* const*)HyprlandAPI::getConfigValue(PHANDLE, "plugin:hyprtasking:" + config)
-                ->getDataStaticPtr();
+        cache[config] = (Hyprlang::FLOAT* const*)HyprlandAPI::getConfigValue(
+                            PHANDLE,
+                            "plugin:hyprtasking:" + config
+                        )->getDataStaticPtr();
     return **cache[config];
+}
+
+inline Hyprlang::STRING value_string(std::string config) {
+    static std::unordered_map<std::string, Hyprlang::STRING const*> cache;
+
+    if (!cache.count(config))
+        cache[config] = (Hyprlang::STRING const*)HyprlandAPI::getConfigValue(
+                            PHANDLE,
+                            "plugin:hyprtasking:" + config
+                        )->getDataStaticPtr();
+    return *cache[config];
 }
 
 } // namespace HTConfig

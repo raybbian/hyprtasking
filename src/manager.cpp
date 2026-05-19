@@ -1,5 +1,7 @@
 #include "manager.hpp"
 
+#include <algorithm>
+
 #include <hyprland/src/Compositor.hpp>
 #include <hyprland/src/config/ConfigManager.hpp>
 #include <hyprland/src/desktop/DesktopTypes.hpp>
@@ -16,14 +18,11 @@ HTManager::HTManager() {
 PHTVIEW HTManager::get_view_from_monitor(PHLMONITOR monitor) {
     if (monitor == nullptr)
         return nullptr;
-    for (PHTVIEW view : views) {
-        if (view == nullptr)
-            continue;
-        if (view->get_monitor() != monitor)
-            continue;
-        return view;
-    }
-    return nullptr;
+
+    const auto it = std::ranges::find_if(views, [monitor](const PHTVIEW& view) {
+        return view != nullptr && view->get_monitor() == monitor;
+    });
+    return it == views.end() ? nullptr : *it;
 }
 
 PHTVIEW HTManager::get_view_from_cursor() {
@@ -31,14 +30,10 @@ PHTVIEW HTManager::get_view_from_cursor() {
 }
 
 PHTVIEW HTManager::get_view_from_id(VIEWID view_id) {
-    for (PHTVIEW view : views) {
-        if (view == nullptr)
-            continue;
-        if (view->monitor_id != view_id)
-            continue;
-        return view;
-    }
-    return nullptr;
+    const auto it = std::ranges::find_if(views, [view_id](const PHTVIEW& view) {
+        return view != nullptr && view->monitor_id == view_id;
+    });
+    return it == views.end() ? nullptr : *it;
 }
 
 PHLWINDOW HTManager::get_window_from_cursor(bool return_focused) {
@@ -71,7 +66,11 @@ PHLWINDOW HTManager::get_window_from_cursor(bool return_focused) {
         + cursor_monitor->m_position;
 
     const PHLWORKSPACEREF o_workspace = cursor_monitor->m_activeWorkspace;
-    cursor_monitor->changeWorkspace(hovered_workspace, true);
+    const PHLMONITOR ws_monitor = g_pCompositor->getMonitorFromID(hovered_workspace->monitorID());
+    if (ws_monitor != nullptr)
+        ws_monitor->changeWorkspace(hovered_workspace, true);
+    else
+        cursor_monitor->changeWorkspace(hovered_workspace, true);
 
     const PHLWINDOW hovered_window = g_pCompositor->vectorToWindowUnified(
         ws_coords,
@@ -113,13 +112,9 @@ void HTManager::reset() {
 }
 
 bool HTManager::has_active_view() {
-    for (const auto& view : views) {
-        if (view == nullptr)
-            continue;
-        if (view->active)
-            return true;
-    }
-    return false;
+    return std::ranges::any_of(views, [](const PHTVIEW& view) {
+        return view != nullptr && view->active;
+    });
 }
 
 bool HTManager::cursor_view_active() {
