@@ -631,14 +631,7 @@ void HTLayoutGrid::render() {
         }
     }
 
-    monitor->m_activeWorkspace = start_workspace;
-    g_pDesktopAnimationManager->startAnimation(
-        start_workspace,
-        CDesktopAnimationManager::ANIMATION_TYPE_IN,
-        false,
-        true
-    );
-    start_workspace->m_visible = true;
+    // CScopeGuard restore_workspace handles the final cleanup above
 
     const auto active_it = overview_layout.find(start_workspace->m_id);
     if (start_workspace != nullptr && active_it != overview_layout.end()) {

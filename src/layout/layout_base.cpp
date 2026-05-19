@@ -19,7 +19,7 @@
 #include "layout_base.hpp"
 
 HTLayoutBase::HTLayoutBase(VIEWID new_view_id)
-    : view_id(new_view_id), par_view(ht_manager != nullptr ? ht_manager->get_view_from_id(new_view_id) : nullptr) {
+    : view_id(new_view_id) {
 }
 
 void HTLayoutBase::on_move_swipe(Vector2D delta) {
@@ -175,6 +175,8 @@ void HTLayoutBase::post_render() {
 }
 
 PHLMONITOR HTLayoutBase::get_monitor() {
+    if (par_view == nullptr && ht_manager != nullptr)
+        par_view = ht_manager->get_view_from_id(view_id);
     if (par_view == nullptr)
         return nullptr;
     return par_view->get_monitor();

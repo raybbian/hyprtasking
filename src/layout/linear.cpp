@@ -361,7 +361,6 @@ void HTLayoutLinear::render() {
         true
     );
     big_ws->m_visible = false;
-    rendering_standard_ws = false;
 
     CBox view_box = {
         {0.f, calculate_y(monitor->m_transformedSize.y, view_offset->value(), HEIGHT)},
