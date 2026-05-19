@@ -464,7 +464,7 @@ void HTLayoutGrid::build_overview_layout(HTViewStage stage) {
                 auto& cell = grid_cells[l][y][x];
                 if (cell.ws_id != WORKSPACE_INVALID) {
                     const PHLWORKSPACE workspace = g_pCompositor->getWorkspaceByID(cell.ws_id);
-                    if (workspace == nullptr || workspace->inert() || workspace->m_isSpecialWorkspace) {
+                    if (!is_monitor_workspace(workspace)) {
                         cell.ws_id = WORKSPACE_INVALID;
                         cell.occupied = false;
                         cell.is_pinned = false;

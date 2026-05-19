@@ -127,7 +127,7 @@ PHLWORKSPACE HTLayoutBase::get_workspace_from_layout(WORKSPACEID workspace_id) {
         return nullptr;
 
     PHLWORKSPACE workspace = g_pCompositor->getWorkspaceByID(workspace_id);
-    if (workspace == nullptr || workspace->inert() || workspace->m_isSpecialWorkspace)
+    if (!is_monitor_workspace(workspace))
         return nullptr;
     return workspace;
 }
