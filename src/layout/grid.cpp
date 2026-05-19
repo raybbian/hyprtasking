@@ -570,6 +570,19 @@ void HTLayoutGrid::render() {
     if (start_workspace == nullptr)
         return;
 
+    CScopeGuard restore_workspace([&monitor, &start_workspace] {
+        if (monitor == nullptr || start_workspace == nullptr)
+            return;
+        monitor->m_activeWorkspace = start_workspace;
+        g_pDesktopAnimationManager->startAnimation(
+            start_workspace,
+            CDesktopAnimationManager::ANIMATION_TYPE_IN,
+            false,
+            true
+        );
+        start_workspace->m_visible = true;
+    });
+
     g_pDesktopAnimationManager->startAnimation(
         start_workspace,
         CDesktopAnimationManager::ANIMATION_TYPE_OUT,

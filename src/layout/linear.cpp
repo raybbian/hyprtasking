@@ -323,6 +323,21 @@ void HTLayoutLinear::render() {
     const PHLWORKSPACE start_workspace = monitor->m_activeWorkspace;
     if (start_workspace == nullptr)
         return;
+
+    CScopeGuard restore_workspace([this, &monitor, &start_workspace] {
+        rendering_standard_ws = false;
+        if (monitor == nullptr || start_workspace == nullptr)
+            return;
+        monitor->m_activeWorkspace = start_workspace;
+        g_pDesktopAnimationManager->startAnimation(
+            start_workspace,
+            CDesktopAnimationManager::ANIMATION_TYPE_IN,
+            false,
+            true
+        );
+        start_workspace->m_visible = true;
+    });
+
     g_pDesktopAnimationManager->startAnimation(
         start_workspace,
         CDesktopAnimationManager::ANIMATION_TYPE_OUT,
