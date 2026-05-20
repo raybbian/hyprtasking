@@ -92,7 +92,6 @@ void HTLayoutBase::render_workspace(PHLWORKSPACE ws, CBox render_box, bool is_ac
         return;
 
     if (ws != nullptr) {
-        monitor->m_activeWorkspace = ws;
         g_pDesktopAnimationManager->startAnimation(
             ws,
             CDesktopAnimationManager::ANIMATION_TYPE_IN,
