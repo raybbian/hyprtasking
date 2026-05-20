@@ -371,15 +371,5 @@ void HTLayoutLinear::render() {
         render_workspace(hovered_workspace, hovered_render_box, true);
     }
 
-    // Restore the pre-overview workspace as the real monitor active workspace.
-    monitor->m_activeWorkspace = start_workspace;
-    g_pDesktopAnimationManager->startAnimation(
-        start_workspace,
-        CDesktopAnimationManager::ANIMATION_TYPE_IN,
-        false,
-        true
-    );
-    start_workspace->m_visible = true;
-
     render_dragged_window();
 }
