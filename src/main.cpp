@@ -506,9 +506,16 @@ static void register_monitors(bool reset_existing_views) {
         }
     }
 
-    // Purge views whose monitor no longer exists and could not be reconnected.
+    // Purge views whose monitor no longer exists.  Keep views with a known
+    // monitor_name around – the monitor may just be asleep (DPMS) and will
+    // reconnect later.  This prevents workspace loss across wake cycles.
     std::erase_if(ht_manager->views, [](const PHTVIEW& view) {
-        return view == nullptr || view->get_monitor() == nullptr;
+        if (view == nullptr)
+            return true;
+        if (view->get_monitor() != nullptr)
+            return false;
+        // Don't erase views whose monitor_name might still reconnect.
+        return view->monitor_name.empty();
     });
 
     for (const PHLMONITOR& monitor : g_pCompositor->m_monitors) {
