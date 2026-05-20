@@ -302,7 +302,6 @@ void HTLayoutLinear::render() {
     const int blur_enabled = HTConfig::value("linear:blur");
     const float HEIGHT = HTConfig::value_float("linear:height") * monitor->m_scale;
 
-
     g_pHyprRenderer->damageMonitor(monitor);
     g_pHyprOpenGL->m_renderData.pCurrentMonData->blurFBShouldRender = true;
 
@@ -332,49 +331,16 @@ void HTLayoutLinear::render() {
     );
     start_workspace->m_visible = false;
 
-    const PHLWORKSPACE big_ws = monitor->m_activeWorkspace;
-
-    rendering_standard_ws = true;
-    monitor->m_activeWorkspace = big_ws;
-    g_pDesktopAnimationManager->startAnimation(
-        start_workspace,
-        CDesktopAnimationManager::ANIMATION_TYPE_IN,
-        false,
-        true
-    );
-    big_ws->m_visible = true;
-
-    CBox mon_box = {{0, 0}, monitor->m_pixelSize};
-    render_workspace(big_ws, mon_box, true);
-
-    CRectPassElement::SRectData blur_data;
-    blur_data.color = CHyprColor(0, 0, 0, dim_opacity->value());
-    blur_data.box = mon_box;
-    blur_data.blur = (bool)blur_enabled;
-    blur_data.blurA = blur_strength->value();
-    g_pHyprRenderer->m_renderPass.add(makeUnique<CRectPassElement>(blur_data));
-
-    g_pDesktopAnimationManager->startAnimation(
-        start_workspace,
-        CDesktopAnimationManager::ANIMATION_TYPE_OUT,
-        false,
-        true
-    );
-    big_ws->m_visible = false;
-
-    CBox view_box = {
-        {0.f, calculate_y(monitor->m_transformedSize.y, view_offset->value(), HEIGHT)},
-        {(float)monitor->m_transformedSize.x, (float)HEIGHT}
-    };
-
-    CRectPassElement::SRectData data;
-    data.color = CHyprColor {bg_color}.stripA();
-    data.box = view_box;
-    g_pHyprRenderer->m_renderPass.add(makeUnique<CRectPassElement>(data));
-
     build_overview_layout(HT_VIEW_ANIMATING);
 
+    const Vector2D mouse_coords = g_pInputManager->getMouseCoordsInternal();
+    const WORKSPACEID hovered_ws_id = get_ws_id_from_global(mouse_coords);
+
     CBox global_mon_box = {monitor->m_position, monitor->m_transformedSize};
+    PHLWORKSPACE hovered_workspace = nullptr;
+    CBox hovered_box;
+    CBox hovered_render_box;
+
     for (const auto& [ws_id, ws_layout] : overview_layout) {
         const PHLWORKSPACE workspace = get_workspace_from_layout(ws_id);
 
@@ -389,11 +355,23 @@ void HTLayoutLinear::render() {
         if (global_box.intersection(global_mon_box).empty())
             continue;
 
-        render_border(ws_layout.box, workspace == big_ws);
+        if (ws_id == hovered_ws_id) {
+            hovered_workspace = workspace;
+            hovered_box = ws_layout.box;
+            hovered_render_box = render_box;
+            continue;
+        }
 
+        render_border(ws_layout.box, false);
         render_workspace(workspace, render_box, false);
     }
 
+    if (hovered_workspace != nullptr) {
+        render_border(hovered_box, true);
+        render_workspace(hovered_workspace, hovered_render_box, true);
+    }
+
+    // Restore the pre-overview workspace as the real monitor active workspace.
     monitor->m_activeWorkspace = start_workspace;
     g_pDesktopAnimationManager->startAnimation(
         start_workspace,

@@ -59,6 +59,7 @@ HTView::HTView(MONITORID in_monitor_id) {
     active = false;
     closing = false;
     navigating = false;
+    pre_overview_workspace = WORKSPACE_INVALID;
 
     if (PHLMONITOR monitor = g_pCompositor->getMonitorFromID(monitor_id))
         monitor_name = monitor->m_name;
@@ -101,9 +102,11 @@ void HTView::do_exit_behavior(bool exit_on_mouse) {
     const int EXIT_ON_HOVERED = static_cast<Hyprlang::INT>(HTConfig::value("exit_on_hovered"));
 
     const bool use_hovered = exit_on_mouse || EXIT_ON_HOVERED;
-    WORKSPACEID ws_id = use_hovered ? try_get_hover_id() : monitor->m_activeWorkspace->m_id;
-    PHLWORKSPACE workspace = use_hovered ? layout->get_workspace_from_layout(ws_id)
-                                          : monitor->m_activeWorkspace;
+    const PHLWORKSPACE hovered_workspace = use_hovered ? layout->get_workspace_from_layout(try_get_hover_id()) : nullptr;
+
+    WORKSPACEID ws_id = use_hovered && hovered_workspace != nullptr ? hovered_workspace->m_id
+                                                                     : pre_overview_workspace;
+    PHLWORKSPACE workspace = layout->get_workspace_from_layout(ws_id);
 
     if (use_hovered && ws_id == WORKSPACE_INVALID) {
         const PHLMONITOR cursor_monitor = g_pCompositor->getMonitorFromCursor();
@@ -138,6 +141,7 @@ void HTView::show(bool recalculate) {
     active = true;
     closing = false;
     navigating = false;
+    pre_overview_workspace = active_workspace->m_id;
 
     if (recalculate) {
         layout->init_position();

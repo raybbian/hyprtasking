@@ -554,30 +554,30 @@ void HTLayoutGrid::render() {
     data.box = monitor_box;
     g_pHyprRenderer->m_renderPass.add(makeUnique<CRectPassElement>(data));
 
-    const PHLWORKSPACE start_workspace = monitor->m_activeWorkspace;
-    if (start_workspace == nullptr)
+    const PHLWORKSPACE pre_overview_ws = monitor->m_activeWorkspace;
+    if (pre_overview_ws == nullptr)
         return;
 
-    CScopeGuard restore_workspace([&monitor, &start_workspace] {
-        if (monitor == nullptr || start_workspace == nullptr)
+    CScopeGuard restore_workspace([&monitor, &pre_overview_ws] {
+        if (monitor == nullptr || pre_overview_ws == nullptr)
             return;
-        monitor->m_activeWorkspace = start_workspace;
+        monitor->m_activeWorkspace = pre_overview_ws;
         g_pDesktopAnimationManager->startAnimation(
-            start_workspace,
+            pre_overview_ws,
             CDesktopAnimationManager::ANIMATION_TYPE_IN,
             false,
             true
         );
-        start_workspace->m_visible = true;
+        pre_overview_ws->m_visible = true;
     });
 
     g_pDesktopAnimationManager->startAnimation(
-        start_workspace,
+        pre_overview_ws,
         CDesktopAnimationManager::ANIMATION_TYPE_OUT,
         false,
         true
     );
-    start_workspace->m_visible = false;
+    pre_overview_ws->m_visible = false;
 
     build_overview_layout(HT_VIEW_ANIMATING);
 
@@ -588,7 +588,14 @@ void HTLayoutGrid::render() {
     if (layer < 0 || layer >= effective_layers)
         return;
 
+    // Determine the workspace currently hovered by the cursor
+    const Vector2D mouse_coords = g_pInputManager->getMouseCoordsInternal();
+    const WORKSPACEID hovered_ws_id = get_ws_id_from_global(mouse_coords);
+
     CBox global_mon_box = {monitor->m_position, monitor->m_transformedSize};
+    PHLWORKSPACE active_ws = nullptr;
+    CBox active_box;
+    CBox active_render_box;
     for (int y = 0; y < ROWS; y++) {
         for (int x = 0; x < COLS; x++) {
             const HTGridCell* cell = cell_at(layer, y, x);
@@ -611,18 +618,21 @@ void HTLayoutGrid::render() {
             if (monitor->m_transform % 2 == 1)
                 std::swap(render_box.w, render_box.h);
 
-            if (has_ws && ws_id == start_workspace->m_id && start_workspace != nullptr)
-                continue;
-
             CBox global_box = {ws_box.pos() + monitor->m_position, ws_box.size()};
             if (global_box.expand(border_size).intersection(global_mon_box).empty())
                 continue;
 
-            render_border(ws_box, has_ws && start_workspace->m_id == ws_id);
+            if (has_ws && ws_id == hovered_ws_id) {
+                active_ws = get_workspace_from_layout(ws_id);
+                active_box = ws_box;
+                active_render_box = render_box;
+                continue;
+            }
+
+            render_border(ws_box, false);
 
             if (has_ws) {
                 const PHLWORKSPACE workspace = get_workspace_from_layout(ws_id);
-
                 if (workspace != nullptr)
                     render_workspace(workspace, render_box, false);
             } else {
@@ -631,16 +641,22 @@ void HTLayoutGrid::render() {
         }
     }
 
-    const auto active_it = overview_layout.find(start_workspace->m_id);
-    if (start_workspace != nullptr && active_it != overview_layout.end()) {
-        CBox ws_box = active_it->second.box;
-        if (ws_box.width > 0.01 && ws_box.height > 0.01) {
-            CBox render_box = {{ws_box.pos() / scale_value}, ws_box.size()};
-            if (monitor->m_transform % 2 == 1)
-                std::swap(render_box.w, render_box.h);
-
-            render_border(ws_box, monitor->m_activeWorkspace->m_id == start_workspace->m_id);
-            render_workspace(start_workspace, render_box, true);
+    // Render the hovered workspace as active (blue border, no OUT animation).
+    // If nothing is hovered, fall back to the pre-overview workspace.
+    if (active_ws != nullptr) {
+        render_border(active_box, true);
+        render_workspace(active_ws, active_render_box, true);
+    } else if (pre_overview_ws != nullptr) {
+        const auto active_it = overview_layout.find(pre_overview_ws->m_id);
+        if (active_it != overview_layout.end()) {
+            CBox ws_box = active_it->second.box;
+            if (ws_box.width > 0.01 && ws_box.height > 0.01) {
+                CBox render_box = {{ws_box.pos() / scale_value}, ws_box.size()};
+                if (monitor->m_transform % 2 == 1)
+                    std::swap(render_box.w, render_box.h);
+                render_border(ws_box, true);
+                render_workspace(pre_overview_ws, render_box, true);
+            }
         }
     }
 

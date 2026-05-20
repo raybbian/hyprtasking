@@ -18,6 +18,8 @@ class HTView {
     bool active;
     bool navigating;
 
+    WORKSPACEID pre_overview_workspace = WORKSPACE_INVALID;
+
     HTView(MONITORID in_monitor_id);
 
     void change_layout(const std::string& layout_name);
