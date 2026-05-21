@@ -78,6 +78,9 @@ bool HTManager::start_window_drag() {
     else
         cursor_monitor->changeWorkspace(cursor_workspace, true);
 
+    if (cursor_view != nullptr && cursor_view->active)
+        cursor_view->hide(true);
+
     const Vector2D workspace_coords =
         cursor_view->layout->global_to_local_ws_unscaled(mouse_coords, workspace_id)
         + cursor_monitor->m_position;

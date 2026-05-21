@@ -245,7 +245,10 @@ void HTView::move_id(WORKSPACEID ws_id, bool move_window) {
     }
     warp_window(warp, hovered_window);
 
-    if (active) {
+    if (active && !move_window) {
+        hide(true);
+        return;
+    } else if (active) {
         layout->build_overview_layout(HT_VIEW_CLOSED);
         g_pHyprRenderer->damageMonitor(monitor);
         g_pCompositor->scheduleFrameForMonitor(monitor);
