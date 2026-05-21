@@ -223,6 +223,8 @@ static void apply_layer_change(
     else
         monitor->changeWorkspace(target_workspace);
 
+    cursor_view->mark_workspace(target_workspace->m_id);
+
     cursor_view->layout->build_overview_layout(HT_VIEW_CLOSED);
     g_pHyprRenderer->damageMonitor(monitor);
     g_pCompositor->scheduleFrameForMonitor(monitor);
@@ -406,9 +408,9 @@ static void on_mouse_button(IPointer::SButtonEvent e, Event::SCallbackInfo& info
     const unsigned int select_button = static_cast<Hyprlang::INT>(HTConfig::value("select_button"));
 
     if (pressed && e.button == drag_button) {
-        info.cancelled = ht_manager->start_window_drag();
+        info.cancelled = ht_manager->mark_workspace();
     } else if (!pressed && e.button == drag_button) {
-        info.cancelled = ht_manager->end_window_drag();
+        info.cancelled = false;
     } else if (pressed && e.button == select_button) {
         info.cancelled = ht_manager->exit_to_workspace();
     }

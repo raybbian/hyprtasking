@@ -60,6 +60,7 @@ HTView::HTView(MONITORID in_monitor_id) {
     closing = false;
     navigating = false;
     pre_overview_workspace = WORKSPACE_INVALID;
+    marked_workspace = WORKSPACE_INVALID;
 
     if (PHLMONITOR monitor = g_pCompositor->getMonitorFromID(monitor_id))
         monitor_name = monitor->m_name;
@@ -101,10 +102,11 @@ void HTView::do_exit_behavior(bool exit_on_mouse) {
 
     const int EXIT_ON_HOVERED = static_cast<Hyprlang::INT>(HTConfig::value("exit_on_hovered"));
 
-    const bool use_hovered = exit_on_mouse || EXIT_ON_HOVERED;
+    const bool use_hovered = exit_on_mouse || (EXIT_ON_HOVERED && marked_workspace == WORKSPACE_INVALID);
     const PHLWORKSPACE hovered_workspace = use_hovered ? layout->get_workspace_from_layout(try_get_hover_id()) : nullptr;
 
     WORKSPACEID ws_id = use_hovered && hovered_workspace != nullptr ? hovered_workspace->m_id
+                         : marked_workspace != WORKSPACE_INVALID   ? marked_workspace
                                                                      : pre_overview_workspace;
     PHLWORKSPACE workspace = layout->get_workspace_from_layout(ws_id);
 
@@ -142,6 +144,7 @@ void HTView::show(bool recalculate) {
     closing = false;
     navigating = false;
     pre_overview_workspace = active_workspace->m_id;
+    marked_workspace = active_workspace->m_id;
 
     if (recalculate) {
         layout->init_position();
@@ -167,6 +170,7 @@ void HTView::hide(bool exit_on_mouse) {
     active = true;
     closing = true;
     navigating = false;
+    marked_workspace = WORKSPACE_INVALID;
 
     layout->on_hide([this](auto self) {
         active = false;
@@ -177,6 +181,16 @@ void HTView::hide(bool exit_on_mouse) {
 
     g_pHyprRenderer->damageMonitor(monitor);
     g_pCompositor->scheduleFrameForMonitor(monitor);
+}
+
+void HTView::mark_workspace(WORKSPACEID ws_id) {
+    if (ws_id == WORKSPACE_INVALID)
+        return;
+
+    if (layout->get_workspace_from_layout(ws_id) == nullptr)
+        return;
+
+    marked_workspace = ws_id;
 }
 
 void HTView::reset_for_monitor_change() {
@@ -227,6 +241,8 @@ void HTView::move_id(WORKSPACEID ws_id, bool move_window) {
     if (other_workspace == nullptr)
         return;
 
+    mark_workspace(other_workspace->m_id);
+
     if (move_window && should_move) {
         g_pCompositor->moveWindowToWorkspaceSafe(hovered_window, other_workspace);
     }
@@ -245,10 +261,7 @@ void HTView::move_id(WORKSPACEID ws_id, bool move_window) {
     }
     warp_window(warp, hovered_window);
 
-    if (active && !move_window) {
-        hide(true);
-        return;
-    } else if (active) {
+    if (active) {
         layout->build_overview_layout(HT_VIEW_CLOSED);
         g_pHyprRenderer->damageMonitor(monitor);
         g_pCompositor->scheduleFrameForMonitor(monitor);

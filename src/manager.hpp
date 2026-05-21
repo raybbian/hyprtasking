@@ -25,6 +25,7 @@ class HTManager {
 
     bool start_window_drag();
     bool end_window_drag();
+    bool mark_workspace();
     bool exit_to_workspace();
     bool on_mouse_move();
     bool on_mouse_axis(double delta);

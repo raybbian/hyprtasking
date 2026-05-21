@@ -245,6 +245,36 @@ bool HTManager::end_window_drag() {
     return false;
 }
 
+bool HTManager::mark_workspace() {
+    const PHLMONITOR cursor_monitor = g_pCompositor->getMonitorFromCursor();
+    const PHTVIEW cursor_view = get_view_from_monitor(cursor_monitor);
+    if (cursor_monitor == nullptr || cursor_view == nullptr || !cursor_view->active
+        || cursor_view->closing)
+        return false;
+
+    if (!cursor_view->layout->should_manage_mouse())
+        return false;
+
+    const Vector2D mouse_coords = g_pInputManager->getMouseCoordsInternal();
+    WORKSPACEID workspace_id = cursor_view->layout->get_ws_id_from_global(mouse_coords);
+    PHLWORKSPACE cursor_workspace = cursor_view->layout->get_workspace_from_layout(workspace_id);
+    bool hit_empty_grid_cell = false;
+
+    if (cursor_workspace == nullptr && workspace_id == WORKSPACE_INVALID) {
+        const SP<HTLayoutGrid> grid_layout = Hyprutils::Memory::dynamicPointerCast<HTLayoutGrid, HTLayoutBase>(cursor_view->layout);
+        hit_empty_grid_cell = is_valid_grid_cell(grid_layout, cursor_monitor, mouse_coords);
+        cursor_workspace = create_workspace_at_grid_cell(grid_layout, cursor_monitor, mouse_coords);
+        if (cursor_workspace != nullptr)
+            workspace_id = cursor_workspace->m_id;
+    }
+
+    if (cursor_workspace == nullptr)
+        return hit_empty_grid_cell;
+
+    cursor_view->mark_workspace(cursor_workspace->m_id);
+    return true;
+}
+
 bool HTManager::exit_to_workspace() {
     const PHTVIEW cursor_view = get_view_from_cursor();
     if (cursor_view == nullptr)

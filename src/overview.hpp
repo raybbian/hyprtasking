@@ -19,6 +19,7 @@ class HTView {
     bool navigating;
 
     WORKSPACEID pre_overview_workspace = WORKSPACE_INVALID;
+    WORKSPACEID marked_workspace = WORKSPACE_INVALID;
 
     HTView(MONITORID in_monitor_id);
 
@@ -30,6 +31,7 @@ class HTView {
     SP<HTLayoutBase> layout;
 
     void do_exit_behavior(bool exit_on_mouse);
+    void mark_workspace(WORKSPACEID ws_id);
     void warp_window(Hyprlang::INT warp, PHLWINDOW window);
 
     PHLMONITOR get_monitor();
