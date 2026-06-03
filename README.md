@@ -326,3 +326,6 @@ All options should are prefixed with `plugin:hyprtasking:`.
 | `linear:blur` | `int` | Whether or not to blur the dimmed area | `false` |
 | `linear:height` | `float` | The height of the linear overlay in logical pixels | `300.f` |
 | `linear:scroll_speed` | `float` | Scroll speed modifier. Set negative to flip direction | `1.f` |
+
+<sup>FYI, "ARG" does not refer to any minecraft ARG. Why would you even ask that?
+Eww</sup>
