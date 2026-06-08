@@ -73,13 +73,21 @@ static SDispatchResult dispatch(std::string arg) {
 static SDispatchResult dispatch_if(std::string arg, bool is_active) {
     if (ht_manager == nullptr)
         return {.passEvent = true, .success = false, .error = "ht_manager is null"};
-    PHTVIEW cursor_view = ht_manager->get_view_from_cursor();
+    const PHTVIEW cursor_view = ht_manager->get_view_from_cursor();
     if (cursor_view == nullptr)
         return {.passEvent = true, .success = false, .error = "cursor_view is null"};
-    // silently exit with no error cuz hyprland
-    // does not have support for error silencing on lua side
-    if (cursor_view->active != is_active)
-        return {};
+    if (cursor_view->active != is_active) {
+        switch (Config::mgr()->type()) {
+            // silently exit with no error cuz hyprland
+            // does not have support for error silencing on lua side
+            case Config::CONFIG_LUA:
+                return {};
+            case Config::CONFIG_LEGACY:
+                return {.passEvent = true, .success = false, .error = "predicate not met"};;
+            default:
+                return {.success = false, .error = "what config did vaxry cook again??"};
+        }
+    }
     return dispatch(arg);
 }
 
