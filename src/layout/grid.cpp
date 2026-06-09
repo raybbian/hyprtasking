@@ -531,6 +531,26 @@ void HTLayoutGrid::render_to_fbs() {
     );
     start_workspace->m_visible = false;
 
+    // Force blurred windows onto Hyprland's LIVE blur path for the duration of the
+    // offscreen render. With new_optimizations/xray on they sample the per-monitor
+    // blur FB, which isn't valid in fake-render mode (segfault). Off, the live path
+    // (blurMainFramebuffer) blurs the CURRENT framebuffer — i.e. this workspace's
+    // FBO — which is exactly the per-workspace blur we want, and is crash-safe.
+    static auto PBLURNEWOPT = CConfigValue<Config::INTEGER>("decoration:blur:new_optimizations");
+    static auto PBLURXRAY   = CConfigValue<Config::INTEGER>("decoration:blur:xray");
+    const Config::INTEGER saved_newopt = PBLURNEWOPT.good() ? *PBLURNEWOPT : 0;
+    const Config::INTEGER saved_xray   = PBLURXRAY.good() ? *PBLURXRAY : 0;
+    if (PBLURNEWOPT.good())
+        *PBLURNEWOPT.ptr() = 0;
+    if (PBLURXRAY.good())
+        *PBLURXRAY.ptr() = 0;
+    CScopeGuard restore_blur([&] {
+        if (PBLURNEWOPT.good())
+            *PBLURNEWOPT.ptr() = saved_newopt;
+        if (PBLURXRAY.good())
+            *PBLURXRAY.ptr() = saved_xray;
+    });
+
     CRegion fake_damage = {0, 0, (int)monitor->m_transformedSize.x, (int)monitor->m_transformedSize.y};
     const CBox full_box = {0, 0, monitor->m_pixelSize.x, monitor->m_pixelSize.y};
 
@@ -563,27 +583,18 @@ void HTLayoutGrid::render_to_fbs() {
             workspace->m_visible = true;
         }
 
-        // Force the optimized blur framebuffer to (re)render against THIS fbo's
-        // background, so window blur/acrylic samples this workspace's content.
-        monitor->m_blurFBDirty = true;
-        monitor->m_blurFBShouldRender = true;
-
         // Standalone offscreen render cycle (mirrors Hyprland's makeSnapshot).
         // Identity geometry -> renderModif stays identity -> no scissor cull.
-        // NOTE: m_bRenderingSnapshot makes shouldBlur() return false, so window
-        // blur/acrylic does NOT render in the overview. We keep it set anyway
-        // because the optimized-blur path crashes in fake-render mode (it samples
-        // the monitor blur FB resources, which aren't allocated here). Re-enabling
-        // blur needs a non-optimized/live-blur path — TODO, tracked separately.
+        // We deliberately do NOT set m_bRenderingSnapshot: it forces shouldBlur()
+        // to false. With the live blur path forced above (new_optimizations/xray
+        // off), window blur/acrylic now renders against this FBO's own content.
         g_pHyprRenderer->beginFullFakeRender(monitor, fake_damage, fb);
-        g_pHyprRenderer->m_bRenderingSnapshot = true;
         g_pHyprRenderer->draw(CClearPassElement::SClearData {CHyprColor {0, 0, 0, 0}});
         g_pHyprRenderer->startRenderPass();
         ((render_workspace_t)(render_workspace_hook->m_original))(
             g_pHyprRenderer.get(), monitor, workspace, time, full_box
         );
         g_pHyprRenderer->endRender();
-        g_pHyprRenderer->m_bRenderingSnapshot = false;
 
         if (workspace != nullptr) {
             g_pDesktopAnimationManager->startAnimation(
