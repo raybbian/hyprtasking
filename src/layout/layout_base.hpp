@@ -3,6 +3,7 @@
 #include <hyprland/src/SharedDefs.hpp>
 #include <hyprland/src/desktop/DesktopTypes.hpp>
 #include <hyprland/src/helpers/AnimatedVariable.hpp>
+#include <hyprland/src/render/Framebuffer.hpp>
 #include <hyprutils/math/Box.hpp>
 #include <unordered_map>
 
@@ -66,8 +67,22 @@ class HTLayoutBase {
     virtual void init_position();
     // Populate overview_layout as if the overview was at a given stage
     virtual void build_overview_layout(HTViewStage stage);
+
+    // Phase A (called from the render.pre hook, BEFORE Hyprland opens the
+    // monitor's main pass): render each visible workspace full-size into its
+    // own framebuffer. Rendering full-size means Hyprland's per-window scissor
+    // matches the geometry, so nothing gets culled near the edges. render()
+    // then just composites these textures, scaled, into the grid tiles.
+    virtual void render_to_fbs() {}
+    // Free the per-workspace framebuffers (called when the overview is closed).
+    void release_fbs() { ws_fbs.clear(); }
+
     // Render the overview
     virtual void render();
+
+    // Per-workspace framebuffers, keyed by workspace id. Populated by
+    // render_to_fbs(), consumed by render().
+    std::unordered_map<WORKSPACEID, SP<Render::IFramebuffer>> ws_fbs;
 
     // Prevent simplification from happening in the plugin, remove all clear pass objects
     void post_render();

@@ -470,6 +470,23 @@ static void init_functions() {
         fail_exit("Failed initializing hooks");
 }
 
+// Phase A host: fires once per monitor BEFORE Hyprland opens that monitor's
+// main render pass, so we can do standalone offscreen (FBO) renders without
+// clearing the live pass. Renders each workspace full-size into its FBO when
+// the overview is shown on this monitor; frees them otherwise.
+static void on_render_pre(PHLMONITOR monitor) {
+    if (ht_manager == nullptr || monitor == nullptr)
+        return;
+    const PHTVIEW view = ht_manager->get_view_from_monitor(monitor);
+    if (view == nullptr)
+        return;
+    // Mirror hook_render_workspace's guard for when the overview is visible.
+    if (view->navigating || ht_manager->has_active_view())
+        view->layout->render_to_fbs();
+    else
+        view->layout->release_fbs();
+}
+
 static void register_callbacks() {
     static auto P1 = Event::bus()->m_events.input.mouse.button.listen(on_mouse_button);
     static auto P2 = Event::bus()->m_events.input.mouse.move.listen(on_mouse_move);
@@ -489,6 +506,7 @@ static void register_callbacks() {
     static auto P10 = Event::bus()->m_events.config.reloaded.listen(on_config_reloaded);
     static auto P11 = Event::bus()->m_events.monitor.added.listen(register_monitors);
     static auto P12 = Event::bus()->m_events.monitor.removed.listen(on_monitor_removed);
+    static auto P13 = Event::bus()->m_events.render.pre.listen(on_render_pre);
 }
 
 
