@@ -560,6 +560,7 @@ static void init_config() {
     addConfigValue(CIntValue, "exit_on_hovered", "exit on hovered", 0);
     addConfigValue(CIntValue, "warp_on_move_window", "warp on move window", 1);
     addConfigValue(CIntValue, "close_overview_on_reload", "close overview on reload", 1);
+    addConfigValue(CBoolValue, "full_render", "render the overview at full resolution", 1);
 
     addConfigValue(CIntValue, "drag_button", "drag button", BTN_LEFT);
     addConfigValue(CIntValue, "select_button", "select button", BTN_RIGHT);

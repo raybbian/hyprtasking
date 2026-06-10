@@ -502,7 +502,7 @@ void HTLayoutGrid::build_overview_layout(HTViewStage stage) {
         Desktop::focusState()->rawMonitorFocus(last_monitor);
 }
 
-// Phase A: render each visible workspace FULL-SIZE into its own framebuffer.
+// Phase A: render each visible workspace into its own framebuffer.
 // Rendering at full monitor size keeps Hyprland's per-window scissor in sync
 // with the geometry, so window contents are no longer culled near tile edges
 // (the bug that direct scaled-geometry renderWorkspace calls suffered from).
@@ -550,10 +550,11 @@ void HTLayoutGrid::render_to_fbs() {
         if (PBLURXRAY.good())
             *PBLURXRAY.ptr() = saved_xray;
     });
-
+    Config::BOOL FULL_RENDER = HTConfig::value<Config::BOOL>("full_render");
     CRegion fake_damage = {0, 0, (int)monitor->m_transformedSize.x, (int)monitor->m_transformedSize.y};
-    const CBox full_box = {0, 0, monitor->m_pixelSize.x, monitor->m_pixelSize.y};
+    CBox view_box = {0, 0, monitor->m_transformedSize.x, monitor->m_transformedSize.y};
 
+    // garbage collection
     std::unordered_set<WORKSPACEID> live;
 
     for (const auto& [ws_id, ws_layout] : overview_layout) {
@@ -568,11 +569,20 @@ void HTLayoutGrid::render_to_fbs() {
         live.insert(ws_id);
 
         SP<Render::IFramebuffer>& fb = ws_fbs[ws_id];
-        if (fb == nullptr)
-            fb = g_pHyprRenderer->createFB("hyprtasking ws");
-        fb->alloc(monitor->m_pixelSize.x, monitor->m_pixelSize.y, DRM_FORMAT_ABGR8888);
-        fb->setImageDescription(monitor->workBufferImageDescription());
+        if (fb == nullptr || (!FULL_RENDER && fb->isAllocated() && fb->m_size.x != ws_layout.box.width))
+            fb = g_pHyprRenderer->createFB();
 
+
+        if (FULL_RENDER) {
+            fb->alloc(monitor->m_pixelSize.x, monitor->m_pixelSize.y, monitor->m_drmFormat);
+        } else {
+            view_box = {0, 0, ws_layout.box.width, ws_layout.box.height};
+            // Allocate a new fb for every dimentions because on first layer its broken,
+            // but on next layers its alright
+            fb->alloc(ws_layout.box.width, ws_layout.box.height, monitor->m_drmFormat);
+        }
+        // fb->setImageDescription(NColorManagement::PImageDescription desc)
+        fb->setImageDescription(monitor->workBufferImageDescription());
         // Hyprland only fully renders the active workspace's windows, so make
         // this one active while we capture it (skip for the layers-only null case).
         if (workspace != nullptr) {
@@ -592,7 +602,7 @@ void HTLayoutGrid::render_to_fbs() {
         g_pHyprRenderer->draw(CClearPassElement::SClearData {CHyprColor {0, 0, 0, 0}});
         g_pHyprRenderer->startRenderPass();
         ((render_workspace_t)(render_workspace_hook->m_original))(
-            g_pHyprRenderer.get(), monitor, workspace, time, full_box
+            g_pHyprRenderer.get(), monitor, workspace, time, view_box
         );
         g_pHyprRenderer->endRender();
 
@@ -609,7 +619,6 @@ void HTLayoutGrid::render_to_fbs() {
         start_workspace, CDesktopAnimationManager::ANIMATION_TYPE_IN, false, true
     );
     start_workspace->m_visible = true;
-
     // Drop framebuffers for workspaces that are no longer shown.
     std::erase_if(ws_fbs, [&live](const auto& e) { return !live.count(e.first); });
 }
@@ -637,7 +646,6 @@ void HTLayoutGrid::render() {
     const float BORDERSIZE = HTConfig::value<Config::FLOAT>("border_size");
     const auto time = Time::steadyNow();
 
-    g_pHyprRenderer->damageMonitor(monitor);
     CBox monitor_box = {{0, 0}, monitor->m_transformedSize};
 
     CRectPassElement::SRectData bg;
@@ -656,8 +664,9 @@ void HTLayoutGrid::render() {
         if (global_box.expand(BORDERSIZE).intersection(global_mon_box).empty())
             continue;
 
-        // Composite this workspace's framebuffer (rendered full-size in
-        // render_to_fbs) scaled into its tile. flipEndFrame: FBO textures are
+        // Composite this workspace's framebuffer (rendered in
+        // render_to_fbs) scaled into its tile.
+        // flipEndFrame: FBO textures are
         // y-flipped relative to the screen pass.
         const auto fb_it = ws_fbs.find(ws_id);
         if (fb_it != ws_fbs.end() && fb_it->second != nullptr && fb_it->second->isAllocated()) {
@@ -677,6 +686,7 @@ void HTLayoutGrid::render() {
         bdata.borderSize = BORDERSIZE;
         g_pHyprRenderer->m_renderPass.add(makeUnique<CBorderPassElement>(bdata));
     }
+    g_pHyprRenderer->damageMonitor(monitor);
 
     // Dragged window rendered on top, following the cursor.
     const PHTVIEW cursor_view = ht_manager->get_view_from_cursor();

@@ -150,6 +150,7 @@ hl.config({
       exit_on_hovered = false,
       warp_on_move_window = 1,
       close_overview_on_reload = false,
+      full_render = true, -- might lag
 
       drag_button = 0x110,   -- left mouse button
       select_button = 0x111, -- right mouse button
@@ -218,6 +219,7 @@ plugin {
         exit_on_hovered = false
         warp_on_move_window = 1
         close_overview_on_reload = false
+        full_render = true  # might lag
 
         drag_button = 0x110 # left mouse button
         select_button = 0x111 # right mouse button
