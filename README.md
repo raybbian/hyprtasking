@@ -152,6 +152,7 @@ hl.config({
       close_overview_on_reload = false,
       full_render = true, -- might lag
 
+      -- for other mouse buttons see <linux/input-event-codes.h>
       drag_button = 0x110,   -- left mouse button
       select_button = 0x111, -- right mouse button
 
