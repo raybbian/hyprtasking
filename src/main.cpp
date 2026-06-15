@@ -260,7 +260,7 @@ DISPATCHER(killhovered) {
     if (hovered_window == nullptr)
         return {.success = false, .error = "hovered_window is null"};
 
-    return wrap(closeWindow());
+    return wrap(closeWindow(hovered_window));
 }
 
 static void hook_render_workspace(

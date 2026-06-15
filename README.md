@@ -295,8 +295,8 @@ plugin {
     - when dispatched, hyprtasking will do the same as `hyprtasking:setlayer, ARG` and also move the window through layers
 
 - `hyprtasking:killhovered` behaves similarly to the standard `killactive` dispatcher with focus on hover
-    - when dispatched, hyprtasking will the currently hovered window, useful when the overview is active.
-    - this dispatcher is designed to **replace** killactive, it will work even when the overview is **not active**.
+    - when dispatched, hyprtasking will close the currently hovered window, useful when the overview is active.
+    - this dispatcher is designed to **replace** `hl.dsp.close()`, it will work even when the overview is **not active**.
 
 ### Config Options
 
