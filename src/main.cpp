@@ -296,11 +296,11 @@ static bool hook_should_render_window(void* thisptr, PHLWINDOW window, PHLMONITO
 }
 
 static uint32_t hook_is_solitary_blocked(void* thisptr, bool full) {
-    PHTVIEW view = ht_manager->get_view_from_cursor();
-    if (view == nullptr) {
-        Log::logger->log(Log::ERR, "[Hyprtasking] View is nullptr in hook_is_solitary_blocked");
-        (*(origIsSolitaryBlocked)is_solitary_blocked_hook->m_original)(thisptr, full);
-    }
+    // No manager/view for the cursor monitor (e.g. during teardown): defer to
+    // Hyprland. Falling through here would dereference a null view.
+    PHTVIEW view = ht_manager == nullptr ? nullptr : ht_manager->get_view_from_cursor();
+    if (view == nullptr)
+        return (*(origIsSolitaryBlocked)is_solitary_blocked_hook->m_original)(thisptr, full);
 
     if (view->active || view->navigating) {
         return CMonitor::SC_UNKNOWN;
@@ -517,16 +517,13 @@ static void register_callbacks() {
 }
 
 static int lua_is_active(lua_State* L) {
-    if (ht_manager == nullptr) {
-        luaL_error(L, "%s", "ht_manager is null");
-        return false;
-    }
+    if (ht_manager == nullptr)
+        return luaL_error(L, "%s", "ht_manager is null");
     PHTVIEW cursor_view = ht_manager->get_view_from_cursor();
-    if (cursor_view == nullptr) {
-        luaL_error(L, "%s", "ht_manager is null");
-        return false;
-    }
-    return cursor_view->active;
+    if (cursor_view == nullptr)
+        return luaL_error(L, "%s", "cursor_view is null");
+    lua_pushboolean(L, cursor_view->active);
+    return 1;
 }
 
 static void add_dispatchers() {
@@ -538,7 +535,7 @@ static void add_dispatchers() {
     add_dispatcher(killhovered);
     add_dispatcher(setlayer);
     add_dispatcher(setlayerwindow);
-    HyprlandAPI::addLuaFunction(PHANDLE, "hyprtasking", "is_active", lua_is_active); \
+    HyprlandAPI::addLuaFunction(PHANDLE, "hyprtasking", "is_active", lua_is_active);
 }
 
 #define addConfigValue(T, config, descr, value) do { \

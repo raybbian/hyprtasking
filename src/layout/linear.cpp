@@ -171,7 +171,7 @@ bool HTLayoutLinear::on_mouse_axis(double delta) {
 }
 
 const float calculate_y(float size_y, float offset_value, float max_offset) {
-    const bool top = HTConfig::value<Config::FLOAT>("linear:top");
+    const bool top = HTConfig::value<Config::INTEGER>("linear:top");
     if (top)
         return offset_value - max_offset;
     return size_y - offset_value;

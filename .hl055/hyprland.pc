@@ -1,0 +1,5 @@
+prefix=/home/rayb/Projects/hyprtasking/.hl055
+Name: hyprland
+Description: Hyprland headers (v0.55.3 vendored for plugin build)
+Version: 0.55.3
+Cflags: -I${prefix}/include -I${prefix}/include/hyprland/protocols -I${prefix}/include/hyprland -I${prefix}/include/hyprland/src -DWLR_USE_UNSTABLE
