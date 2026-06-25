@@ -17,9 +17,7 @@
 #include <hyprland/src/render/OpenGL.hpp>
 #include <hyprland/src/render/Renderer.hpp>
 #include <hyprland/src/render/pass/BorderPassElement.hpp>
-#include <hyprland/src/render/pass/ClearPassElement.hpp>
 #include <hyprland/src/render/pass/RectPassElement.hpp>
-#include <hyprland/src/render/pass/TexPassElement.hpp>
 #include <hyprutils/math/Vector2D.hpp>
 #include <hyprutils/utils/ScopeGuard.hpp>
 
@@ -502,130 +500,10 @@ void HTLayoutGrid::build_overview_layout(HTViewStage stage) {
         Desktop::focusState()->rawMonitorFocus(last_monitor);
 }
 
-// Phase A: render each visible workspace into its own framebuffer.
-// Rendering at full monitor size keeps Hyprland's per-window scissor in sync
-// with the geometry, so window contents are no longer culled near tile edges
-// (the bug that direct scaled-geometry renderWorkspace calls suffered from).
-void HTLayoutGrid::render_to_fbs() {
-    const PHTVIEW par_view = ht_manager->get_view_from_id(view_id);
-    if (par_view == nullptr)
-        return;
-    const PHLMONITOR monitor = par_view->get_monitor();
-    if (monitor == nullptr)
-        return;
-    if (monitor->m_pixelSize.x < 1 || monitor->m_pixelSize.y < 1)
-        return;
-
-    const auto time = Time::steadyNow();
-
-    build_overview_layout(HT_VIEW_ANIMATING);
-
-    // Hyprland only fully renders the active workspace, so swap the active
-    // workspace as we render each one into its FBO, then restore at the end.
-    const PHLWORKSPACE start_workspace = monitor->m_activeWorkspace;
-    if (start_workspace == nullptr)
-        return;
-
-    g_pDesktopAnimationManager->startAnimation(
-        start_workspace, CDesktopAnimationManager::ANIMATION_TYPE_OUT, false, true
-    );
-    start_workspace->m_visible = false;
-
-    // Force blurred windows onto Hyprland's LIVE blur path for the duration of the
-    // offscreen render. With new_optimizations/xray on they sample the per-monitor
-    // blur FB, which isn't valid in fake-render mode (segfault). Off, the live path
-    // (blurMainFramebuffer) blurs the CURRENT framebuffer — i.e. this workspace's
-    // FBO — which is exactly the per-workspace blur we want, and is crash-safe.
-    static auto PBLURNEWOPT = CConfigValue<Config::INTEGER>("decoration:blur:new_optimizations");
-    static auto PBLURXRAY   = CConfigValue<Config::INTEGER>("decoration:blur:xray");
-    const Config::INTEGER saved_newopt = PBLURNEWOPT.good() ? *PBLURNEWOPT : 0;
-    const Config::INTEGER saved_xray   = PBLURXRAY.good() ? *PBLURXRAY : 0;
-    if (PBLURNEWOPT.good())
-        *PBLURNEWOPT.ptr() = 0;
-    if (PBLURXRAY.good())
-        *PBLURXRAY.ptr() = 0;
-    CScopeGuard restore_blur([&] {
-        if (PBLURNEWOPT.good())
-            *PBLURNEWOPT.ptr() = saved_newopt;
-        if (PBLURXRAY.good())
-            *PBLURXRAY.ptr() = saved_xray;
-    });
-    Config::BOOL FULL_RENDER = HTConfig::value<Config::BOOL>("full_render");
-    CRegion fake_damage = {0, 0, (int)monitor->m_transformedSize.x, (int)monitor->m_transformedSize.y};
-    CBox view_box = {0, 0, monitor->m_transformedSize.x, monitor->m_transformedSize.y};
-
-    // garbage collection
-    std::unordered_set<WORKSPACEID> live;
-
-    for (const auto& [ws_id, ws_layout] : overview_layout) {
-        if (ws_layout.box.width < 0.01 || ws_layout.box.height < 0.01)
-            continue;
-
-        // workspace may be nullptr for empty/never-visited slots: renderWorkspace
-        // still draws the background + wallpaper layers for them (its "just render
-        // layers" path), so we capture those too — otherwise empty tiles go blank.
-        const PHLWORKSPACE workspace = g_pCompositor->getWorkspaceByID(ws_id);
-
-        live.insert(ws_id);
-
-        SP<Render::IFramebuffer>& fb = ws_fbs[ws_id];
-        if (fb == nullptr || (!FULL_RENDER && fb->isAllocated() && fb->m_size.x != ws_layout.box.width))
-            fb = g_pHyprRenderer->createFB();
-
-
-        if (FULL_RENDER) {
-            fb->alloc(monitor->m_pixelSize.x, monitor->m_pixelSize.y, monitor->m_drmFormat);
-        } else {
-            view_box = {0, 0, ws_layout.box.width, ws_layout.box.height};
-            // Allocate a new fb for every dimentions because on first layer its broken,
-            // but on next layers its alright
-            fb->alloc(ws_layout.box.width, ws_layout.box.height, monitor->m_drmFormat);
-        }
-        // fb->setImageDescription(NColorManagement::PImageDescription desc)
-        fb->setImageDescription(monitor->workBufferImageDescription());
-        // Hyprland only fully renders the active workspace's windows, so make
-        // this one active while we capture it (skip for the layers-only null case).
-        if (workspace != nullptr) {
-            monitor->m_activeWorkspace = workspace;
-            g_pDesktopAnimationManager->startAnimation(
-                workspace, CDesktopAnimationManager::ANIMATION_TYPE_IN, false, true
-            );
-            workspace->m_visible = true;
-        }
-
-        // Standalone offscreen render cycle (mirrors Hyprland's makeSnapshot).
-        // Identity geometry -> renderModif stays identity -> no scissor cull.
-        // We deliberately do NOT set m_bRenderingSnapshot: it forces shouldBlur()
-        // to false. With the live blur path forced above (new_optimizations/xray
-        // off), window blur/acrylic now renders against this FBO's own content.
-        g_pHyprRenderer->beginFullFakeRender(monitor, fake_damage, fb);
-        g_pHyprRenderer->draw(CClearPassElement::SClearData {CHyprColor {0, 0, 0, 0}});
-        g_pHyprRenderer->startRenderPass();
-        ((render_workspace_t)(render_workspace_hook->m_original))(
-            g_pHyprRenderer.get(), monitor, workspace, time, view_box
-        );
-        g_pHyprRenderer->endRender();
-
-        if (workspace != nullptr) {
-            g_pDesktopAnimationManager->startAnimation(
-                workspace, CDesktopAnimationManager::ANIMATION_TYPE_OUT, false, true
-            );
-            workspace->m_visible = false;
-        }
-    }
-
-    monitor->m_activeWorkspace = start_workspace;
-    g_pDesktopAnimationManager->startAnimation(
-        start_workspace, CDesktopAnimationManager::ANIMATION_TYPE_IN, false, true
-    );
-    start_workspace->m_visible = true;
-    // Drop framebuffers for workspaces that are no longer shown.
-    std::erase_if(ws_fbs, [&live](const auto& e) { return !live.count(e.first); });
-}
-
-// Phase B: composite the per-workspace framebuffers (filled by render_to_fbs)
-// into their grid tiles. Runs inside Hyprland's live monitor pass, so it only
-// ADDS pass elements (never begin/endRender, which would clear the live pass).
+// Render each visible workspace directly into its grid tile via a scaled
+// renderWorkspace (renderModif). The renderTexture hook keeps the per-surface
+// scissor in sync with that renderModif, so window contents aren't culled near
+// tile edges.
 void HTLayoutGrid::render() {
     HTLayoutBase::render();
     CScopeGuard x([this] { post_render(); });
@@ -655,37 +533,57 @@ void HTLayoutGrid::render() {
 
     build_overview_layout(HT_VIEW_ANIMATING);
 
+    // Hyprland only fully renders the active workspace, so render_workspace_at_box
+    // swaps each tile's workspace in as it renders; capture the real active one to
+    // restore at the end and to pick out the active-border color.
+    const PHLWORKSPACE start_workspace = monitor->m_activeWorkspace;
+    if (start_workspace == nullptr)
+        return;
+    g_pDesktopAnimationManager->startAnimation(
+        start_workspace, CDesktopAnimationManager::ANIMATION_TYPE_OUT, false, true
+    );
+    start_workspace->m_visible = false;
+
     CBox global_mon_box = {monitor->m_position, monitor->m_transformedSize};
+    const auto tile_visible = [&](const CBox& box) {
+        if (box.width < 0.01 || box.height < 0.01)
+            return false;
+        CBox global_box = {box.pos() + monitor->m_position, box.size()};
+        return !global_box.expand(BORDERSIZE).intersection(global_mon_box).empty();
+    };
+
+    // Borders first, so window contents render on top of them. Workspace contents now
+    // render unclipped (a window moving to a new workspace on release can extend past
+    // its tile), and should not be covered by the tile borders.
     for (const auto& [ws_id, ws_layout] : overview_layout) {
-        if (ws_layout.box.width < 0.01 || ws_layout.box.height < 0.01)
+        if (!tile_visible(ws_layout.box))
             continue;
-
-        CBox global_box = {ws_layout.box.pos() + monitor->m_position, ws_layout.box.size()};
-        if (global_box.expand(BORDERSIZE).intersection(global_mon_box).empty())
-            continue;
-
-        // Composite this workspace's framebuffer (rendered in
-        // render_to_fbs) scaled into its tile.
-        // flipEndFrame: FBO textures are
-        // y-flipped relative to the screen pass.
-        const auto fb_it = ws_fbs.find(ws_id);
-        if (fb_it != ws_fbs.end() && fb_it->second != nullptr && fb_it->second->isAllocated()) {
-            CTexPassElement::SRenderData tex;
-            tex.tex = fb_it->second->getTexture();
-            tex.box = ws_layout.box;
-            tex.damage = {0, 0, (int)monitor->m_transformedSize.x, (int)monitor->m_transformedSize.y};
-            tex.flipEndFrame = true;
-            g_pHyprRenderer->m_renderPass.add(makeUnique<CTexPassElement>(std::move(tex)));
-        }
-
-        const Config::CGradientValueData border_col =
-            monitor->m_activeWorkspace->m_id == ws_id ? *ACTIVECOL : *INACTIVECOL;
         CBorderPassElement::SBorderData bdata;
         bdata.box = ws_layout.box;
-        bdata.grad1 = border_col;
+        bdata.grad1 = start_workspace->m_id == ws_id ? *ACTIVECOL : *INACTIVECOL;
         bdata.borderSize = BORDERSIZE;
         g_pHyprRenderer->m_renderPass.add(makeUnique<CBorderPassElement>(bdata));
     }
+
+    // workspace may be nullptr for empty/never-visited slots: render_workspace_at_box
+    // still draws their background + wallpaper layers so the tile isn't blank. Render
+    // the active workspace last so its windows (e.g. one just dropped) stay on top of
+    // the neighbouring tiles.
+    for (const auto& [ws_id, ws_layout] : overview_layout) {
+        if (!tile_visible(ws_layout.box) || ws_id == start_workspace->m_id)
+            continue;
+        render_workspace_at_box(monitor, g_pCompositor->getWorkspaceByID(ws_id), time, ws_layout.box);
+    }
+    if (const auto it = overview_layout.find(start_workspace->m_id);
+        it != overview_layout.end() && tile_visible(it->second.box))
+        render_workspace_at_box(monitor, start_workspace, time, it->second.box);
+
+    monitor->m_activeWorkspace = start_workspace;
+    g_pDesktopAnimationManager->startAnimation(
+        start_workspace, CDesktopAnimationManager::ANIMATION_TYPE_IN, false, true
+    );
+    start_workspace->m_visible = true;
+
     g_pHyprRenderer->damageMonitor(monitor);
 
     // Dragged window rendered on top, following the cursor.

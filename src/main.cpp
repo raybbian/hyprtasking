@@ -14,6 +14,7 @@
 #include <hyprland/src/plugins/HookSystem.hpp>
 #include <hyprland/src/plugins/PluginAPI.hpp>
 #include <hyprland/src/plugins/PluginSystem.hpp>
+#include <hyprland/src/render/OpenGL.hpp>
 #include <hyprland/src/render/Renderer.hpp>
 #include <hyprland/src/event/EventBus.hpp>
 #include <hyprland/src/config/values/ConfigValues.hpp>
@@ -284,6 +285,53 @@ static void hook_render_workspace(
     }
 }
 
+typedef void (*render_texture_t)(
+    void* thisptr,
+    SP<Render::ITexture> tex,
+    const CBox& box,
+    Render::GL::CHyprOpenGLImpl::STextureRenderData data
+);
+
+// Hyprland applies the active renderModif to a texture's quad, but NOT to any of the
+// regions it derives the per-surface scissor from. renderTextureInternal scissors to
+// m_renderData.clipBox / data.clipRegion when either is set, else to data.damage --
+// all in the window's UNtransformed coordinates (and data.damage is only the damaged
+// slice of the frame). Under hyprtasking's scaled overview / dragged-window renderModif
+// the renderModif already confines each quad to its tile, so the scissor only ever cuts
+// contents off at the tile edges. Drop the clip regions and scissor to the whole monitor
+// so scaled surfaces are never clipped. Gated on an active renderModif, so normal desktop
+// rendering (and its damage tracking) is untouched.
+static void hook_render_texture(
+    void* thisptr,
+    SP<Render::ITexture> tex,
+    const CBox& box,
+    Render::GL::CHyprOpenGLImpl::STextureRenderData data
+) {
+    auto& render_data = g_pHyprRenderer->m_renderData;
+    auto& render_modif = render_data.renderModif;
+
+    CRegion full_damage;
+    CBox saved_clip_box = render_data.clipBox;
+    bool restore_clip_box = false;
+
+    if (render_modif.enabled && !render_modif.modifs.empty() && render_data.pMonitor) {
+        full_damage = CBox {
+            0, 0, render_data.pMonitor->m_transformedSize.x, render_data.pMonitor->m_transformedSize.y
+        };
+        data.damage = &full_damage;
+        data.clipRegion = {};
+        if (!saved_clip_box.empty()) {
+            render_data.clipBox = CBox {};
+            restore_clip_box = true;
+        }
+    }
+
+    ((render_texture_t)(render_texture_hook->m_original))(thisptr, tex, box, data);
+
+    if (restore_clip_box)
+        render_data.clipBox = saved_clip_box;
+}
+
 static bool hook_should_render_window(void* thisptr, PHLWINDOW window, PHLMONITOR monitor) {
     bool ori_result =
         ((should_render_window_t)(should_render_window_hook->m_original))(thisptr, window, monitor);
@@ -431,6 +479,20 @@ static void init_functions() {
     Log::logger->log(LOG, "[Hyprtasking] Attempting hook {}", FNS1[0].signature);
     success = render_workspace_hook->hook();
 
+    // Specific renderTexture overload taking STextureRenderData (several functions
+    // share the "renderTexture" name). Used to keep the per-surface scissor in sync
+    // with the active renderModif so scaled overview renders aren't culled.
+    static auto FNS_RT = HyprlandAPI::findFunctionsByName(
+        PHANDLE,
+        "_ZN6Render2GL15CHyprOpenGLImpl13renderTextureEN9Hyprutils6Memory14CSharedPointerINS_8ITextureEEERKNS2_4Math4CBoxENS1_18STextureRenderDataE"
+    );
+    if (FNS_RT.empty())
+        fail_exit("No renderTexture");
+    render_texture_hook =
+        HyprlandAPI::createFunctionHook(PHANDLE, FNS_RT[0].address, (void*)hook_render_texture);
+    Log::logger->log(LOG, "[Hyprtasking] Attempting hook {}", FNS_RT[0].signature);
+    success = render_texture_hook->hook() && success;
+
     // make sure this signature has "CMonitor"!
     static auto FNS2 = HyprlandAPI::findFunctionsByName(
         PHANDLE,
@@ -470,23 +532,6 @@ static void init_functions() {
         fail_exit("Failed initializing hooks");
 }
 
-// Phase A host: fires once per monitor BEFORE Hyprland opens that monitor's
-// main render pass, so we can do standalone offscreen (FBO) renders without
-// clearing the live pass. Renders each workspace full-size into its FBO when
-// the overview is shown on this monitor; frees them otherwise.
-static void on_render_pre(PHLMONITOR monitor) {
-    if (ht_manager == nullptr || monitor == nullptr)
-        return;
-    const PHTVIEW view = ht_manager->get_view_from_monitor(monitor);
-    if (view == nullptr)
-        return;
-    // Mirror hook_render_workspace's guard for when the overview is visible.
-    if (view->navigating || ht_manager->has_active_view())
-        view->layout->render_to_fbs();
-    else
-        view->layout->release_fbs();
-}
-
 static void register_callbacks() {
     static auto P1 = Event::bus()->m_events.input.mouse.button.listen(on_mouse_button);
     static auto P2 = Event::bus()->m_events.input.mouse.move.listen(on_mouse_move);
@@ -506,7 +551,6 @@ static void register_callbacks() {
     static auto P10 = Event::bus()->m_events.config.reloaded.listen(on_config_reloaded);
     static auto P11 = Event::bus()->m_events.monitor.added.listen(register_monitors);
     static auto P12 = Event::bus()->m_events.monitor.removed.listen(on_monitor_removed);
-    static auto P13 = Event::bus()->m_events.render.pre.listen(on_render_pre);
 }
 
 
@@ -557,7 +601,6 @@ static void init_config() {
     addConfigValue(CIntValue, "exit_on_hovered", "exit on hovered", 0);
     addConfigValue(CIntValue, "warp_on_move_window", "warp on move window", 1);
     addConfigValue(CIntValue, "close_overview_on_reload", "close overview on reload", 1);
-    addConfigValue(CBoolValue, "full_render", "render the overview at full resolution", 1);
 
     addConfigValue(CIntValue, "drag_button", "drag button", BTN_LEFT);
     addConfigValue(CIntValue, "select_button", "select button", BTN_RIGHT);

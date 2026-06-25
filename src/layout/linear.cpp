@@ -396,15 +396,6 @@ void HTLayoutLinear::render() {
         // Could be nullptr, in which we render only layers
         const PHLWORKSPACE workspace = g_pCompositor->getWorkspaceByID(ws_id);
 
-        // renderModif translation used by renderWorkspace is weird so need
-        // to scale the translation up as well. Geometry is also calculated from pixel size and not transformed size??
-        CBox render_box = {
-            {ws_layout.box.pos() / (ws_layout.box.w / monitor->m_transformedSize.x)},
-            ws_layout.box.size()
-        };
-        if (monitor->m_transform % 2 == 1)
-            std::swap(render_box.w, render_box.h);
-
         CBox global_box = {ws_layout.box.pos() + monitor->m_position, ws_layout.box.size()};
         if (global_box.intersection(global_mon_box).empty())
             continue;
@@ -418,41 +409,7 @@ void HTLayoutLinear::render() {
         data.borderSize = BORDERSIZE;
         g_pHyprRenderer->m_renderPass.add(makeUnique<CBorderPassElement>(data));
 
-        if (workspace != nullptr) {
-            monitor->m_activeWorkspace = workspace;
-            g_pDesktopAnimationManager->startAnimation(
-                workspace,
-                CDesktopAnimationManager::ANIMATION_TYPE_IN,
-                false,
-                true
-            );
-            workspace->m_visible = true;
-
-            ((render_workspace_t)(render_workspace_hook->m_original))(
-                g_pHyprRenderer.get(),
-                monitor,
-                workspace,
-                time,
-                render_box
-            );
-
-            g_pDesktopAnimationManager->startAnimation(
-                workspace,
-                CDesktopAnimationManager::ANIMATION_TYPE_OUT,
-                false,
-                true
-            );
-            workspace->m_visible = false;
-        } else {
-            // If pWorkspace is null, then just render the layers
-            ((render_workspace_t)(render_workspace_hook->m_original))(
-                g_pHyprRenderer.get(),
-                monitor,
-                workspace,
-                time,
-                render_box
-            );
-        }
+        render_workspace_at_box(monitor, workspace, time, ws_layout.box);
     }
 
     monitor->m_activeWorkspace = start_workspace;

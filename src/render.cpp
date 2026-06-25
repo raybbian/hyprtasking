@@ -1,8 +1,11 @@
 #include "render.hpp"
 
+#include <utility>
+
 #include <hyprland/src/Compositor.hpp>
 #include <hyprland/src/config/ConfigValue.hpp>
 #include <hyprland/src/desktop/DesktopTypes.hpp>
+#include <hyprland/src/managers/animation/DesktopAnimationManager.hpp>
 #include <hyprland/src/managers/input/InputManager.hpp>
 #include <hyprland/src/render/OpenGL.hpp>
 #include <hyprland/src/render/Renderer.hpp>
@@ -49,4 +52,43 @@ void render_window_at_box(PHLWINDOW window, PHLMONITOR monitor, const Time::stea
     g_pHyprRenderer->m_renderPass.add(makeUnique<CRendererHintsPassElement>(
         CRendererHintsPassElement::SData {SRenderModifData {}}
     ));
+}
+
+void render_workspace_at_box(
+    PHLMONITOR monitor,
+    PHLWORKSPACE workspace,
+    const Time::steady_tp& time,
+    CBox box
+) {
+    if (!monitor)
+        return;
+
+    // renderWorkspace derives scale = box.w / pixelSize and translate = box.pos, and
+    // applies the translate BEFORE the scale, so pre-divide the position by the scale.
+    // Geometry is in pixel (untransformed) space, so swap w/h for rotated monitors.
+    const float ws_scale = box.w / monitor->m_transformedSize.x;
+    CBox render_box = {box.pos() / ws_scale, box.size()};
+    if (monitor->m_transform % 2 == 1)
+        std::swap(render_box.w, render_box.h);
+
+    // Hyprland only fully renders the monitor's active workspace, so make this one
+    // active+visible while we render it. The caller restores the original active ws.
+    if (workspace != nullptr) {
+        monitor->m_activeWorkspace = workspace;
+        g_pDesktopAnimationManager->startAnimation(
+            workspace, CDesktopAnimationManager::ANIMATION_TYPE_IN, false, true
+        );
+        workspace->m_visible = true;
+    }
+
+    ((render_workspace_t)(render_workspace_hook->m_original))(
+        g_pHyprRenderer.get(), monitor, workspace, time, render_box
+    );
+
+    if (workspace != nullptr) {
+        g_pDesktopAnimationManager->startAnimation(
+            workspace, CDesktopAnimationManager::ANIMATION_TYPE_OUT, false, true
+        );
+        workspace->m_visible = false;
+    }
 }
