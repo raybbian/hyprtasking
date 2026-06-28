@@ -4,7 +4,7 @@
 </div>
 
 > [!Important]
-> - Supports Hyprland release `v0.46.2-v0.54.0`.
+> - Supports Hyprland release `v0.46.2-v0.55.x`.
 
 https://github.com/user-attachments/assets/8d6cdfd2-2b17-4240-a117-1dbd2231ed4e
 
@@ -115,6 +115,80 @@ hyprctl plugin load "$(realpath libhyprtasking.so)"
 
 Example below:
 
+```lua
+hl.bind("SUPER + TAB", function() hl.plugin.hyprtasking.toggle("cursor") end)
+hl.bind("SUPER + SPACE", function() hl.plugin.hyprtasking.toggle("all") end)
+
+-- escape closes the overview if it's open
+hl.bind("escape", function()
+  if hl.plugin.hyprtasking.is_active() then
+    hl.plugin.hyprtasking.toggle('all')
+  end
+end, { non_consuming = true })
+
+hl.bind("SUPER + X", function() hl.plugin.hyprtasking.killhovered() end)
+
+hl.bind("SUPER + H", function() hl.plugin.hyprtasking.move("left") end)
+hl.bind("SUPER + J", function() hl.plugin.hyprtasking.move("down") end)
+hl.bind("SUPER + K", function() hl.plugin.hyprtasking.move("up") end)
+hl.bind("SUPER + L", function() hl.plugin.hyprtasking.move("right") end)
+
+hl.bind("SUPER + A", function() hl.plugin.hyprtasking.move("out") end)
+hl.bind("SUPER + SHIFT + A", function() hl.plugin.hyprtasking.movewindow("out") end)
+
+hl.bind("SUPER + CTRL + 1", function() hl.plugin.hyprtasking.setlayer(1) end)
+hl.bind("SUPER + CTRL + 2", function() hl.plugin.hyprtasking.setlayer(2) end)
+
+hl.config({
+  plugin = {
+    hyprtasking = {
+      layout = "grid",
+
+      gap_size = 10,
+      bg_color = 0xff26233a,
+      border_size = 2,
+      exit_on_hovered = false,
+      warp_on_move_window = 1,
+      close_overview_on_reload = false,
+
+      -- for other mouse buttons see <linux/input-event-codes.h>
+      drag_button = 0x110,   -- left mouse button
+      select_button = 0x111, -- right mouse button
+
+      gestures = {
+        enabled = true,
+        move_fingers = 3,
+        move_distance = 300,
+        open_fingers = 4,
+        open_distance = 300,
+        open_positive = true,
+      },
+
+      grid = {
+        rows = 3,
+        cols = 3,
+        loop = false,
+        layers = 2,
+        loop_layers = true,
+        gaps_use_aspect_ratio = true,
+      },
+
+      linear = {
+        top = false,
+        height = 400,
+        scroll_speed = 1.0,
+        blur = false,
+      }
+    }
+  },
+})
+
+```
+
+<details><summary>
+Click here to see the old hyprlang syntax
+</summary>
+
 ```
 bind = SUPER, tab, hyprtasking:toggle, cursor
 bind = SUPER, space, hyprtasking:toggle, all
@@ -139,12 +213,12 @@ plugin {
     hyprtasking {
         layout = grid
 
-        gap_size = 20
+        gap_size = 10
         bg_color = 0xff26233a
-        border_size = 4
+        border_size = 2
         exit_on_hovered = false
         warp_on_move_window = 1
-        close_overview_on_reload = true
+        close_overview_on_reload = false
 
         drag_button = 0x110 # left mouse button
         select_button = 0x111 # right mouse button
@@ -165,7 +239,7 @@ plugin {
             loop = false
             layers = 2
             loop_layers = true
-            gaps_use_aspect_ratio = false
+            gaps_use_aspect_ratio = true
         }
 
         linear {
@@ -178,6 +252,8 @@ plugin {
 }
 ```
 
+</details>
+
 ### Dispatchers
 
 - `hyprtasking:if_active, ARG` takes in a dispatch command (one that would be used after `hyprctl dispatch ...`) that will be dispatched only if the cursor overview is active.
@@ -185,11 +261,11 @@ plugin {
 
 - `hyprtasking:if_not_active, ARG` same as above, but if the overview is not active.
 
-- `hyprtasking:toggle, ARG` takes in 1 argument that is either `cursor` or `all`
+- `hyprtasking:toggle [, ARG]` takes 1 optional argument that is either `cursor` or `all`
     - if the argument is `all`, then
         - if all overviews are hidden, then all overviews will be shown
         - otherwise all overviews will be hidden
-    - if the argument is `cursor`, then
+    - if the argument is `cursor` or no argument is given, then
         - if current monitor's overview is hidden, then it will be shown
         - otherwise all overviews will be hidden
 
@@ -217,8 +293,8 @@ plugin {
     - when dispatched, hyprtasking will do the same as `hyprtasking:setlayer, ARG` and also move the window through layers
 
 - `hyprtasking:killhovered` behaves similarly to the standard `killactive` dispatcher with focus on hover
-    - when dispatched, hyprtasking will the currently hovered window, useful when the overview is active.
-    - this dispatcher is designed to **replace** killactive, it will work even when the overview is **not active**.
+    - when dispatched, hyprtasking will close the currently hovered window, useful when the overview is active.
+    - this dispatcher is designed to **replace** `hl.dsp.close()`, it will work even when the overview is **not active**.
 
 ### Config Options
 
@@ -226,28 +302,31 @@ All options should are prefixed with `plugin:hyprtasking:`.
 
 | Option | Type | Description | Default |
 | --- | --- | --- | --- |
-| `layout` | `Hyprlang::STRING` | The layout to use, either `grid` or `linear` | `grid` |
-| `bg_color` | `Hyprlang::INT` | The color of the background of the overlay | `0x000000FF` |
-| `gap_size` | `Hyprlang::FLOAT` | The width in logical pixels of the gaps between workspaces | `8.f` |
-| `border_size` | `Hyprlang::FLOAT` | The width in logical pixels of the borders around workspaces | `4.f` |
-| `exit_on_hovered` | `Hyprlang::INT` | If true, hiding the workspace will exit to the hovered workspace instead of the active workspace. | `false` |
-| `warp_on_move_window` | `Hyprlang::INT` | Works the same as `cursor:warp_on_change_workspace` (see [wiki](https://wiki.hypr.land/Configuring/Variables/#cursor)) but with `hyprtasking:movewindow` dispathcer. <br> `cursor:warp_on_change_workspace` works only with `hyprtasking:move` dispathcer | `1` |
-| `close_overview_on_reload ` | `Hyprlang::INT` | Whether to close the overview if its type didn't type didn't change after hyprland config reload | `true` |
-| `drag_button` | `Hyprlang::INT` | The mouse button to use to drag windows around | `0x110` |
-| `select_button` | `Hyprlang::INT` | The mouse button to use to select a workspace | `0x111` |
-| `gestures:enabled` | `Hyprlang::INT` | Whether or not to enable gestures | `true` |
-| `gestures:move_fingers` | `Hyprlang::INT` | The number of fingers to use for the "move" gesture | `3` |
-| `gestures:move_distance` | `Hyprlang::FLOAT` | How large of a swipe on the touchpad corresponds to the width of a workspace | `300.f` |
-| `gestures:open_fingers` | `Hyprlang::INT` | The number of fingers to use for the "open" gesture | `4` |
-| `gestures:open_distance` | `Hyprlang::FLOAT` | How large of a swipe on the touchpad is needed for the "open" gesture | `300.f` |
-| `gestures:open_positive` | `Hyprlang::INT` | `true` if swiping up should open the overlay, `false` otherwise | `true` |
-| `grid:rows` | `Hyprlang::INT` | The number of rows to display on the grid overlay | `3` |
-| `grid:cols` | `Hyprlang::INT` | The number of columns to display on the grid overlay | `3` |
-| `grid:loop` | `Hyprlang::INT` | When enabled, moving right at the far right of the grid will wrap around to the leftmost workspace, etc. | `false` |
-| `grid:layers` | `Hyprlang::INT` | The number of layers for grid layout, the third dimension | `1` |
-| `grid:loop_layers` | `Hyprlang::INT` | When enabled, moving back on the first layer will wrap around to the last layer. The reverse also works | `true` |
-| `grid:gaps_use_aspect_ratio` | `Hyprlang::INT` | When enabled, vertical gaps will be scaled to match the monitor's aspect ratio | `false` |
-| `linear:top` | `Hyprlang::INT` | Whether or not to position the overview on top of the screen | `false` |
-| `linear:blur` | `Hyprlang::INT` | Whether or not to blur the dimmed area | `false` |
-| `linear:height` | `Hyprlang::FLOAT` | The height of the linear overlay in logical pixels | `300.f` |
-| `linear:scroll_speed` | `Hyprlang::FLOAT` | Scroll speed modifier. Set negative to flip direction | `1.f` |
+| `layout` | `string` | The layout to use, either `grid` or `linear` | `grid` |
+| `bg_color` | `int` | The color of the background of the overlay | `0x000000FF` |
+| `gap_size` | `float` | The width in logical pixels of the gaps between workspaces | `8.f` |
+| `border_size` | `float` | The width in logical pixels of the borders around workspaces | `4.f` |
+| `exit_on_hovered` | `int` | If true, hiding the workspace will exit to the hovered workspace instead of the active workspace. | `false` |
+| `warp_on_move_window` | `int` | Works the same as `cursor:warp_on_change_workspace` (see [wiki](https://wiki.hypr.land/Configuring/Variables/#cursor)) but with `hyprtasking:movewindow` dispathcer. <br> `cursor:warp_on_change_workspace` works only with `hyprtasking:move` dispathcer | `1` |
+| `close_overview_on_reload ` | `int` | Whether to close the overview if its type didn't type didn't change after hyprland config reload | `true` |
+| `drag_button` | `int` | The mouse button to use to drag windows around | `0x110` |
+| `select_button` | `int` | The mouse button to use to select a workspace | `0x111` |
+| `gestures:enabled` | `int` | Whether or not to enable gestures | `true` |
+| `gestures:move_fingers` | `int` | The number of fingers to use for the "move" gesture | `3` |
+| `gestures:move_distance` | `float` | How large of a swipe on the touchpad corresponds to the width of a workspace | `300.f` |
+| `gestures:open_fingers` | `int` | The number of fingers to use for the "open" gesture | `4` |
+| `gestures:open_distance` | `float` | How large of a swipe on the touchpad is needed for the "open" gesture | `300.f` |
+| `gestures:open_positive` | `int` | `true` if swiping up should open the overlay, `false` otherwise | `true` |
+| `grid:rows` | `int` | The number of rows to display on the grid overlay | `3` |
+| `grid:cols` | `int` | The number of columns to display on the grid overlay | `3` |
+| `grid:loop` | `int` | When enabled, moving right at the far right of the grid will wrap around to the leftmost workspace, etc. | `false` |
+| `grid:layers` | `int` | The number of layers for grid layout, the third dimension | `1` |
+| `grid:loop_layers` | `int` | When enabled, moving back on the first layer will wrap around to the last layer. The reverse also works | `true` |
+| `grid:gaps_use_aspect_ratio` | `int` | When enabled, vertical gaps will be scaled to match the monitor's aspect ratio | `false` |
+| `linear:top` | `int` | Whether or not to position the overview on top of the screen | `false` |
+| `linear:blur` | `int` | Whether or not to blur the dimmed area | `false` |
+| `linear:height` | `float` | The height of the linear overlay in logical pixels | `300.f` |
+| `linear:scroll_speed` | `float` | Scroll speed modifier. Set negative to flip direction | `1.f` |
+
+<sup>FYI, "ARG" does not refer to any minecraft ARG. Why would you even ask that?
+Eww</sup>

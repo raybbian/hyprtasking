@@ -66,6 +66,7 @@ class HTLayoutBase {
     virtual void init_position();
     // Populate overview_layout as if the overview was at a given stage
     virtual void build_overview_layout(HTViewStage stage);
+
     // Render the overview
     virtual void render();
 

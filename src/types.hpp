@@ -4,6 +4,9 @@
 #include <hyprland/src/desktop/DesktopTypes.hpp>
 #include <hyprland/src/render/Renderer.hpp>
 #include <hyprutils/math/Box.hpp>
+
+using namespace Render;
+
 typedef void (*render_workspace_t)(
     void* thisptr,
     PHLMONITOR pMonitor,

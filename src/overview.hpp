@@ -27,7 +27,7 @@ class HTView {
     SP<HTLayoutBase> layout;
 
     void do_exit_behavior(bool exit_on_mouse);
-    void warp_window(Hyprlang::INT warp, PHLWINDOW window);
+    void warp_window(Config::INTEGER warp, PHLWINDOW window);
 
     PHLMONITOR get_monitor();
 

@@ -10,7 +10,9 @@
 #include <hyprland/src/helpers/AnimatedVariable.hpp>
 #include <hyprland/src/managers/animation/AnimationManager.hpp>
 #include <hyprland/src/managers/animation/DesktopAnimationManager.hpp>
+#include <hyprland/src/config/shared/animation/AnimationTree.hpp>
 #include <hyprland/src/managers/input/InputManager.hpp>
+#include <hyprland/src/config/shared/workspace/WorkspaceRuleManager.hpp>
 #include <hyprland/src/layout/LayoutManager.hpp>
 #include <hyprland/src/render/OpenGL.hpp>
 #include <hyprland/src/render/Renderer.hpp>
@@ -29,16 +31,17 @@
 using Hyprutils::Utils::CScopeGuard;
 
 HTLayoutGrid::HTLayoutGrid(VIEWID new_view_id) : HTLayoutBase(new_view_id) {
+    auto &anim_tree = Config::animationTree();
     g_pAnimationManager->createAnimation(
         {0, 0},
         offset,
-        g_pConfigManager->getAnimationPropertyConfig("workspaces"),
+        anim_tree->getAnimationPropertyConfig("workspaces"),
         AVARDAMAGE_NONE
     );
     g_pAnimationManager->createAnimation(
         1.f,
         scale,
-        g_pConfigManager->getAnimationPropertyConfig("workspaces"),
+        anim_tree->getAnimationPropertyConfig("workspaces"),
         AVARDAMAGE_NONE
     );
 
@@ -66,9 +69,9 @@ void HTLayoutGrid::refresh_workspace_cache(
     if (monitor == nullptr)
         return;
 
-    const int ROWS = HTConfig::value<Hyprlang::INT>("grid:rows");
-    const int COLS = HTConfig::value<Hyprlang::INT>("grid:cols");
-    const int LAYERS = HTConfig::value<Hyprlang::INT>("grid:layers");
+    const int ROWS = HTConfig::value<Config::INTEGER>("grid:rows");
+    const int COLS = HTConfig::value<Config::INTEGER>("grid:cols");
+    const int LAYERS = HTConfig::value<Config::INTEGER>("grid:layers");
     if (ROWS <= 0 || COLS <= 0 || LAYERS <= 0)
         return;
 
@@ -130,10 +133,11 @@ void HTLayoutGrid::refresh_workspace_cache(
     // could silently switch monitors. extra_off_limits carries IDs already
     // claimed by sibling views in this refresh.
     std::unordered_set<WORKSPACEID> off_limits = extra_off_limits;
-    const auto& all_rules = g_pConfigManager->getAllWorkspaceRules();
+    const auto& ws_manager = Config::workspaceRuleMgr();
+    const auto& all_rules = ws_manager->getAllWorkspaceRules();
     for (const auto& rule : all_rules) {
-        if (rule.workspaceId > 0)
-            off_limits.insert(rule.workspaceId);
+        if (rule.m_workspaceId > 0)
+            off_limits.insert(rule.m_workspaceId);
     }
     for (const auto& w : g_pCompositor->getWorkspacesCopy()) {
         if (w == nullptr)
@@ -145,28 +149,28 @@ void HTLayoutGrid::refresh_workspace_cache(
     size_t cursor = 0;
 
     // Sort by workspaceId so slot assignment doesn't depend on config-line order.
-    std::vector<const SWorkspaceRule*> rules_sorted;
+    std::vector<const Config::CWorkspaceRule*> rules_sorted;
     rules_sorted.reserve(all_rules.size());
     for (const auto& r : all_rules)
         rules_sorted.push_back(&r);
     std::sort(rules_sorted.begin(), rules_sorted.end(),
-              [](const SWorkspaceRule* a, const SWorkspaceRule* b) {
-                  return a->workspaceId < b->workspaceId;
+              [](const Config::CWorkspaceRule* a, const Config::CWorkspaceRule* b) {
+                  return a->m_workspaceId < b->m_workspaceId;
               });
 
-    for (const SWorkspaceRule* rule : rules_sorted) {
-        if (rule->workspaceId <= 0)
+    for (const Config::CWorkspaceRule* rule : rules_sorted) {
+        if (rule->m_workspaceId <= 0)
             continue;
-        if (extra_off_limits.count(rule->workspaceId))
+        if (extra_off_limits.count(rule->m_workspaceId))
             continue;
-        const auto bound = g_pConfigManager->getBoundMonitorForWS(
-            rule->workspaceName.starts_with("name:")
-                ? rule->workspaceName.substr(5)
-                : rule->workspaceName
+        const auto bound = Config::workspaceRuleMgr()->getBoundMonitorForWS(
+            rule->m_workspaceName.starts_with("name:")
+                ? rule->m_workspaceName.substr(5)
+                : rule->m_workspaceName
         );
         if (bound == nullptr || bound->m_id != view_id)
             continue;
-        place_with_prior(rule->workspaceId, cursor);
+        place_with_prior(rule->m_workspaceId, cursor);
     }
 
     // Sort by m_id so slot assignment is independent of Hyprland's internal
@@ -229,9 +233,9 @@ std::string HTLayoutGrid::layout_name() {
 }
 
 WORKSPACEID HTLayoutGrid::get_ws_id_in_direction(int x, int y, std::string& direction) {
-    const int LOOP = HTConfig::value<Hyprlang::INT>("grid:loop");
-    const int ROWS = HTConfig::value<Hyprlang::INT>("grid:rows");
-    const int COLS = HTConfig::value<Hyprlang::INT>("grid:cols");
+    const int LOOP = HTConfig::value<Config::INTEGER>("grid:loop");
+    const int ROWS = HTConfig::value<Config::INTEGER>("grid:rows");
+    const int COLS = HTConfig::value<Config::INTEGER>("grid:cols");
 
     if (direction == "up") {
         y--;
@@ -257,9 +261,9 @@ void HTLayoutGrid::on_move_swipe(Vector2D delta) {
     if (monitor == nullptr)
         return;
 
-    const float MOVE_DISTANCE = HTConfig::value<Hyprlang::FLOAT>("gestures:move_distance");
-    const int ROWS = HTConfig::value<Hyprlang::INT>("grid:rows");
-    const int COLS = HTConfig::value<Hyprlang::INT>("grid:cols");
+    const float MOVE_DISTANCE = HTConfig::value<Config::FLOAT>("gestures:move_distance");
+    const int ROWS = HTConfig::value<Config::INTEGER>("grid:rows");
+    const int COLS = HTConfig::value<Config::INTEGER>("grid:cols");
     const CBox min_ws = calculate_ws_box(0, 0, HT_VIEW_CLOSED);
     const CBox max_ws = calculate_ws_box(COLS - 1, ROWS - 1, HT_VIEW_CLOSED);
 
@@ -426,10 +430,10 @@ CBox HTLayoutGrid::calculate_ws_box(int x, int y, HTViewStage stage) {
     if (monitor->m_transformedSize.x < 1 || monitor->m_transformedSize.y < 1)
         return {};
 
-    const int ROWS = HTConfig::value<Hyprlang::INT>("grid:rows");
-    const int COLS = HTConfig::value<Hyprlang::INT>("grid:cols");
-    const int GAPS_USE_ASPECT_RATIO = HTConfig::value<Hyprlang::INT>("grid:gaps_use_aspect_ratio");
-    const float GAP_SIZE = HTConfig::value<Hyprlang::FLOAT>("gap_size") * monitor->m_scale;
+    const int ROWS = HTConfig::value<Config::INTEGER>("grid:rows");
+    const int COLS = HTConfig::value<Config::INTEGER>("grid:cols");
+    const int GAPS_USE_ASPECT_RATIO = HTConfig::value<Config::INTEGER>("grid:gaps_use_aspect_ratio");
+    const float GAP_SIZE = HTConfig::value<Config::FLOAT>("gap_size") * monitor->m_scale;
     const Vector2D gaps = {
         GAP_SIZE,
         GAPS_USE_ASPECT_RATIO
@@ -474,8 +478,8 @@ void HTLayoutGrid::build_overview_layout(HTViewStage stage) {
     if (monitor == nullptr)
         return;
 
-    const int ROWS = HTConfig::value<Hyprlang::INT>("grid:rows");
-    const int COLS = HTConfig::value<Hyprlang::INT>("grid:cols");
+    const int ROWS = HTConfig::value<Config::INTEGER>("grid:rows");
+    const int COLS = HTConfig::value<Config::INTEGER>("grid:cols");
 
     const PHLMONITOR last_monitor = Desktop::focusState()->monitor();
     Desktop::focusState()->rawMonitorFocus(monitor);
@@ -486,7 +490,8 @@ void HTLayoutGrid::build_overview_layout(HTViewStage stage) {
             const WORKSPACEID ws_id = slot_workspace(layer, x, y);
             if (ws_id == WORKSPACE_INVALID)
                 continue;
-            const CBox ws_box = calculate_ws_box(x, y, stage);
+            CBox ws_box = calculate_ws_box(x, y, stage);
+            ws_box.round();
             overview_layout[ws_id] = HTWorkspace {x, y, ws_box};
         }
     }
@@ -495,6 +500,10 @@ void HTLayoutGrid::build_overview_layout(HTViewStage stage) {
         Desktop::focusState()->rawMonitorFocus(last_monitor);
 }
 
+// Render each visible workspace directly into its grid tile via a scaled
+// renderWorkspace (renderModif). The renderTexture hook keeps the per-surface
+// scissor in sync with that renderModif, so window contents aren't culled near
+// tile edges.
 void HTLayoutGrid::render() {
     HTLayoutBase::render();
     CScopeGuard x([this] { post_render(); });
@@ -506,151 +515,78 @@ void HTLayoutGrid::render() {
     if (monitor == nullptr)
         return;
 
-    static auto PACTIVECOL = CConfigValue<Hyprlang::CUSTOMTYPE>("general:col.active_border");
-    static auto PINACTIVECOL = CConfigValue<Hyprlang::CUSTOMTYPE>("general:col.inactive_border");
+    static auto PACTIVECOL = CConfigValue<Config::IComplexConfigValue>("general:col.active_border");
+    static auto PINACTIVECOL = CConfigValue<Config::IComplexConfigValue>("general:col.inactive_border");
 
-    auto* const ACTIVECOL = (CGradientValueData*)(PACTIVECOL.ptr())->getData();
-    auto* const INACTIVECOL = (CGradientValueData*)(PINACTIVECOL.ptr())->getData();
+    auto* const ACTIVECOL = (Config::CGradientValueData*)(PACTIVECOL.ptr());
+    auto* const INACTIVECOL = (Config::CGradientValueData*)(PINACTIVECOL.ptr());
 
-    const float BORDERSIZE = HTConfig::value<Hyprlang::FLOAT>("border_size");
-
+    const float BORDERSIZE = HTConfig::value<Config::FLOAT>("border_size");
     const auto time = Time::steadyNow();
 
-
-    g_pHyprRenderer->damageMonitor(monitor);
-    g_pHyprOpenGL->m_renderData.pCurrentMonData->blurFBShouldRender = true;
     CBox monitor_box = {{0, 0}, monitor->m_transformedSize};
 
-    CRectPassElement::SRectData data;
-    data.color = CHyprColor {HTConfig::value<Hyprlang::INT>("bg_color")}.stripA();
-    data.box = monitor_box;
-    g_pHyprRenderer->m_renderPass.add(makeUnique<CRectPassElement>(data));
-
-    // Do a dance with active workspaces: Hyprland will only properly render the
-    // current active one so make the workspace active before rendering it, etc
-    const PHLWORKSPACE start_workspace = monitor->m_activeWorkspace;
-
-    g_pDesktopAnimationManager->startAnimation(
-        start_workspace,
-        CDesktopAnimationManager::ANIMATION_TYPE_OUT,
-        false,
-        true
-    );
-    start_workspace->m_visible = false;
+    CRectPassElement::SRectData bg;
+    bg.color = CHyprColor {HTConfig::value<Config::INTEGER>("bg_color")}.stripA();
+    bg.box = monitor_box;
+    g_pHyprRenderer->m_renderPass.add(makeUnique<CRectPassElement>(bg));
 
     build_overview_layout(HT_VIEW_ANIMATING);
 
+    // Hyprland only fully renders the active workspace, so render_workspace_at_box
+    // swaps each tile's workspace in as it renders; capture the real active one to
+    // restore at the end and to pick out the active-border color.
+    const PHLWORKSPACE start_workspace = monitor->m_activeWorkspace;
+    if (start_workspace == nullptr)
+        return;
+    g_pDesktopAnimationManager->startAnimation(
+        start_workspace, CDesktopAnimationManager::ANIMATION_TYPE_OUT, false, true
+    );
+    start_workspace->m_visible = false;
+
     CBox global_mon_box = {monitor->m_position, monitor->m_transformedSize};
+    const auto tile_visible = [&](const CBox& box) {
+        if (box.width < 0.01 || box.height < 0.01)
+            return false;
+        CBox global_box = {box.pos() + monitor->m_position, box.size()};
+        return !global_box.expand(BORDERSIZE).intersection(global_mon_box).empty();
+    };
+
+    // Borders first, so window contents render on top of them. Workspace contents now
+    // render unclipped (a window moving to a new workspace on release can extend past
+    // its tile), and should not be covered by the tile borders.
     for (const auto& [ws_id, ws_layout] : overview_layout) {
-        // Skip if the box is empty
-        if (ws_layout.box.width < 0.01 || ws_layout.box.height < 0.01)
+        if (!tile_visible(ws_layout.box))
             continue;
-
-        // Could be nullptr, in which we render only layers
-        const PHLWORKSPACE workspace = g_pCompositor->getWorkspaceByID(ws_id);
-
-        // renderModif translation used by renderWorkspace is weird so need
-        // to scale the translation up as well. Geometry is also calculated from pixel size and not transformed size??
-        CBox render_box = {{ws_layout.box.pos() / scale->value()}, ws_layout.box.size()};
-        if (monitor->m_transform % 2 == 1)
-            std::swap(render_box.w, render_box.h);
-
-        // render active one last
-        if (workspace == start_workspace && start_workspace != nullptr)
-            continue;
-
-        CBox global_box = {ws_layout.box.pos() + monitor->m_position, ws_layout.box.size()};
-        if (global_box.expand(BORDERSIZE).intersection(global_mon_box).empty())
-            continue;
-
-        const CGradientValueData border_col =
-            monitor->m_activeWorkspace->m_id == ws_id ? *ACTIVECOL : *INACTIVECOL;
-        CBox border_box = ws_layout.box;
-
-        CBorderPassElement::SBorderData data;
-        data.box = border_box;
-        data.grad1 = border_col;
-        data.borderSize = BORDERSIZE;
-        g_pHyprRenderer->m_renderPass.add(makeUnique<CBorderPassElement>(data));
-
-        if (workspace != nullptr) {
-            monitor->m_activeWorkspace = workspace;
-            g_pDesktopAnimationManager->startAnimation(
-                workspace,
-                CDesktopAnimationManager::ANIMATION_TYPE_IN,
-                false,
-                true
-            );
-            workspace->m_visible = true;
-
-            ((render_workspace_t)(render_workspace_hook->m_original))(
-                g_pHyprRenderer.get(),
-                monitor,
-                workspace,
-                time,
-                render_box
-            );
-
-            g_pDesktopAnimationManager->startAnimation(
-                workspace,
-                CDesktopAnimationManager::ANIMATION_TYPE_OUT,
-                false,
-                true
-            );
-            workspace->m_visible = false;
-        } else {
-            // If pWorkspace is null, then just render the layers
-            ((render_workspace_t)(render_workspace_hook->m_original))(
-                g_pHyprRenderer.get(),
-                monitor,
-                workspace,
-                time,
-                render_box
-            );
-        }
+        CBorderPassElement::SBorderData bdata;
+        bdata.box = ws_layout.box;
+        bdata.grad1 = start_workspace->m_id == ws_id ? *ACTIVECOL : *INACTIVECOL;
+        bdata.borderSize = BORDERSIZE;
+        g_pHyprRenderer->m_renderPass.add(makeUnique<CBorderPassElement>(bdata));
     }
+
+    // workspace may be nullptr for empty/never-visited slots: render_workspace_at_box
+    // still draws their background + wallpaper layers so the tile isn't blank. Render
+    // the active workspace last so its windows (e.g. one just dropped) stay on top of
+    // the neighbouring tiles.
+    for (const auto& [ws_id, ws_layout] : overview_layout) {
+        if (!tile_visible(ws_layout.box) || ws_id == start_workspace->m_id)
+            continue;
+        render_workspace_at_box(monitor, g_pCompositor->getWorkspaceByID(ws_id), time, ws_layout.box);
+    }
+    if (const auto it = overview_layout.find(start_workspace->m_id);
+        it != overview_layout.end() && tile_visible(it->second.box))
+        render_workspace_at_box(monitor, start_workspace, time, it->second.box);
 
     monitor->m_activeWorkspace = start_workspace;
     g_pDesktopAnimationManager->startAnimation(
-        start_workspace,
-        CDesktopAnimationManager::ANIMATION_TYPE_IN,
-        false,
-        true
+        start_workspace, CDesktopAnimationManager::ANIMATION_TYPE_IN, false, true
     );
     start_workspace->m_visible = true;
 
-    // Render active workspace last so the dragging window is always on top when let go of
-    if (start_workspace != nullptr && overview_layout.count(start_workspace->m_id)) {
-        CBox ws_box = overview_layout[start_workspace->m_id].box;
-        // make sure box is not empty
-        if (ws_box.width > 0.01 && ws_box.height > 0.01) {
-            // renderModif translation used by renderWorkspace is weird so need
-            // to scale the translation up as well. Geometry is also calculated from pixel size and not transformed size??
-            CBox render_box = {{ws_box.pos() / scale->value()}, ws_box.size()};
-            if (monitor->m_transform % 2 == 1)
-                std::swap(render_box.w, render_box.h);
+    g_pHyprRenderer->damageMonitor(monitor);
 
-            const CGradientValueData border_col =
-                monitor->m_activeWorkspace->m_id == start_workspace->m_id ? *ACTIVECOL
-                                                                          : *INACTIVECOL;
-            CBox border_box = ws_box;
-
-            CBorderPassElement::SBorderData data;
-            data.box = border_box;
-            data.grad1 = border_col;
-            data.borderSize = BORDERSIZE;
-            g_pHyprRenderer->m_renderPass.add(makeUnique<CBorderPassElement>(data));
-
-            ((render_workspace_t)(render_workspace_hook->m_original))(
-                g_pHyprRenderer.get(),
-                monitor,
-                start_workspace,
-                time,
-                render_box
-            );
-        }
-    }
-
+    // Dragged window rendered on top, following the cursor.
     const PHTVIEW cursor_view = ht_manager->get_view_from_cursor();
     if (cursor_view == nullptr)
         return;

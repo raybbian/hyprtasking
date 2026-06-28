@@ -9,10 +9,15 @@
 #include "manager.hpp"
 
 inline constexpr auto LOG = Hyprutils::CLI::LOG_DEBUG;
+inline constexpr auto ERR = Hyprutils::CLI::LOG_ERR;
 
 inline HANDLE PHANDLE = nullptr;
 
 inline CFunctionHook* render_workspace_hook = nullptr;
+inline CFunctionHook* render_texture_hook = nullptr;
+inline CFunctionHook* render_border_hook = nullptr;
+inline CFunctionHook* render_border2_hook = nullptr;
+inline CFunctionHook* blur_optimizations_hook = nullptr;
 inline CFunctionHook* should_render_window_hook = nullptr;
 inline CFunctionHook* is_solitary_blocked_hook = nullptr;
 typedef uint32_t (*origIsSolitaryBlocked)(void*, bool);

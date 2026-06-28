@@ -10,6 +10,7 @@
 #include <hyprland/src/managers/KeybindManager.hpp>
 #include <hyprland/src/managers/input/InputManager.hpp>
 
+#include "config/shared/workspace/WorkspaceRuleManager.hpp"
 #include "layout/grid.hpp"
 #include "overview.hpp"
 
@@ -123,17 +124,17 @@ void HTManager::refresh_all_grid_caches() {
     // lives on the wrong monitor, the first grid to refresh would claim it
     // via Pass 2 and the rule-bound grid would then skip it via off_limits,
     // so the migration would never happen.
-    const auto& all_rules = g_pConfigManager->getAllWorkspaceRules();
+    const auto& all_rules = Config::workspaceRuleMgr()->getAllWorkspaceRules();
     for (const auto& rule : all_rules) {
-        if (rule.workspaceId <= 0)
+        if (rule.m_workspaceId <= 0)
             continue;
-        const auto bound = g_pConfigManager->getBoundMonitorForWS(
-            rule.workspaceName.starts_with("name:") ? rule.workspaceName.substr(5)
-                                                    : rule.workspaceName
+        const auto bound = Config::workspaceRuleMgr()->getBoundMonitorForWS(
+            rule.m_workspaceName.starts_with("name:") ? rule.m_workspaceName.substr(5)
+                                                    : rule.m_workspaceName
         );
         if (bound == nullptr)
             continue;
-        const PHLWORKSPACE ws = g_pCompositor->getWorkspaceByID(rule.workspaceId);
+        const PHLWORKSPACE ws = g_pCompositor->getWorkspaceByID(rule.m_workspaceId);
         if (ws == nullptr)
             continue;
         if (ws->m_monitor.lock() != bound)
