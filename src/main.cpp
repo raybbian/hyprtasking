@@ -1,5 +1,7 @@
 #include <linux/input-event-codes.h>
 
+#include <cmath>
+
 #include <hyprland/src/Compositor.hpp>
 #include <hyprland/src/SharedDefs.hpp>
 #include <hyprland/src/config/shared/actions/ConfigActions.hpp>
@@ -292,6 +294,28 @@ typedef void (*render_texture_t)(
     Render::GL::CHyprOpenGLImpl::STextureRenderData data
 );
 
+// True while a tile / dragged-window is being rendered through an active renderModif.
+static bool render_modif_scaled() {
+    auto& render_modif = g_pHyprRenderer->m_renderData.renderModif;
+    return render_modif.enabled && !render_modif.modifs.empty();
+}
+
+// True only while hyprtasking is itself driving a scaled render (overview open, or a
+// view animating open/closed on this monitor). Native renderModif paths -- workspace
+// slides, special workspace, etc. -- are left on Hyprland's normal rendering so the
+// fixes below never perturb them.
+static bool ht_scaled_render() {
+    if (ht_manager == nullptr || !render_modif_scaled())
+        return false;
+    if (ht_manager->has_active_view())
+        return true;
+    const auto monitor = g_pHyprRenderer->m_renderData.pMonitor.lock();
+    if (monitor == nullptr)
+        return false;
+    const PHTVIEW view = ht_manager->get_view_from_monitor(monitor);
+    return view != nullptr && view->navigating;
+}
+
 // Hyprland applies the active renderModif to a texture's quad, but NOT to any of the
 // regions it derives the per-surface scissor from. renderTextureInternal scissors to
 // m_renderData.clipBox / data.clipRegion when either is set, else to data.damage --
@@ -310,26 +334,116 @@ static void hook_render_texture(
     auto& render_data = g_pHyprRenderer->m_renderData;
     auto& render_modif = render_data.renderModif;
 
-    CRegion full_damage;
-    CBox saved_clip_box = render_data.clipBox;
-    bool restore_clip_box = false;
-
-    if (render_modif.enabled && !render_modif.modifs.empty() && render_data.pMonitor) {
-        full_damage = CBox {
-            0, 0, render_data.pMonitor->m_transformedSize.x, render_data.pMonitor->m_transformedSize.y
-        };
-        data.damage = &full_damage;
-        data.clipRegion = {};
-        if (!saved_clip_box.empty()) {
-            render_data.clipBox = CBox {};
-            restore_clip_box = true;
-        }
+    if (!ht_scaled_render() || render_data.pMonitor == nullptr) {
+        ((render_texture_t)(render_texture_hook->m_original))(thisptr, tex, box, data);
+        return;
     }
 
-    ((render_texture_t)(render_texture_hook->m_original))(thisptr, tex, box, data);
+    CRegion full_damage;
+    full_damage = CBox {
+        0, 0, render_data.pMonitor->m_transformedSize.x, render_data.pMonitor->m_transformedSize.y
+    };
+    data.damage = &full_damage;
+    data.clipRegion = {};
+    const CBox saved_clip_box = render_data.clipBox;
+    render_data.clipBox = CBox {};
 
-    if (restore_clip_box)
-        render_data.clipBox = saved_clip_box;
+    if (data.blur) {
+        // The blur backdrop derives both its quad position and its sample UVs from
+        // `box`, but Hyprland only applies the renderModif to the quad -- the UVs (and,
+        // on the optimized path, the backdrop quad itself) stay untransformed, so the
+        // blur lands in the wrong place. Pre-bake the transform into the box and disable
+        // the renderModif so the quad and its UVs agree on the tile. The blur source is
+        // handled separately by hook_blur_optimizations.
+        CBox tbox = box;
+        render_modif.applyToBox(tbox);
+        const auto saved_modif = render_modif;
+        render_modif.enabled = false;
+        ((render_texture_t)(render_texture_hook->m_original))(thisptr, tex, tbox, data);
+        render_modif = saved_modif;
+    } else {
+        ((render_texture_t)(render_texture_hook->m_original))(thisptr, tex, box, data);
+    }
+
+    render_data.clipBox = saved_clip_box;
+}
+
+typedef void (*render_border_t)(
+    void* thisptr,
+    const CBox& box,
+    const Config::CGradientValueData& grad,
+    Render::GL::CHyprOpenGLImpl::SBorderRenderData data
+);
+typedef void (*render_border2_t)(
+    void* thisptr,
+    const CBox& box,
+    const Config::CGradientValueData& grad1,
+    const Config::CGradientValueData& grad2,
+    float lerp,
+    Render::GL::CHyprOpenGLImpl::SBorderRenderData data
+);
+
+// renderBorder builds its border ring from `m_renderData.damage ∩ applyToBox(box)`
+// (transformed) but then subtracts `box` (UNtransformed) and scissors with the result.
+// Under a scaled overview the untransformed interior swallows the whole transformed ring,
+// so no window border draws. Pre-bake the transform into the box and pre-scale the border
+// size, then disable the renderModif, so every coordinate renderBorder touches lives in
+// the same (already-scaled) space. Shared by both renderBorder overloads.
+template <typename Fn>
+static void render_border_scaled(
+    CBox& box,
+    Render::GL::CHyprOpenGLImpl::SBorderRenderData& data,
+    Fn&& call_original
+) {
+    auto& render_modif = g_pHyprRenderer->m_renderData.renderModif;
+    if (!ht_scaled_render()) {
+        call_original();
+        return;
+    }
+    render_modif.applyToBox(box);
+    data.borderSize = std::round(data.borderSize * render_modif.combinedScale());
+    const auto saved_modif = render_modif;
+    render_modif.enabled = false;
+    call_original();
+    render_modif = saved_modif;
+}
+
+static void hook_render_border(
+    void* thisptr,
+    const CBox& box,
+    const Config::CGradientValueData& grad,
+    Render::GL::CHyprOpenGLImpl::SBorderRenderData data
+) {
+    CBox tbox = box;
+    render_border_scaled(tbox, data, [&] {
+        ((render_border_t)(render_border_hook->m_original))(thisptr, tbox, grad, data);
+    });
+}
+
+static void hook_render_border2(
+    void* thisptr,
+    const CBox& box,
+    const Config::CGradientValueData& grad1,
+    const Config::CGradientValueData& grad2,
+    float lerp,
+    Render::GL::CHyprOpenGLImpl::SBorderRenderData data
+) {
+    CBox tbox = box;
+    render_border_scaled(tbox, data, [&] {
+        ((render_border2_t)(render_border2_hook->m_original))(thisptr, tbox, grad1, grad2, lerp, data);
+    });
+}
+
+typedef bool (*blur_optimizations_t)(void* thisptr, PHLLS pLayer, PHLWINDOW pWindow);
+
+// The optimized blur path samples the precomputed monitor blur framebuffer, which holds
+// the pre-overview desktop and is sampled at the wrong place once tiles are scaled. Force
+// the fresh path during a scaled render so each window's blur is taken from the current
+// framebuffer (the overview as drawn so far), clipped to its tile.
+static bool hook_blur_optimizations(void* thisptr, PHLLS pLayer, PHLWINDOW pWindow) {
+    if (ht_scaled_render())
+        return false;
+    return ((blur_optimizations_t)(blur_optimizations_hook->m_original))(thisptr, pLayer, pWindow);
 }
 
 static bool hook_should_render_window(void* thisptr, PHLWINDOW window, PHLMONITOR monitor) {
@@ -492,6 +606,42 @@ static void init_functions() {
         HyprlandAPI::createFunctionHook(PHANDLE, FNS_RT[0].address, (void*)hook_render_texture);
     Log::logger->log(LOG, "[Hyprtasking] Attempting hook {}", FNS_RT[0].signature);
     success = render_texture_hook->hook() && success;
+
+    // Both renderBorder overloads, kept in sync with the active renderModif so scaled
+    // overview window borders aren't culled (see render_border_scaled).
+    static auto FNS_RB = HyprlandAPI::findFunctionsByName(
+        PHANDLE,
+        "_ZN6Render2GL15CHyprOpenGLImpl12renderBorderERKN9Hyprutils4Math4CBoxERKN6Config18CGradientValueDataENS1_17SBorderRenderDataE"
+    );
+    if (FNS_RB.empty())
+        fail_exit("No renderBorder");
+    render_border_hook =
+        HyprlandAPI::createFunctionHook(PHANDLE, FNS_RB[0].address, (void*)hook_render_border);
+    Log::logger->log(LOG, "[Hyprtasking] Attempting hook {}", FNS_RB[0].signature);
+    success = render_border_hook->hook() && success;
+
+    static auto FNS_RB2 = HyprlandAPI::findFunctionsByName(
+        PHANDLE,
+        "_ZN6Render2GL15CHyprOpenGLImpl12renderBorderERKN9Hyprutils4Math4CBoxERKN6Config18CGradientValueDataESA_fNS1_17SBorderRenderDataE"
+    );
+    if (FNS_RB2.empty())
+        fail_exit("No renderBorder (lerp)");
+    render_border2_hook =
+        HyprlandAPI::createFunctionHook(PHANDLE, FNS_RB2[0].address, (void*)hook_render_border2);
+    Log::logger->log(LOG, "[Hyprtasking] Attempting hook {}", FNS_RB2[0].signature);
+    success = render_border2_hook->hook() && success;
+
+    // Force the fresh blur path during scaled renders (see hook_blur_optimizations).
+    static auto FNS_BO = HyprlandAPI::findFunctionsByName(
+        PHANDLE,
+        "_ZN6Render13IHyprRenderer29shouldUseNewBlurOptimizationsEN9Hyprutils6Memory14CSharedPointerIN7Desktop4View13CLayerSurfaceEEENS3_INS5_7CWindowEEE"
+    );
+    if (FNS_BO.empty())
+        fail_exit("No shouldUseNewBlurOptimizations");
+    blur_optimizations_hook =
+        HyprlandAPI::createFunctionHook(PHANDLE, FNS_BO[0].address, (void*)hook_blur_optimizations);
+    Log::logger->log(LOG, "[Hyprtasking] Attempting hook {}", FNS_BO[0].signature);
+    success = blur_optimizations_hook->hook() && success;
 
     // make sure this signature has "CMonitor"!
     static auto FNS2 = HyprlandAPI::findFunctionsByName(
