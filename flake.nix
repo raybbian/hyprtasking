@@ -26,7 +26,7 @@
       hyprtasking = let
         hyprlandPkg = hyprland.packages.${system}.hyprland;
       in
-        pkgs.gcc14Stdenv.mkDerivation {
+        pkgs.stdenv.mkDerivation {
           pname = "hyprtasking";
           version = "0.1";
 
