@@ -647,7 +647,7 @@ static void init_functions() {
     // make sure this signature has "CMonitor"!
     static auto FNS2 = HyprlandAPI::findFunctionsByName(
         PHANDLE,
-        "_ZN6Render13IHyprRenderer18shouldRenderWindowEN9Hyprutils6Memory14CSharedPointerIN7Desktop4View7CWindowEEENS3_I8CMonitorEE"
+        "_ZN6Render13IHyprRenderer18shouldRenderWindowEN9Hyprutils6Memory14CSharedPointerIN7Desktop4View7CWindowEEENS3_IN7Monitor8CMonitorEEE"
     );
     if (FNS2.empty())
         fail_exit("No shouldRenderWindow");
@@ -664,7 +664,7 @@ static void init_functions() {
     // strings /usr/bin/hyprland | grep renderWindow
     static auto FNS3 = HyprlandAPI::findFunctionsByName(
         PHANDLE,
-        "_ZN6Render13IHyprRenderer12renderWindowEN9Hyprutils6Memory14CSharedPointerIN7Desktop4View7CWindowEEENS3_I8CMonitorEERKNSt6chrono10time_pointINSA_3_V212steady_clockENSA_8durationIlSt5ratioILl1ELl1000000000EEEEEEbNS_15eRenderPassModeEbb"
+        "_ZN6Render13IHyprRenderer12renderWindowEN9Hyprutils6Memory14CSharedPointerIN7Desktop4View7CWindowEEENS3_IN7Monitor8CMonitorEEERKNSt6chrono10time_pointINSB_3_V212steady_clockENSB_8durationIlSt5ratioILl1ELl1000000000EEEEEEbNS_15eRenderPassModeEbb"
     );
     if (FNS3.empty())
         fail_exit("No renderWindow");
