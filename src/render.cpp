@@ -5,7 +5,7 @@
 #include <hyprland/src/Compositor.hpp>
 #include <hyprland/src/config/ConfigValue.hpp>
 #include <hyprland/src/desktop/DesktopTypes.hpp>
-#include <hyprland/src/managers/animation/DesktopAnimationManager.hpp>
+#include <hyprland/src/animation/WorkspaceAnimationController.hpp>
 #include <hyprland/src/managers/input/InputManager.hpp>
 #include <hyprland/src/render/OpenGL.hpp>
 #include <hyprland/src/render/Renderer.hpp>
@@ -25,9 +25,9 @@ void render_window_at_box(PHLWINDOW window, PHLMONITOR monitor, const Time::stea
     box.x -= monitor->m_position.x;
     box.y -= monitor->m_position.y;
 
-    const float scale = box.w / window->m_realSize->value().x;
+    const float scale = box.w / window->sizeAnimation()->value().x;
     const Vector2D transform =
-        (monitor->m_position - window->m_realPosition->value() + box.pos() / scale)
+        (monitor->m_position - window->positionAnimation()->value() + box.pos() / scale)
         * monitor->m_scale;
 
     SRenderModifData data {};
@@ -75,8 +75,8 @@ void render_workspace_at_box(
     // active+visible while we render it. The caller restores the original active ws.
     if (workspace != nullptr) {
         monitor->m_activeWorkspace = workspace;
-        g_pDesktopAnimationManager->startAnimation(
-            workspace, CDesktopAnimationManager::ANIMATION_TYPE_IN, false, true
+        Animation::Workspace::startAnimation(
+            workspace, Animation::Workspace::ANIMATION_TYPE_IN, false, true
         );
         workspace->m_visible = true;
     }
@@ -86,8 +86,8 @@ void render_workspace_at_box(
     );
 
     if (workspace != nullptr) {
-        g_pDesktopAnimationManager->startAnimation(
-            workspace, CDesktopAnimationManager::ANIMATION_TYPE_OUT, false, true
+        Animation::Workspace::startAnimation(
+            workspace, Animation::Workspace::ANIMATION_TYPE_OUT, false, true
         );
         workspace->m_visible = false;
     }

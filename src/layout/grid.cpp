@@ -8,8 +8,8 @@
 #include <hyprland/src/config/ConfigValue.hpp>
 #include <hyprland/src/desktop/DesktopTypes.hpp>
 #include <hyprland/src/helpers/AnimatedVariable.hpp>
-#include <hyprland/src/managers/animation/AnimationManager.hpp>
-#include <hyprland/src/managers/animation/DesktopAnimationManager.hpp>
+#include <hyprland/src/animation/AnimationManager.hpp>
+#include <hyprland/src/animation/WorkspaceAnimationController.hpp>
 #include <hyprland/src/config/shared/animation/AnimationTree.hpp>
 #include <hyprland/src/managers/input/InputManager.hpp>
 #include <hyprland/src/config/shared/workspace/WorkspaceRuleManager.hpp>
@@ -18,6 +18,7 @@
 #include <hyprland/src/render/Renderer.hpp>
 #include <hyprland/src/render/pass/BorderPassElement.hpp>
 #include <hyprland/src/render/pass/RectPassElement.hpp>
+#include <hyprland/src/state/WorkspaceState.hpp>
 #include <hyprutils/math/Vector2D.hpp>
 #include <hyprutils/utils/ScopeGuard.hpp>
 
@@ -32,13 +33,13 @@ using Hyprutils::Utils::CScopeGuard;
 
 HTLayoutGrid::HTLayoutGrid(VIEWID new_view_id) : HTLayoutBase(new_view_id) {
     auto &anim_tree = Config::animationTree();
-    g_pAnimationManager->createAnimation(
+    Animation::mgr()->createAnimation(
         {0, 0},
         offset,
         anim_tree->getAnimationPropertyConfig("workspaces"),
         AVARDAMAGE_NONE
     );
-    g_pAnimationManager->createAnimation(
+    Animation::mgr()->createAnimation(
         1.f,
         scale,
         anim_tree->getAnimationPropertyConfig("workspaces"),
@@ -136,10 +137,10 @@ void HTLayoutGrid::refresh_workspace_cache(
     const auto& ws_manager = Config::workspaceRuleMgr();
     const auto& all_rules = ws_manager->getAllWorkspaceRules();
     for (const auto& rule : all_rules) {
-        if (rule.m_workspaceId > 0)
-            off_limits.insert(rule.m_workspaceId);
+        if (rule->m_workspaceId > 0)
+            off_limits.insert(rule->m_workspaceId);
     }
-    for (const auto& w : g_pCompositor->getWorkspacesCopy()) {
+    for (const auto& w : State::workspaceState()->workspaces()) {
         if (w == nullptr)
             continue;
         if (w->monitorID() != view_id)
@@ -149,16 +150,16 @@ void HTLayoutGrid::refresh_workspace_cache(
     size_t cursor = 0;
 
     // Sort by workspaceId so slot assignment doesn't depend on config-line order.
-    std::vector<const Config::CWorkspaceRule*> rules_sorted;
+    std::vector<SP<Config::CWorkspaceRule>> rules_sorted;
     rules_sorted.reserve(all_rules.size());
     for (const auto& r : all_rules)
-        rules_sorted.push_back(&r);
+        rules_sorted.push_back(r);
     std::sort(rules_sorted.begin(), rules_sorted.end(),
-              [](const Config::CWorkspaceRule* a, const Config::CWorkspaceRule* b) {
+              [](const SP<Config::CWorkspaceRule>& a, const SP<Config::CWorkspaceRule>& b) {
                   return a->m_workspaceId < b->m_workspaceId;
               });
 
-    for (const Config::CWorkspaceRule* rule : rules_sorted) {
+    for (const SP<Config::CWorkspaceRule>& rule : rules_sorted) {
         if (rule->m_workspaceId <= 0)
             continue;
         if (extra_off_limits.count(rule->m_workspaceId))
@@ -176,7 +177,7 @@ void HTLayoutGrid::refresh_workspace_cache(
     // Sort by m_id so slot assignment is independent of Hyprland's internal
     // m_workspaces vector order.
     std::vector<PHLWORKSPACE> on_monitor;
-    for (const auto& w : g_pCompositor->getWorkspacesCopy()) {
+    for (const auto& w : State::workspaceState()->workspacesCopy()) {
         if (w == nullptr)
             continue;
         if (w->monitorID() != view_id)
@@ -359,8 +360,8 @@ void HTLayoutGrid::on_move(WORKSPACEID old_id, WORKSPACEID new_id, CallbackFun o
         return;
 
     // prevent the thing from animating
-    g_pCompositor->getWorkspaceByID(old_id)->m_renderOffset->warp();
-    g_pCompositor->getWorkspaceByID(new_id)->m_renderOffset->warp();
+    State::workspaceState()->query().id(old_id).run()->m_renderOffset->warp();
+    State::workspaceState()->query().id(new_id).run()->m_renderOffset->warp();
 
     build_overview_layout(HT_VIEW_CLOSED);
     *scale = 1.;
@@ -539,8 +540,8 @@ void HTLayoutGrid::render() {
     const PHLWORKSPACE start_workspace = monitor->m_activeWorkspace;
     if (start_workspace == nullptr)
         return;
-    g_pDesktopAnimationManager->startAnimation(
-        start_workspace, CDesktopAnimationManager::ANIMATION_TYPE_OUT, false, true
+    Animation::Workspace::startAnimation(
+        start_workspace, Animation::Workspace::ANIMATION_TYPE_OUT, false, true
     );
     start_workspace->m_visible = false;
 
@@ -572,15 +573,15 @@ void HTLayoutGrid::render() {
     for (const auto& [ws_id, ws_layout] : overview_layout) {
         if (!tile_visible(ws_layout.box) || ws_id == start_workspace->m_id)
             continue;
-        render_workspace_at_box(monitor, g_pCompositor->getWorkspaceByID(ws_id), time, ws_layout.box);
+        render_workspace_at_box(monitor, State::workspaceState()->query().id(ws_id).run(), time, ws_layout.box);
     }
     if (const auto it = overview_layout.find(start_workspace->m_id);
         it != overview_layout.end() && tile_visible(it->second.box))
         render_workspace_at_box(monitor, start_workspace, time, it->second.box);
 
     monitor->m_activeWorkspace = start_workspace;
-    g_pDesktopAnimationManager->startAnimation(
-        start_workspace, CDesktopAnimationManager::ANIMATION_TYPE_IN, false, true
+    Animation::Workspace::startAnimation(
+        start_workspace, Animation::Workspace::ANIMATION_TYPE_IN, false, true
     );
     start_workspace->m_visible = true;
 

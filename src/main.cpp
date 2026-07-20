@@ -7,17 +7,18 @@
 #include <hyprland/src/config/shared/actions/ConfigActions.hpp>
 #include <hyprland/src/desktop/DesktopTypes.hpp>
 #include <hyprland/src/devices/IKeyboard.hpp>
-#include <hyprland/src/helpers/Monitor.hpp>
+#include <hyprland/src/output/Monitor.hpp>
 #include <hyprland/src/macros.hpp>
 #include <hyprland/src/managers/KeybindManager.hpp>
 #include <hyprland/src/layout/LayoutManager.hpp>
-#include <hyprland/src/managers/PointerManager.hpp>
+#include <hyprland/src/pointer/PointerManager.hpp>
 #include <hyprland/src/managers/input/InputManager.hpp>
 #include <hyprland/src/plugins/HookSystem.hpp>
 #include <hyprland/src/plugins/PluginAPI.hpp>
 #include <hyprland/src/plugins/PluginSystem.hpp>
 #include <hyprland/src/render/OpenGL.hpp>
 #include <hyprland/src/render/Renderer.hpp>
+#include <hyprland/src/state/MonitorState.hpp>
 #include <hyprland/src/event/EventBus.hpp>
 #include <hyprland/src/config/values/ConfigValues.hpp>
 #include <hyprlang.hpp>
@@ -465,7 +466,7 @@ static uint32_t hook_is_solitary_blocked(void* thisptr, bool full) {
         return (*(origIsSolitaryBlocked)is_solitary_blocked_hook->m_original)(thisptr, full);
 
     if (view->active || view->navigating) {
-        return CMonitor::SC_UNKNOWN;
+        return Monitor::CMonitor::SC_UNKNOWN;
     }
     return (*(origIsSolitaryBlocked)is_solitary_blocked_hook->m_original)(thisptr, full);
 }
@@ -531,7 +532,7 @@ static void cancel_event(Event::SCallbackInfo& info) {
 static void register_monitors() {
     if (ht_manager == nullptr)
         return;
-    for (const PHLMONITOR& monitor : g_pCompositor->m_monitors) {
+    for (const PHLMONITOR& monitor : State::monitorState()->monitors()) {
         // Skip monitors that haven't finished initializing
         if (monitor->m_transformedSize.x < 1 || monitor->m_transformedSize.y < 1)
             continue;

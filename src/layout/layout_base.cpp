@@ -7,6 +7,7 @@
 #include <hyprland/src/managers/input/InputManager.hpp>
 #include <hyprland/src/render/Renderer.hpp>
 #include <hyprland/src/render/pass/ClearPassElement.hpp>
+#include <hyprland/src/state/WorkspaceState.hpp>
 #undef private
 
 #include "../globals.hpp"
@@ -131,7 +132,7 @@ CBox HTLayoutBase::get_global_window_box(PHLWINDOW window, WORKSPACEID workspace
     if (monitor == nullptr)
         return {};
 
-    const PHLWORKSPACE workspace = g_pCompositor->getWorkspaceByID(workspace_id);
+    const PHLWORKSPACE workspace = State::workspaceState()->query().id(workspace_id).run();
     if (workspace == nullptr || workspace->m_monitor != monitor)
         return {};
 
