@@ -644,7 +644,8 @@ static void init_functions() {
     Log::logger->log(LOG, "[Hyprtasking] Attempting hook {}", FNS_BO[0].signature);
     success = blur_optimizations_hook->hook() && success;
 
-    // make sure this signature has "CMonitor"!
+    // Hyprland 0.56 moved CMonitor into the Monitor namespace; keep the
+    // mangled signature in sync with Monitor::CMonitor.
     static auto FNS2 = HyprlandAPI::findFunctionsByName(
         PHANDLE,
         "_ZN6Render13IHyprRenderer18shouldRenderWindowEN9Hyprutils6Memory14CSharedPointerIN7Desktop4View7CWindowEEENS3_IN7Monitor8CMonitorEEE"
