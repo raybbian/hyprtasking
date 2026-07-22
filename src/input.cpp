@@ -1,5 +1,6 @@
 #include <linux/input-event-codes.h>
 
+#include <array>
 #include <hyprland/src/Compositor.hpp>
 #include <hyprland/src/desktop/state/GlobalWindowController.hpp>
 #include <hyprland/src/macros.hpp>
@@ -194,6 +195,76 @@ bool HTManager::exit_to_workspace() {
         if (view == nullptr)
             continue;
         view->hide(true);
+    }
+    return true;
+}
+
+bool HTManager::on_key(IKeyboard::SKeyEvent event) {
+    if (event.state == WL_KEYBOARD_KEY_STATE_RELEASED && jump_pressed_keys.erase(event.keycode) > 0)
+        return true;
+
+    if (!HTConfig::value<Config::INTEGER>("jump:enabled"))
+        return false;
+
+    const PHTVIEW cursor_view = get_view_from_cursor();
+    if (cursor_view == nullptr || !cursor_view->active)
+        return false;
+
+    std::optional<size_t> index;
+    bool resolved_keyboard = false;
+    for (const auto& keyboard : g_pInputManager->m_keyboards) {
+        if (keyboard == nullptr || keyboard->m_xkbState == nullptr
+            || !keyboard->getPressed(event.keycode))
+            continue;
+
+        resolved_keyboard = true;
+        const xkb_keysym_t keysym =
+            xkb_keysym_to_lower(xkb_state_key_get_one_sym(keyboard->m_xkbState, event.keycode + 8));
+        if (keysym >= XKB_KEY_1 && keysym <= XKB_KEY_9)
+            index = keysym - XKB_KEY_1;
+        else if (keysym == XKB_KEY_0)
+            index = 9;
+        else if (keysym >= XKB_KEY_a && keysym <= XKB_KEY_z)
+            index = 10 + keysym - XKB_KEY_a;
+        break;
+    }
+
+    // Physical-key fallback for unusual keyboard implementations without XKB state.
+    if (!resolved_keyboard) {
+        static constexpr std::array<unsigned int, 36> KEYCODES = {
+            KEY_1, KEY_2, KEY_3, KEY_4, KEY_5, KEY_6, KEY_7, KEY_8, KEY_9, KEY_0, KEY_A, KEY_B,
+            KEY_C, KEY_D, KEY_E, KEY_F, KEY_G, KEY_H, KEY_I, KEY_J, KEY_K, KEY_L, KEY_M, KEY_N,
+            KEY_O, KEY_P, KEY_Q, KEY_R, KEY_S, KEY_T, KEY_U, KEY_V, KEY_W, KEY_X, KEY_Y, KEY_Z,
+        };
+        for (size_t i = 0; i < KEYCODES.size(); i++) {
+            if (KEYCODES[i] == event.keycode) {
+                index = i;
+                break;
+            }
+        }
+    }
+
+    if (!index.has_value())
+        return false;
+
+    const auto target = cursor_view->layout->jump_target(*index);
+    if (!target.has_value())
+        return false;
+
+    // Keep consuming the matching release even if the close animation has finished by then.
+    jump_pressed_keys.insert(event.keycode);
+
+    // Act only on the initial press.
+    if (event.state != WL_KEYBOARD_KEY_STATE_PRESSED || cursor_view->closing)
+        return true;
+
+    for (const PHTVIEW& view : views) {
+        if (view == nullptr || !view->active)
+            continue;
+        if (view == cursor_view)
+            view->hide(false, *target);
+        else
+            view->hide(false);
     }
     return true;
 }

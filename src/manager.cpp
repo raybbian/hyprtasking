@@ -121,6 +121,7 @@ void HTManager::show_cursor_view() {
 void HTManager::reset() {
     swipe_state = HT_SWIPE_NONE;
     swipe_amt = 0.0;
+    jump_pressed_keys.clear();
     views.clear();
 }
 

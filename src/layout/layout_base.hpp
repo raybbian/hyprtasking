@@ -4,7 +4,9 @@
 #include <hyprland/src/desktop/DesktopTypes.hpp>
 #include <hyprland/src/helpers/AnimatedVariable.hpp>
 #include <hyprutils/math/Box.hpp>
+#include <optional>
 #include <unordered_map>
+#include <vector>
 
 #include "../types.hpp"
 
@@ -70,8 +72,15 @@ class HTLayoutBase {
     // Render the overview
     virtual void render();
 
+    // Workspaces in the same visual order used by the keyboard jump labels.
+    std::vector<WORKSPACEID> jump_targets() const;
+    std::optional<WORKSPACEID> jump_target(size_t index) const;
+
     // Prevent simplification from happening in the plugin, remove all clear pass objects
     void post_render();
+
+    // Draw keyboard jump labels over the workspace previews.
+    void render_jump_labels();
 
     PHLMONITOR get_monitor();
     WORKSPACEID get_ws_id_from_global(Vector2D pos);

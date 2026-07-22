@@ -493,6 +493,12 @@ static void on_mouse_button(IPointer::SButtonEvent e, Event::SCallbackInfo& info
     }
 }
 
+static void on_key(IKeyboard::SKeyEvent e, Event::SCallbackInfo& info) {
+    if (ht_manager == nullptr)
+        return;
+    info.cancelled = ht_manager->on_key(e);
+}
+
 static void on_mouse_move(Vector2D c, Event::SCallbackInfo& info) {
     if (ht_manager == nullptr)
         return;
@@ -688,6 +694,7 @@ static void register_callbacks() {
     static auto P1 = Event::bus()->m_events.input.mouse.button.listen(on_mouse_button);
     static auto P2 = Event::bus()->m_events.input.mouse.move.listen(on_mouse_move);
     static auto P3 = Event::bus()->m_events.input.mouse.axis.listen(on_mouse_axis);
+    static auto PKEY = Event::bus()->m_events.input.keyboard.key.listen(on_key);
 
     // TODO: support touch
     static auto P4 = Event::bus()->m_events.input.touch.down.listen([&] (ITouch::SDownEvent e, Event::SCallbackInfo i) { cancel_event(i); } );
@@ -756,6 +763,12 @@ static void init_config() {
 
     addConfigValue(CIntValue, "drag_button", "drag button", BTN_LEFT);
     addConfigValue(CIntValue, "select_button", "select button", BTN_RIGHT);
+
+    // keyboard workspace jump labels
+    addConfigValue(CIntValue, "jump:enabled", "enable keyboard workspace jump labels", 0);
+    addConfigValue(CIntValue, "jump:label_color", "jump label color", 0xFFFFFFFF);
+    addConfigValue(CIntValue, "jump:label_background", "jump label background", 0x000000CC);
+    addConfigValue(CIntValue, "jump:label_size", "jump label font size", 32);
 
     // swipe
     addConfigValue(CIntValue, "gestures:enabled", "enabled", 1);

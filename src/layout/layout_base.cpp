@@ -1,5 +1,8 @@
+#include <algorithm>
 #include <any>
+#include <cmath>
 #include <sstream>
+#include <string_view>
 
 #define private public
 #include <hyprland/src/config/ConfigManager.hpp>
@@ -8,8 +11,11 @@
 #include <hyprland/src/render/Renderer.hpp>
 #include <hyprland/src/render/pass/ClearPassElement.hpp>
 #include <hyprland/src/state/WorkspaceState.hpp>
+#include <hyprland/src/render/pass/RectPassElement.hpp>
+#include <hyprland/src/render/pass/TexPassElement.hpp>
 #undef private
 
+#include "../config.hpp"
 #include "../globals.hpp"
 #include "../pass/pass_element.hpp"
 #include "../types.hpp"
@@ -80,6 +86,102 @@ void HTLayoutBase::render() {
     g_pHyprRenderer->m_renderPass.add(makeUnique<CClearPassElement>(data));
 }
 
+std::vector<WORKSPACEID> HTLayoutBase::jump_targets() const {
+    std::vector<std::pair<WORKSPACEID, HTWorkspace>> ordered;
+    ordered.reserve(overview_layout.size());
+    for (const auto& entry : overview_layout)
+        ordered.push_back(entry);
+
+    std::sort(ordered.begin(), ordered.end(), [](const auto& lhs, const auto& rhs) {
+        if (lhs.second.y != rhs.second.y)
+            return lhs.second.y < rhs.second.y;
+        if (lhs.second.x != rhs.second.x)
+            return lhs.second.x < rhs.second.x;
+        return lhs.first < rhs.first;
+    });
+
+    std::vector<WORKSPACEID> result;
+    result.reserve(ordered.size());
+    for (const auto& entry : ordered)
+        result.push_back(entry.first);
+    return result;
+}
+
+std::optional<WORKSPACEID> HTLayoutBase::jump_target(size_t index) const {
+    const auto targets = jump_targets();
+    if (index >= targets.size())
+        return std::nullopt;
+    return targets[index];
+}
+
+void HTLayoutBase::render_jump_labels() {
+    if (!HTConfig::value<Config::INTEGER>("jump:enabled"))
+        return;
+
+    const PHTVIEW view = ht_manager->get_view_from_id(view_id);
+    const PHLMONITOR monitor = view == nullptr ? nullptr : view->get_monitor();
+    if (view == nullptr || monitor == nullptr || !view->active || view->closing)
+        return;
+
+    static constexpr std::string_view LABELS = "1234567890abcdefghijklmnopqrstuvwxyz";
+    const auto targets = jump_targets();
+    const size_t count = std::min(targets.size(), LABELS.size());
+
+    const int font_size = std::max(
+        1,
+        static_cast<int>(HTConfig::value<Config::INTEGER>("jump:label_size") * monitor->m_scale)
+    );
+    const float padding = std::max(4.f, font_size * 0.35f);
+    const Config::INTEGER label_color_value = HTConfig::value<Config::INTEGER>("jump:label_color");
+    const CHyprColor label_color {label_color_value};
+    const CHyprColor background_color {HTConfig::value<Config::INTEGER>("jump:label_background")};
+    const CBox monitor_box {{0, 0}, monitor->m_transformedSize};
+
+    for (size_t i = 0; i < count; i++) {
+        const auto layout_it = overview_layout.find(targets[i]);
+        if (layout_it == overview_layout.end())
+            continue;
+        const CBox& workspace_box = layout_it->second.box;
+        if (workspace_box.intersection(monitor_box).empty())
+            continue;
+
+        // Text rasterization is relatively expensive and these glyphs are immutable for a
+        // given scale/color, so retain one texture per rendered label style.
+        static std::unordered_map<std::string, SP<Render::ITexture>> texture_cache;
+        const std::string texture_key = std::string(1, LABELS[i]) + ":" + std::to_string(font_size)
+            + ":" + std::to_string(label_color_value);
+        auto& texture = texture_cache[texture_key];
+        if (texture == nullptr) {
+            texture = g_pHyprRenderer->renderText(
+                std::string(1, LABELS[i]),
+                label_color,
+                font_size,
+                false,
+                "",
+                0,
+                700
+            );
+        }
+        if (texture == nullptr)
+            continue;
+
+        const Vector2D badge_size = texture->m_size + Vector2D {padding * 2.f, padding};
+        const Vector2D badge_pos = workspace_box.pos() + (workspace_box.size() - badge_size) / 2.f;
+        const CBox badge_box {badge_pos, badge_size};
+
+        CRectPassElement::SRectData badge;
+        badge.box = badge_box;
+        badge.color = background_color;
+        badge.round = std::round(std::min(badge_size.x, badge_size.y) * 0.22f);
+        g_pHyprRenderer->m_renderPass.add(makeUnique<CRectPassElement>(badge));
+
+        CTexPassElement::SRenderData text;
+        text.tex = texture;
+        text.box = CBox {badge_pos + (badge_size - texture->m_size) / 2.f, texture->m_size};
+        g_pHyprRenderer->m_renderPass.add(makeUnique<CTexPassElement>(std::move(text)));
+    }
+}
+
 const std::string CLEAR_PASS_ELEMENT_NAME = "CClearPassElement";
 
 void HTLayoutBase::post_render() {
@@ -89,6 +191,7 @@ void HTLayoutBase::post_render() {
         first = false;
         return res;
     });
+    render_jump_labels();
     g_pHyprRenderer->m_renderPass.add(makeUnique<HTPassElement>());
     // g_pHyprOpenGL->setDamage(CRegion {CBox {0, 0, INT32_MAX, INT32_MAX}});
 }

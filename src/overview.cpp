@@ -99,7 +99,7 @@ void HTView::show(bool recalculate) {
     monitor->scheduleFrame();
 }
 
-void HTView::hide(bool exit_on_mouse) {
+void HTView::hide(bool exit_on_mouse, std::optional<WORKSPACEID> target_workspace) {
     const PHLMONITOR monitor = get_monitor();
     if (monitor == nullptr)
         return;
@@ -107,7 +107,16 @@ void HTView::hide(bool exit_on_mouse) {
     if (active_workspace == nullptr)
         return;
 
-    do_exit_behavior(exit_on_mouse);
+    if (target_workspace.has_value()) {
+        PHLWORKSPACE workspace = g_pCompositor->getWorkspaceByID(*target_workspace);
+        if (workspace == nullptr && *target_workspace != WORKSPACE_INVALID)
+            workspace = g_pCompositor->createNewWorkspace(*target_workspace, monitor->m_id);
+        if (workspace == nullptr)
+            return;
+        monitor->changeWorkspace(workspace);
+    } else {
+        do_exit_behavior(exit_on_mouse);
+    }
 
     active = true;
     closing = true;
