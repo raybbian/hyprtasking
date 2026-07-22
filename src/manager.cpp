@@ -7,8 +7,12 @@
 #include <hyprland/src/Compositor.hpp>
 #include <hyprland/src/config/ConfigManager.hpp>
 #include <hyprland/src/desktop/DesktopTypes.hpp>
+#include <hyprland/src/desktop/state/ViewState.hpp>
 #include <hyprland/src/managers/KeybindManager.hpp>
 #include <hyprland/src/managers/input/InputManager.hpp>
+#include <hyprland/src/state/MonitorState.hpp>
+#include <hyprland/src/state/WorkspacePlacementController.hpp>
+#include <hyprland/src/state/WorkspaceState.hpp>
 
 #include "config/shared/workspace/WorkspaceRuleManager.hpp"
 #include "layout/grid.hpp"
@@ -33,7 +37,8 @@ PHTVIEW HTManager::get_view_from_monitor(PHLMONITOR monitor) {
 }
 
 PHTVIEW HTManager::get_view_from_cursor() {
-    return get_view_from_monitor(g_pCompositor->getMonitorFromCursor());
+    return get_view_from_monitor(
+        State::monitorState()->query().vec(g_pInputManager->getMouseCoordsInternal()).run());
 }
 
 PHTVIEW HTManager::get_view_from_id(VIEWID view_id) {
@@ -48,7 +53,8 @@ PHTVIEW HTManager::get_view_from_id(VIEWID view_id) {
 }
 
 PHLWINDOW HTManager::get_window_from_cursor(bool return_focused) {
-    const PHLMONITOR cursor_monitor = g_pCompositor->getMonitorFromCursor();
+    const PHLMONITOR cursor_monitor =
+        State::monitorState()->query().vec(g_pInputManager->getMouseCoordsInternal()).run();
     if (cursor_monitor == nullptr)
         return nullptr;
 
@@ -62,14 +68,14 @@ PHLWINDOW HTManager::get_window_from_cursor(bool return_focused) {
     const Vector2D mouse_coords = g_pInputManager->getMouseCoordsInternal();
 
     if (!cursor_view->active || !cursor_view->layout->should_manage_mouse()) {
-        return g_pCompositor->vectorToWindowUnified(
+        return Desktop::viewState()->hitTest().windowAt(
             mouse_coords,
             Desktop::View::RESERVED_EXTENTS | Desktop::View::INPUT_EXTENTS | Desktop::View::ALLOW_FLOATING
         );
     }
 
     const WORKSPACEID ws_id = cursor_view->layout->get_ws_id_from_global(mouse_coords);
-    const PHLWORKSPACE hovered_workspace = g_pCompositor->getWorkspaceByID(ws_id);
+    const PHLWORKSPACE hovered_workspace = State::workspaceState()->query().id(ws_id).run();
     if (hovered_workspace == nullptr)
         return nullptr;
 
@@ -79,7 +85,7 @@ PHLWINDOW HTManager::get_window_from_cursor(bool return_focused) {
     const PHLWORKSPACEREF o_workspace = cursor_monitor->m_activeWorkspace;
     cursor_monitor->changeWorkspace(hovered_workspace, true);
 
-    const PHLWINDOW hovered_window = g_pCompositor->vectorToWindowUnified(
+    const PHLWINDOW hovered_window = Desktop::viewState()->hitTest().windowAt(
         ws_coords,
         Desktop::View::RESERVED_EXTENTS | Desktop::View::INPUT_EXTENTS | Desktop::View::ALLOW_FLOATING
     );
@@ -127,19 +133,19 @@ void HTManager::refresh_all_grid_caches() {
     // so the migration would never happen.
     const auto& all_rules = Config::workspaceRuleMgr()->getAllWorkspaceRules();
     for (const auto& rule : all_rules) {
-        if (rule.m_workspaceId <= 0)
+        if (rule->m_workspaceId <= 0)
             continue;
         const auto bound = Config::workspaceRuleMgr()->getBoundMonitorForWS(
-            rule.m_workspaceName.starts_with("name:") ? rule.m_workspaceName.substr(5)
-                                                    : rule.m_workspaceName
+            rule->m_workspaceName.starts_with("name:") ? rule->m_workspaceName.substr(5)
+                                                      : rule->m_workspaceName
         );
         if (bound == nullptr)
             continue;
-        const PHLWORKSPACE ws = g_pCompositor->getWorkspaceByID(rule.m_workspaceId);
+        const PHLWORKSPACE ws = State::workspaceState()->query().id(rule->m_workspaceId).run();
         if (ws == nullptr)
             continue;
         if (ws->m_monitor.lock() != bound)
-            g_pCompositor->moveWorkspaceToMonitor(ws, bound);
+            State::workspacePlacementController()->moveWorkspaceToMonitor(ws, bound);
     }
 
     std::vector<HTLayoutGrid*> grids;

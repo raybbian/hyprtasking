@@ -4,14 +4,15 @@
 #include <hyprland/src/config/ConfigManager.hpp>
 #include <hyprland/src/config/ConfigValue.hpp>
 #include <hyprland/src/helpers/MiscFunctions.hpp>
-#include <hyprland/src/managers/animation/AnimationManager.hpp>
+#include <hyprland/src/animation/AnimationManager.hpp>
 #include <hyprland/src/config/shared/animation/AnimationTree.hpp>
-#include <hyprland/src/managers/animation/DesktopAnimationManager.hpp>
+#include <hyprland/src/animation/WorkspaceAnimationController.hpp>
 #include <hyprland/src/config/shared/workspace/WorkspaceRuleManager.hpp>
 #include <hyprland/src/layout/LayoutManager.hpp>
 #include <hyprland/src/managers/input/InputManager.hpp>
 #include <hyprland/src/render/pass/BorderPassElement.hpp>
 #include <hyprland/src/render/pass/RectPassElement.hpp>
+#include <hyprland/src/state/WorkspaceState.hpp>
 #include <hyprutils/math/Box.hpp>
 #include <hyprutils/utils/ScopeGuard.hpp>
 #include <ranges>
@@ -25,25 +26,25 @@ using Hyprutils::Utils::CScopeGuard;
 
 HTLayoutLinear::HTLayoutLinear(VIEWID new_view_id) : HTLayoutBase(new_view_id) {
     auto &anim_tree = Config::animationTree();
-    g_pAnimationManager->createAnimation(
+    Animation::mgr()->createAnimation(
         0.f,
         scroll_offset,
         anim_tree->getAnimationPropertyConfig("windowsMove"),
         AVARDAMAGE_NONE
     );
-    g_pAnimationManager->createAnimation(
+    Animation::mgr()->createAnimation(
         0.f,
         view_offset,
         anim_tree->getAnimationPropertyConfig("windowsMove"),
         AVARDAMAGE_NONE
     );
-    g_pAnimationManager->createAnimation(
+    Animation::mgr()->createAnimation(
         0.f,
         blur_strength,
         anim_tree->getAnimationPropertyConfig("fadeIn"),
         AVARDAMAGE_NONE
     );
-    g_pAnimationManager->createAnimation(
+    Animation::mgr()->createAnimation(
         0.f,
         dim_opacity,
         anim_tree->getAnimationPropertyConfig("fadeDim"),
@@ -114,7 +115,7 @@ void HTLayoutLinear::on_move(WORKSPACEID old_id, WORKSPACEID new_id, CallbackFun
 
     const float GAP_SIZE = HTConfig::value<Config::FLOAT>("gap_size") * monitor->m_scale;
 
-    const PHLWORKSPACE new_ws = g_pCompositor->getWorkspaceByID(new_id);
+    const PHLWORKSPACE new_ws = State::workspaceState()->query().id(new_id).run();
     if (new_ws == nullptr)
         return;
 
@@ -280,7 +281,7 @@ void HTLayoutLinear::build_overview_layout(HTViewStage stage) {
     overview_layout.clear();
 
     std::vector<WORKSPACEID> monitor_workspaces;
-    for (PHLWORKSPACE workspace : g_pCompositor->getWorkspacesCopy()) {
+    for (PHLWORKSPACE workspace : State::workspaceState()->workspacesCopy()) {
         if (workspace == nullptr)
             continue;
         if (workspace->m_monitor != monitor)
@@ -292,7 +293,7 @@ void HTLayoutLinear::build_overview_layout(HTViewStage stage) {
     std::sort(monitor_workspaces.begin(), monitor_workspaces.end());
 
     WORKSPACEID big_id = monitor_workspaces.back();
-    while (g_pCompositor->getWorkspaceByID(big_id) != nullptr)
+    while (State::workspaceState()->query().id(big_id).run() != nullptr)
         big_id++;
     monitor_workspaces.push_back(big_id);
 
@@ -331,9 +332,9 @@ void HTLayoutLinear::render() {
     // Do a dance with active workspaces: Hyprland will only properly render the
     // current active one so make the workspace active before rendering it, etc
     const PHLWORKSPACE start_workspace = monitor->m_activeWorkspace;
-    g_pDesktopAnimationManager->startAnimation(
+    Animation::Workspace::startAnimation(
         start_workspace,
-        CDesktopAnimationManager::ANIMATION_TYPE_OUT,
+        Animation::Workspace::ANIMATION_TYPE_OUT,
         false,
         true
     );
@@ -343,9 +344,9 @@ void HTLayoutLinear::render() {
 
     rendering_standard_ws = true;
     monitor->m_activeWorkspace = big_ws;
-    g_pDesktopAnimationManager->startAnimation(
+    Animation::Workspace::startAnimation(
         start_workspace,
-        CDesktopAnimationManager::ANIMATION_TYPE_IN,
+        Animation::Workspace::ANIMATION_TYPE_IN,
         false,
         true
     );
@@ -370,9 +371,9 @@ void HTLayoutLinear::render() {
     blur_data.blurA = blur_strength->value();
     g_pHyprRenderer->m_renderPass.add(makeUnique<CRectPassElement>(blur_data));
 
-    g_pDesktopAnimationManager->startAnimation(
+    Animation::Workspace::startAnimation(
         start_workspace,
-        CDesktopAnimationManager::ANIMATION_TYPE_OUT,
+        Animation::Workspace::ANIMATION_TYPE_OUT,
         false,
         true
     );
@@ -394,7 +395,7 @@ void HTLayoutLinear::render() {
     CBox global_mon_box = {monitor->m_position, monitor->m_transformedSize};
     for (const auto& [ws_id, ws_layout] : overview_layout) {
         // Could be nullptr, in which we render only layers
-        const PHLWORKSPACE workspace = g_pCompositor->getWorkspaceByID(ws_id);
+        const PHLWORKSPACE workspace = State::workspaceState()->query().id(ws_id).run();
 
         CBox global_box = {ws_layout.box.pos() + monitor->m_position, ws_layout.box.size()};
         if (global_box.intersection(global_mon_box).empty())
@@ -413,9 +414,9 @@ void HTLayoutLinear::render() {
     }
 
     monitor->m_activeWorkspace = start_workspace;
-    g_pDesktopAnimationManager->startAnimation(
+    Animation::Workspace::startAnimation(
         start_workspace,
-        CDesktopAnimationManager::ANIMATION_TYPE_IN,
+        Animation::Workspace::ANIMATION_TYPE_IN,
         false,
         true
     );

@@ -4,7 +4,8 @@
 </div>
 
 > [!Important]
-> - Supports Hyprland release `v0.46.2-v0.55.x`.
+> - Supports Hyprland releases `v0.46.2` through `v0.54.3`, `v0.55.3`
+>   through `v0.55.4`, and `v0.56.0`.
 
 https://github.com/user-attachments/assets/8d6cdfd2-2b17-4240-a117-1dbd2231ed4e
 
@@ -46,6 +47,10 @@ hyprpm add https://github.com/raybbian/hyprtasking
 hyprpm enable hyprtasking
 ```
 
+Hyprland plugins must match the compositor ABI exactly. For tagged Hyprland
+releases, Hyprpm uses the compatibility pins in `hyprpm.toml` to select the
+corresponding hyprtasking revision.
+
 ### Nix
 
 Add hyprtasking to your flake inputs
@@ -53,7 +58,7 @@ Add hyprtasking to your flake inputs
 # flake.nix
 {
   inputs = {
-    hyprland.url = "github:hyprwm/Hyprland/v0.49.0";
+    hyprland.url = "github:hyprwm/Hyprland/v0.56.0";
 
     hyprtasking = {
       url = "github:raybbian/hyprtasking";
@@ -69,7 +74,7 @@ Include the plugin in the hyprland home manager options
 
 ```nix
 # home.nix
-{ inputs, ... }:
+{ inputs, pkgs, ... }:
 {
   wayland.windowManager.hyprland = {
     plugins = [
@@ -81,7 +86,8 @@ Include the plugin in the hyprland home manager options
 
 ### Manual
 
-To build, have hyprland headers installed on the system and then:
+To build, install Hyprland headers from the exact compositor commit you are
+running and then:
 
 ```
 meson setup build
@@ -314,7 +320,7 @@ plugin {
 
 ### Config Options
 
-All options should are prefixed with `plugin:hyprtasking:`.
+All options are prefixed with `plugin:hyprtasking:`.
 
 | Option | Type | Description | Default |
 | --- | --- | --- | --- |
@@ -323,8 +329,8 @@ All options should are prefixed with `plugin:hyprtasking:`.
 | `gap_size` | `float` | The width in logical pixels of the gaps between workspaces | `8.f` |
 | `border_size` | `float` | The width in logical pixels of the borders around workspaces | `4.f` |
 | `exit_on_hovered` | `int` | If true, hiding the workspace will exit to the hovered workspace instead of the active workspace. | `false` |
-| `warp_on_move_window` | `int` | Works the same as `cursor:warp_on_change_workspace` (see [wiki](https://wiki.hypr.land/Configuring/Variables/#cursor)) but with `hyprtasking:movewindow` dispathcer. <br> `cursor:warp_on_change_workspace` works only with `hyprtasking:move` dispathcer | `1` |
-| `close_overview_on_reload ` | `int` | Whether to close the overview if its type didn't type didn't change after hyprland config reload | `true` |
+| `warp_on_move_window` | `int` | Works the same as `cursor:warp_on_change_workspace` (see [wiki](https://wiki.hypr.land/Configuring/Variables/#cursor)) but with the `hyprtasking:movewindow` dispatcher. <br> `cursor:warp_on_change_workspace` works only with the `hyprtasking:move` dispatcher | `1` |
+| `close_overview_on_reload` | `int` | Whether to close the overview if its layout type did not change after a Hyprland config reload | `true` |
 | `drag_button` | `int` | The mouse button to use to drag windows around | `0x110` |
 | `select_button` | `int` | The mouse button to use to select a workspace | `0x111` |
 | `gestures:enabled` | `int` | Whether or not to enable gestures | `true` |
@@ -340,7 +346,7 @@ All options should are prefixed with `plugin:hyprtasking:`.
 | `grid:loop_layers` | `int` | When enabled, moving back on the first layer will wrap around to the last layer. The reverse also works | `true` |
 | `grid:gaps_use_aspect_ratio` | `int` | When enabled, vertical gaps will be scaled to match the monitor's aspect ratio | `false` |
 | `linear:top` | `int` | Whether or not to position the overview on top of the screen | `false` |
-| `linear:blur` | `int` | Whether or not to blur the dimmed area | `false` |
+| `linear:blur` | `int` | Whether or not to blur the dimmed area | `true` |
 | `linear:height` | `float` | The height of the linear overlay in logical pixels | `300.f` |
 | `linear:scroll_speed` | `float` | Scroll speed modifier. Set negative to flip direction | `1.f` |
 

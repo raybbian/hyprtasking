@@ -3,11 +3,14 @@
 #include <hyprland/src/Compositor.hpp>
 #include <hyprland/src/SharedDefs.hpp>
 #include <hyprland/src/desktop/DesktopTypes.hpp>
+#include <hyprland/src/desktop/state/GlobalWindowController.hpp>
 #include <hyprland/src/macros.hpp>
 #include <hyprland/src/managers/input/InputManager.hpp>
-#include <hyprland/src/managers/cursor/CursorShapeOverrideController.hpp>
+#include <hyprland/src/pointer/cursor/CursorShapeOverrideController.hpp>
 #include <hyprland/src/render/OpenGL.hpp>
 #include <hyprland/src/render/Renderer.hpp>
+#include <hyprland/src/state/MonitorState.hpp>
+#include <hyprland/src/state/WorkspaceState.hpp>
 #include <hyprutils/math/Box.hpp>
 
 #include "config.hpp"
@@ -50,7 +53,8 @@ void HTView::do_exit_behavior(bool exit_on_mouse) {
         return;
 
     auto try_get_hover_id = [this, &monitor]() {
-        const PHLMONITOR cursor_monitor = g_pCompositor->getMonitorFromCursor();
+        const PHLMONITOR cursor_monitor =
+            State::monitorState()->query().vec(g_pInputManager->getMouseCoordsInternal()).run();
         if (cursor_monitor != monitor)
             return WORKSPACE_INVALID;
 
@@ -62,10 +66,10 @@ void HTView::do_exit_behavior(bool exit_on_mouse) {
 
     const WORKSPACEID ws_id =
         (exit_on_mouse || EXIT_ON_HOVERED) ? try_get_hover_id() : monitor->m_activeWorkspace->m_id;
-    PHLWORKSPACE workspace = g_pCompositor->getWorkspaceByID(ws_id);
+    PHLWORKSPACE workspace = State::workspaceState()->query().id(ws_id).run();
 
     if (workspace == nullptr && ws_id != WORKSPACE_INVALID)
-        workspace = g_pCompositor->createNewWorkspace(ws_id, monitor->m_id);
+        workspace = State::workspaceState()->create(ws_id, monitor->m_id);
     if (workspace == nullptr)
         return;
 
@@ -89,10 +93,10 @@ void HTView::show(bool recalculate) {
     }
     layout->on_show();
 
-    Cursor::overrideController->setOverride("left_ptr", Cursor::CURSOR_OVERRIDE_UNKNOWN);
+    Pointer::Cursor::overrideController->setOverride("left_ptr", Pointer::Cursor::CURSOR_OVERRIDE_UNKNOWN);
 
     g_pHyprRenderer->damageMonitor(monitor);
-    g_pCompositor->scheduleFrameForMonitor(monitor);
+    monitor->scheduleFrame();
 }
 
 void HTView::hide(bool exit_on_mouse, std::optional<WORKSPACEID> target_workspace) {
@@ -123,10 +127,10 @@ void HTView::hide(bool exit_on_mouse, std::optional<WORKSPACEID> target_workspac
         closing = false;
     });
 
-    Cursor::overrideController->unsetOverride(Cursor::CURSOR_OVERRIDE_UNKNOWN);
+    Pointer::Cursor::overrideController->unsetOverride(Pointer::Cursor::CURSOR_OVERRIDE_UNKNOWN);
 
     g_pHyprRenderer->damageMonitor(monitor);
-    g_pCompositor->scheduleFrameForMonitor(monitor);
+    monitor->scheduleFrame();
 }
 
 void HTView::warp_window(Config::INTEGER warp, PHLWINDOW window) {
@@ -157,15 +161,15 @@ void HTView::move_id(WORKSPACEID ws_id, bool move_window) {
     if (hovered_window == nullptr && move_window)
         should_move = false;
 
-    PHLWORKSPACE other_workspace = g_pCompositor->getWorkspaceByID(ws_id);
+    PHLWORKSPACE other_workspace = State::workspaceState()->query().id(ws_id).run();
     if (other_workspace == nullptr && ws_id != WORKSPACE_INVALID)
-        other_workspace = g_pCompositor->createNewWorkspace(ws_id, monitor->m_id);
+        other_workspace = State::workspaceState()->create(ws_id, monitor->m_id);
     if (other_workspace == nullptr)
         return;
 
     monitor->changeWorkspace(other_workspace);
     if (move_window && should_move) {
-        g_pCompositor->moveWindowToWorkspaceSafe(hovered_window, other_workspace);
+        Desktop::globalWindowController()->moveWindowToWorkspace(hovered_window, other_workspace);
     }
 
     Config::INTEGER warp;
@@ -210,7 +214,7 @@ void HTView::move(std::string arg, bool move_window) {
 }
 
 PHLMONITOR HTView::get_monitor() {
-    const PHLMONITOR monitor = g_pCompositor->getMonitorFromID(monitor_id);
+    const PHLMONITOR monitor = State::monitorState()->query().id(monitor_id).run();
     if (monitor == nullptr)
         Log::logger->log(Log::WARN, "[Hyprtasking] Returning null monitor from get_monitor!");
     return monitor;

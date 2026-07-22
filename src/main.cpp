@@ -7,17 +7,18 @@
 #include <hyprland/src/config/shared/actions/ConfigActions.hpp>
 #include <hyprland/src/desktop/DesktopTypes.hpp>
 #include <hyprland/src/devices/IKeyboard.hpp>
-#include <hyprland/src/helpers/Monitor.hpp>
+#include <hyprland/src/output/Monitor.hpp>
 #include <hyprland/src/macros.hpp>
 #include <hyprland/src/managers/KeybindManager.hpp>
 #include <hyprland/src/layout/LayoutManager.hpp>
-#include <hyprland/src/managers/PointerManager.hpp>
+#include <hyprland/src/pointer/PointerManager.hpp>
 #include <hyprland/src/managers/input/InputManager.hpp>
 #include <hyprland/src/plugins/HookSystem.hpp>
 #include <hyprland/src/plugins/PluginAPI.hpp>
 #include <hyprland/src/plugins/PluginSystem.hpp>
 #include <hyprland/src/render/OpenGL.hpp>
 #include <hyprland/src/render/Renderer.hpp>
+#include <hyprland/src/state/MonitorState.hpp>
 #include <hyprland/src/event/EventBus.hpp>
 #include <hyprland/src/config/values/ConfigValues.hpp>
 #include <hyprlang.hpp>
@@ -465,7 +466,7 @@ static uint32_t hook_is_solitary_blocked(void* thisptr, bool full) {
         return (*(origIsSolitaryBlocked)is_solitary_blocked_hook->m_original)(thisptr, full);
 
     if (view->active || view->navigating) {
-        return CMonitor::SC_UNKNOWN;
+        return Monitor::CMonitor::SC_UNKNOWN;
     }
     return (*(origIsSolitaryBlocked)is_solitary_blocked_hook->m_original)(thisptr, full);
 }
@@ -537,7 +538,7 @@ static void cancel_event(Event::SCallbackInfo& info) {
 static void register_monitors() {
     if (ht_manager == nullptr)
         return;
-    for (const PHLMONITOR& monitor : g_pCompositor->m_monitors) {
+    for (const PHLMONITOR& monitor : State::monitorState()->monitors()) {
         // Skip monitors that haven't finished initializing
         if (monitor->m_transformedSize.x < 1 || monitor->m_transformedSize.y < 1)
             continue;
@@ -649,10 +650,11 @@ static void init_functions() {
     Log::logger->log(LOG, "[Hyprtasking] Attempting hook {}", FNS_BO[0].signature);
     success = blur_optimizations_hook->hook() && success;
 
-    // make sure this signature has "CMonitor"!
+    // Hyprland 0.56 moved CMonitor into the Monitor namespace; keep the
+    // mangled signature in sync with Monitor::CMonitor.
     static auto FNS2 = HyprlandAPI::findFunctionsByName(
         PHANDLE,
-        "_ZN6Render13IHyprRenderer18shouldRenderWindowEN9Hyprutils6Memory14CSharedPointerIN7Desktop4View7CWindowEEENS3_I8CMonitorEE"
+        "_ZN6Render13IHyprRenderer18shouldRenderWindowEN9Hyprutils6Memory14CSharedPointerIN7Desktop4View7CWindowEEENS3_IN7Monitor8CMonitorEEE"
     );
     if (FNS2.empty())
         fail_exit("No shouldRenderWindow");
@@ -669,7 +671,7 @@ static void init_functions() {
     // strings /usr/bin/hyprland | grep renderWindow
     static auto FNS3 = HyprlandAPI::findFunctionsByName(
         PHANDLE,
-        "_ZN6Render13IHyprRenderer12renderWindowEN9Hyprutils6Memory14CSharedPointerIN7Desktop4View7CWindowEEENS3_I8CMonitorEERKNSt6chrono10time_pointINSA_3_V212steady_clockENSA_8durationIlSt5ratioILl1ELl1000000000EEEEEEbNS_15eRenderPassModeEbb"
+        "_ZN6Render13IHyprRenderer12renderWindowEN9Hyprutils6Memory14CSharedPointerIN7Desktop4View7CWindowEEENS3_IN7Monitor8CMonitorEEERKNSt6chrono10time_pointINSB_3_V212steady_clockENSB_8durationIlSt5ratioILl1ELl1000000000EEEEEEbNS_15eRenderPassModeEbb"
     );
     if (FNS3.empty())
         fail_exit("No renderWindow");

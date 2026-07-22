@@ -26,7 +26,7 @@
       hyprtasking = let
         hyprlandPkg = hyprland.packages.${system}.hyprland;
       in
-        pkgs.gcc14Stdenv.mkDerivation {
+        pkgs.stdenv.mkDerivation {
           pname = "hyprtasking";
           version = "0.1";
 
@@ -44,6 +44,27 @@
         };
 
       default = self.packages.${system}.hyprtasking;
+    });
+
+    checks = forSystems (system: pkgs: let
+      hyprlandPkg = hyprland.packages.${system}.hyprland;
+    in {
+      hyprland-hook-symbols = pkgs.runCommand "hyprtasking-hyprland-hook-symbols" {
+        nativeBuildInputs = [pkgs.binutils];
+      } ''
+        sed -n 's/.*"\(_ZN[^"]*\)".*/\1/p' ${self}/src/main.cpp > required-symbols
+        test -s required-symbols
+        nm -D -j ${hyprlandPkg}/bin/.Hyprland-wrapped > available-symbols
+
+        while IFS= read -r symbol; do
+          if ! grep -Fx -- "$symbol" available-symbols >/dev/null; then
+            echo "Hyprland does not export required hook symbol: $symbol" >&2
+            exit 1
+          fi
+        done < required-symbols
+
+        touch "$out"
+      '';
     });
   };
 }
