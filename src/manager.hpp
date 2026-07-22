@@ -1,7 +1,9 @@
 #pragma once
 
 #include <hyprland/src/desktop/DesktopTypes.hpp>
+#include <hyprland/src/devices/IKeyboard.hpp>
 #include <hyprland/src/helpers/AnimatedVariable.hpp>
+#include <unordered_set>
 
 #include "overview.hpp"
 
@@ -29,6 +31,7 @@ class HTManager {
     bool start_window_drag();
     bool end_window_drag();
     bool exit_to_workspace();
+    bool on_key(IKeyboard::SKeyEvent event);
     bool on_mouse_move();
     bool on_mouse_axis(double delta);
 
@@ -40,6 +43,7 @@ class HTManager {
 
     swipe_state_t swipe_state;
     float swipe_amt;
+    std::unordered_set<uint32_t> jump_pressed_keys;
     void swipe_start();
     bool swipe_update(IPointer::SSwipeUpdateEvent e);
     bool swipe_end();

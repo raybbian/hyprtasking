@@ -21,9 +21,9 @@ https://github.com/user-attachments/assets/8d6cdfd2-2b17-4240-a117-1dbd2231ed4e
 - [x] Mouse controls
     - [x] Exit into workspace (hover, click)
     - [x] Drag and drop windows
-- [ ] Keyboard controls
+- [x] Keyboard controls
     - [x] Switch workspaces with direction
-    - [ ] Switch workspaces with absolute number
+    - [x] Switch workspaces with jump labels
 - [x] Multi-monitor support (tested)
 - [x] Monitor scaling support (tested)
 - [x] Animation support
@@ -108,6 +108,8 @@ hyprctl plugin load "$(realpath libhyprtasking.so)"
 - Workspace Transitioning:
     - Open the overlay, then use **right click** to switch to a workspace
     - Use the directional dispatchers `hyprtasking:move` to switch to a workspace
+    - With `jump.enabled` enabled, press the label shown over a workspace to jump to it
+      (`1`-`9`, `0`, then `a`-`z`)
 - Window management:
     - **Left click** to drag and drop windows around
 
@@ -154,6 +156,13 @@ hl.config({
       -- for other mouse buttons see <linux/input-event-codes.h>
       drag_button = 0x110,   -- left mouse button
       select_button = 0x111, -- right mouse button
+
+      jump = {
+        enabled = false,
+        label_color = 0xffffffff,
+        label_background = 0x000000cc,
+        label_size = 32,
+      },
 
       gestures = {
         enabled = true,
@@ -223,6 +232,13 @@ plugin {
         drag_button = 0x110 # left mouse button
         select_button = 0x111 # right mouse button
         # for other mouse buttons see <linux/input-event-codes.h>
+
+        jump {
+            enabled = false
+            label_color = 0xffffffff
+            label_background = 0x000000cc
+            label_size = 32
+        }
 
         gestures {
             enabled = true
