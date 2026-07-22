@@ -186,7 +186,7 @@ const std::string CLEAR_PASS_ELEMENT_NAME = "CClearPassElement";
 void HTLayoutBase::post_render() {
     bool first = true;
     std::erase_if(g_pHyprRenderer->m_renderPass.m_passElements, [&first](const auto& e) {
-        bool res = e.element->passName() == CLEAR_PASS_ELEMENT_NAME && !first;
+        bool res = e->element->passName() == CLEAR_PASS_ELEMENT_NAME && !first;
         first = false;
         return res;
     });
