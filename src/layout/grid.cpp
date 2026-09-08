@@ -318,6 +318,17 @@ void HTLayoutGrid::close_open_lerp(float perc) {
     offset->setValueAndWarp(new_pos);
 }
 
+void HTLayoutGrid::schedule_animation_frames() {
+    offset->setUpdateCallback([this](auto) {
+        const PHLMONITOR monitor = get_monitor();
+        if (monitor == nullptr)
+            return;
+
+        g_pHyprRenderer->damageMonitor(monitor);
+        monitor->scheduleFrame();
+    });
+}
+
 void HTLayoutGrid::on_show(CallbackFun on_complete) {
     CScopeGuard x([this, &on_complete] {
         if (on_complete != nullptr)
@@ -331,6 +342,7 @@ void HTLayoutGrid::on_show(CallbackFun on_complete) {
     const auto animation_config = HTConfig::gridAnimationConfig();
     scale->setConfig(animation_config);
     offset->setConfig(animation_config);
+    schedule_animation_frames();
 
     *scale = calculate_ws_box(0, 0, HT_VIEW_OPENED).w / monitor->m_transformedSize.x; // 1 / ROWS
     // Offset for the whole grid of workspaces
@@ -350,6 +362,7 @@ void HTLayoutGrid::on_hide(CallbackFun on_complete) {
     const auto animation_config = HTConfig::gridAnimationConfig();
     scale->setConfig(animation_config);
     offset->setConfig(animation_config);
+    schedule_animation_frames();
 
     build_overview_layout(HT_VIEW_CLOSED);
     *scale = 1.;
@@ -370,6 +383,7 @@ void HTLayoutGrid::on_move(WORKSPACEID old_id, WORKSPACEID new_id, CallbackFun o
     const auto animation_config = HTConfig::gridAnimationConfig();
     scale->setConfig(animation_config);
     offset->setConfig(animation_config);
+    schedule_animation_frames();
 
     // prevent the thing from animating
     State::workspaceState()->query().id(old_id).run()->m_renderOffset->warp();
