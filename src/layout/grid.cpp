@@ -508,9 +508,6 @@ void HTLayoutGrid::build_overview_layout(HTViewStage stage) {
     const int ROWS = HTConfig::value<Config::INTEGER>("grid:rows");
     const int COLS = HTConfig::value<Config::INTEGER>("grid:cols");
 
-    const PHLMONITOR last_monitor = Desktop::focusState()->monitor();
-    Desktop::focusState()->rawMonitorFocus(monitor);
-
     overview_layout.clear();
     for (int y = 0; y < ROWS; y++) {
         for (int x = 0; x < COLS; x++) {
@@ -523,8 +520,6 @@ void HTLayoutGrid::build_overview_layout(HTViewStage stage) {
         }
     }
 
-    if (last_monitor != nullptr)
-        Desktop::focusState()->rawMonitorFocus(last_monitor);
 }
 
 // Render each visible workspace directly into its grid tile via a scaled
