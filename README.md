@@ -185,6 +185,12 @@ hl.config({
         layers = 2,
         loop_layers = true,
         gaps_use_aspect_ratio = true,
+        animation = {
+          -- -1 inherits Hyprland's workspaces animation; 0 disables; 1 enables.
+          enabled = -1,
+          speed = 3.5,
+          bezier = "default",
+        },
       },
 
       linear = {
@@ -261,6 +267,12 @@ plugin {
             layers = 2
             loop_layers = true
             gaps_use_aspect_ratio = true
+            animation {
+                # -1 inherits Hyprland's workspaces animation; 0 disables; 1 enables.
+                enabled = -1
+                speed = 3.5
+                bezier = default
+            }
         }
 
         linear {
@@ -344,6 +356,9 @@ All options are prefixed with `plugin:hyprtasking:`.
 | `grid:layers` | `int` | The number of layers for grid layout, the third dimension | `1` |
 | `grid:loop_layers` | `int` | When enabled, moving back on the first layer will wrap around to the last layer. The reverse also works | `true` |
 | `grid:gaps_use_aspect_ratio` | `int` | When enabled, vertical gaps will be scaled to match the monitor's aspect ratio | `false` |
+| `grid:animation:enabled` | `int` | Whether to use the independent grid animation. `-1` inherits Hyprland's `workspaces` animation, `0` disables animation, and `1` enables it. | `-1` |
+| `grid:animation:speed` | `float` | Duration of the independent grid animation in 100 ms increments. Values below `0.1` are clamped to `0.1`. | `3.5f` |
+| `grid:animation:bezier` | `string` | Hyprland bezier curve used by the independent grid animation. | `default` |
 | `linear:top` | `int` | Whether or not to position the overview on top of the screen | `false` |
 | `linear:blur` | `int` | Whether or not to blur the dimmed area | `true` |
 | `linear:height` | `float` | The height of the linear overlay in logical pixels | `300.f` |
