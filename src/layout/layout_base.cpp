@@ -153,6 +153,7 @@ void HTLayoutBase::render_jump_labels() {
         return;
 
     static constexpr std::string_view LABELS = "1234567890abcdefghijklmnopqrstuvwxyz";
+    const bool show_workspace_names = HTConfig::value<Config::INTEGER>("jump:show_workspace_names");
     const auto targets = jump_targets();
     const size_t count = std::min(targets.size(), LABELS.size());
 
@@ -174,15 +175,20 @@ void HTLayoutBase::render_jump_labels() {
         if (workspace_box.intersection(monitor_box).empty())
             continue;
 
-        // Text rasterization is relatively expensive and these glyphs are immutable for a
-        // given scale/color, so retain one texture per rendered label style.
+        const PHLWORKSPACE workspace = State::workspaceState()->query().id(targets[i]).run();
+        const std::string label = show_workspace_names && workspace != nullptr && !workspace->m_name.empty()
+            ? workspace->m_name
+            : std::string(1, LABELS[i]);
+
+        // Text rasterization is relatively expensive and these labels are immutable for a
+        // given workspace, scale, and color, so retain one texture per rendered label style.
         static std::unordered_map<std::string, SP<Render::ITexture>> texture_cache;
-        const std::string texture_key = std::string(1, LABELS[i]) + ":" + std::to_string(font_size)
+        const std::string texture_key = label + ":" + std::to_string(font_size)
             + ":" + std::to_string(label_color_value);
         auto& texture = texture_cache[texture_key];
         if (texture == nullptr) {
             texture = g_pHyprRenderer->renderText(
-                std::string(1, LABELS[i]),
+                label,
                 label_color,
                 font_size,
                 false,

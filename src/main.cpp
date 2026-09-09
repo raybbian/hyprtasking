@@ -766,6 +766,7 @@ static void init_config() {
 
     // keyboard workspace jump labels
     addConfigValue(CIntValue, "jump:enabled", "enable keyboard workspace jump labels", 0);
+    addConfigValue(CIntValue, "jump:show_workspace_names", "show workspace names in jump labels", 0);
     addConfigValue(CIntValue, "jump:label_color", "jump label color", 0xFFFFFFFF);
     addConfigValue(CIntValue, "jump:label_background", "jump label background", 0x000000CC);
     addConfigValue(CIntValue, "jump:label_size", "jump label font size", 32);
