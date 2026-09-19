@@ -118,8 +118,19 @@ void HTLayoutBase::render() {
 std::vector<WORKSPACEID> HTLayoutBase::jump_targets() const {
     std::vector<std::pair<WORKSPACEID, HTWorkspace>> ordered;
     ordered.reserve(overview_layout.size());
-    for (const auto& entry : overview_layout)
+    for (const auto& entry : overview_layout) {
+        // Special workspaces are never laid out as grid slots -- they only
+        // enter overview_layout as phantoms, because get_global_ws_box() and
+        // global_to_local_ws_unscaled() read the map with operator[], which
+        // default-inserts {x = 0, y = 0, empty box} for any id it is asked
+        // about. Such an entry ties with the top-left slot at (0, 0) and wins
+        // the id tiebreak (-98 < 1), so it takes jump label "1" and is then
+        // skipped at render time for having an empty box -- shifting every
+        // visible label by one. Keep them out of the label ordering.
+        if (entry.first <= 0)
+            continue;
         ordered.push_back(entry);
+    }
 
     std::sort(ordered.begin(), ordered.end(), [](const auto& lhs, const auto& rhs) {
         if (lhs.second.y != rhs.second.y)
