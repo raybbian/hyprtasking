@@ -526,7 +526,15 @@ static void on_swipe_update(IPointer::SSwipeUpdateEvent e, Event::SCallbackInfo&
 static void on_swipe_end(IPointer::SSwipeEndEvent e, Event::SCallbackInfo& info) {
     if (ht_manager == nullptr)
         return;
-    info.cancelled = ht_manager->swipe_end();
+    // Do not cancel the end event, even when we handled the swipe ourselves.
+    // Hyprland's CTrackpadGestures relies on every swipe end to reset
+    // m_activeGesture. Swallowing it leaves a gesture active indefinitely with
+    // the swipe's direction, and the next pinch update is then dispatched into
+    // that stale gesture with .swipe == nullptr, which segfaults in
+    // ITrackpadGesture::distance(). When we do consume a swipe from the start,
+    // the core never activates a gesture, so its gestureEnd() is a no-op and
+    // cancelling gained us nothing.
+    ht_manager->swipe_end();
 }
 
 static void cancel_event(Event::SCallbackInfo& info) {
