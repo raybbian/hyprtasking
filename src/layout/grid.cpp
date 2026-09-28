@@ -171,7 +171,17 @@ void HTLayoutGrid::refresh_workspace_cache(
         );
         if (bound == nullptr || bound->m_id != view_id)
             continue;
-        place_with_prior(rule->m_workspaceId, cursor);
+        // Monitor-bound rules take slots strictly in id order, ignoring any
+        // prior slot. The prior map is keyed by id alone, so when rules are
+        // re-bound on a reload (ids moving between monitors), an id keeps a
+        // slot it earned under the old binding: 11 kept slot 1 from before,
+        // 12 then took slot 0, and every tile read one off.
+        if (ws_slot_cache.count(rule->m_workspaceId))
+            continue;
+        const long long idx = next_free_slot(cursor);
+        if (idx < 0)
+            continue;
+        place(rule->m_workspaceId, (size_t)idx);
     }
 
     // Sort by m_id so slot assignment is independent of Hyprland's internal
