@@ -794,6 +794,9 @@ static void init_config() {
     addConfigValue(CIntValue, "grid:loop_layers", "loop layers", 1);
     addConfigValue(CIntValue, "grid:loop", "loop", 0);
     addConfigValue(CIntValue, "grid:gaps_use_aspect_ratio", "gaps use aspect ratio", 0);
+    addConfigValue(CIntValue, "grid:animation:enabled", "custom grid animation enabled", -1);
+    addConfigValue(CFloatValue, "grid:animation:speed", "custom grid animation speed", 3.5f);
+    addConfigValue(CStringValue, "grid:animation:bezier", "custom grid animation bezier", "default");
 
     //linear specific
     addConfigValue(CIntValue, "linear:blur", "blur", 1);
