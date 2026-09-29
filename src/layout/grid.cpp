@@ -136,9 +136,25 @@ void HTLayoutGrid::refresh_workspace_cache(
     std::unordered_set<WORKSPACEID> off_limits = extra_off_limits;
     const auto& ws_manager = Config::workspaceRuleMgr();
     const auto& all_rules = ws_manager->getAllWorkspaceRules();
+
+    auto bound_monitor = [&](const SP<Config::CWorkspaceRule>& rule) {
+        return ws_manager->getBoundMonitorForWS(
+            rule->m_workspaceName.starts_with("name:")
+                ? rule->m_workspaceName.substr(5)
+                : rule->m_workspaceName
+        );
+    };
+
+    // Only a rule that binds a monitor reserves its ID. A rule that names no
+    // monitor -- `workspace = 3, layout:scrolling` and friends -- is skipped by
+    // the placement loop below, so reserving its ID here withholds it from the
+    // synthetic filler as well and punches a hole in the grid's numbering.
     for (const auto& rule : all_rules) {
-        if (rule->m_workspaceId > 0)
-            off_limits.insert(rule->m_workspaceId);
+        if (rule->m_workspaceId <= 0)
+            continue;
+        if (bound_monitor(rule) == nullptr)
+            continue;
+        off_limits.insert(rule->m_workspaceId);
     }
     for (const auto& w : State::workspaceState()->workspaces()) {
         if (w == nullptr)
@@ -164,11 +180,7 @@ void HTLayoutGrid::refresh_workspace_cache(
             continue;
         if (extra_off_limits.count(rule->m_workspaceId))
             continue;
-        const auto bound = Config::workspaceRuleMgr()->getBoundMonitorForWS(
-            rule->m_workspaceName.starts_with("name:")
-                ? rule->m_workspaceName.substr(5)
-                : rule->m_workspaceName
-        );
+        const auto bound = bound_monitor(rule);
         if (bound == nullptr || bound->m_id != view_id)
             continue;
         place_with_prior(rule->m_workspaceId, cursor);
