@@ -118,8 +118,26 @@ void HTLayoutBase::render() {
 std::vector<WORKSPACEID> HTLayoutBase::jump_targets() const {
     std::vector<std::pair<WORKSPACEID, HTWorkspace>> ordered;
     ordered.reserve(overview_layout.size());
-    for (const auto& entry : overview_layout)
+    for (const auto& entry : overview_layout) {
+        // Skip entries that have no tile. overview_layout is read with
+        // operator[] in get_global_ws_box() and global_to_local_ws_unscaled(),
+        // which default-inserts {x = 0, y = 0, empty box} for any workspace id
+        // it is asked about, so a workspace that was never laid out as a grid
+        // slot still ends up in the map. That covers special workspaces, and
+        // also ordinary ones that hold no slot on this monitor -- which is what
+        // happens when the monitor set changes and workspaces bound to an
+        // absent output stop being placed here.
+        //
+        // render_jump_labels() already skips exactly these, since an empty box
+        // cannot intersect the monitor, but it keeps advancing the label index.
+        // A phantom therefore either shifts every label (when it sorts first)
+        // or leaves a hole in the sequence, and pushes the tail onto a label
+        // that should not exist. Testing the box rather than the id keeps both
+        // cases out, and matches the condition the renderer actually applies.
+        if (entry.second.box.empty())
+            continue;
         ordered.push_back(entry);
+    }
 
     std::sort(ordered.begin(), ordered.end(), [](const auto& lhs, const auto& rhs) {
         if (lhs.second.y != rhs.second.y)
