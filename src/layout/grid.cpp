@@ -137,14 +137,15 @@ void HTLayoutGrid::refresh_workspace_cache(
     const auto& ws_manager = Config::workspaceRuleMgr();
     const auto& all_rules = ws_manager->getAllWorkspaceRules();
     for (const auto& rule : all_rules) {
-        if (rule->m_workspaceId > 0)
-            off_limits.insert(rule->m_workspaceId);
+        const WORKSPACEID rule_id = rule_ws_id(*rule);
+        if (rule_id > 0)
+            off_limits.insert(rule_id);
     }
     for (const auto& w : State::workspaceState()->workspaces()) {
         if (w == nullptr)
             continue;
         if (w->monitorID() != view_id)
-            off_limits.insert(w->m_id);
+            off_limits.insert(get_ws_id(w.lock()));
     }
 
     size_t cursor = 0;
@@ -154,24 +155,25 @@ void HTLayoutGrid::refresh_workspace_cache(
     rules_sorted.reserve(all_rules.size());
     for (const auto& r : all_rules)
         rules_sorted.push_back(r);
-    std::sort(rules_sorted.begin(), rules_sorted.end(),
-              [](const SP<Config::CWorkspaceRule>& a, const SP<Config::CWorkspaceRule>& b) {
-                  return a->m_workspaceId < b->m_workspaceId;
-              });
+    std::sort(
+        rules_sorted.begin(),
+        rules_sorted.end(),
+        [](const SP<Config::CWorkspaceRule>& a, const SP<Config::CWorkspaceRule>& b) {
+            return rule_ws_id(*a) < rule_ws_id(*b);
+        }
+    );
 
     for (const SP<Config::CWorkspaceRule>& rule : rules_sorted) {
-        if (rule->m_workspaceId <= 0)
+        const WORKSPACEID rule_id = rule_ws_id(*rule);
+        if (rule_id <= 0)
             continue;
-        if (extra_off_limits.count(rule->m_workspaceId))
+        if (extra_off_limits.count(rule_id))
             continue;
-        const auto bound = Config::workspaceRuleMgr()->getBoundMonitorForWS(
-            rule->m_workspaceName.starts_with("name:")
-                ? rule->m_workspaceName.substr(5)
-                : rule->m_workspaceName
-        );
+        const auto bound =
+            Config::workspaceRuleMgr()->getBoundMonitorForWS(std::to_string(rule_id));
         if (bound == nullptr || bound->m_id != view_id)
             continue;
-        place_with_prior(rule->m_workspaceId, cursor);
+        place_with_prior(rule_id, cursor);
     }
 
     // Sort by m_id so slot assignment is independent of Hyprland's internal
@@ -182,33 +184,34 @@ void HTLayoutGrid::refresh_workspace_cache(
             continue;
         if (w->monitorID() != view_id)
             continue;
-        if (w->m_id <= 0)
+        if (get_ws_id(w) <= 0)
             continue;
-        if (extra_off_limits.count(w->m_id))
+        if (extra_off_limits.count(get_ws_id(w)))
             continue;
         on_monitor.push_back(w);
     }
-    std::sort(on_monitor.begin(), on_monitor.end(),
-              [](const PHLWORKSPACE& a, const PHLWORKSPACE& b) {
-                  return a->m_id < b->m_id;
-              });
+    std::sort(
+        on_monitor.begin(),
+        on_monitor.end(),
+        [](const PHLWORKSPACE& a, const PHLWORKSPACE& b) { return get_ws_id(a) < get_ws_id(b); }
+    );
     // Settle workspaces that still have a free prior slot before assigning
     // anyone via the cursor — otherwise a migrated workspace with no prior
     // here would steal slot 0 and displace this monitor's resident at (0,0).
     std::vector<PHLWORKSPACE> needs_cursor;
     for (const auto& w : on_monitor) {
-        const auto pit = prior.find(w->m_id);
+        const auto pit = prior.find(get_ws_id(w));
         if (pit != prior.end()) {
             const long long idx = find_slot_index(pit->second);
             if (idx >= 0 && !taken[(size_t)idx]) {
-                place(w->m_id, (size_t)idx);
+                place(get_ws_id(w), (size_t)idx);
                 continue;
             }
         }
         needs_cursor.push_back(w);
     }
     for (const auto& w : needs_cursor)
-        place_with_prior(w->m_id, cursor);
+        place_with_prior(get_ws_id(w), cursor);
 
     WORKSPACEID synth_candidate = 1;
     auto next_synth = [&]() -> WORKSPACEID {
@@ -304,7 +307,7 @@ void HTLayoutGrid::close_open_lerp(float perc) {
 
     build_overview_layout(HT_VIEW_CLOSED);
     double close_scale = 1.;
-    Vector2D close_pos = -overview_layout[monitor->m_activeWorkspace->m_id].box.pos();
+    Vector2D close_pos = -overview_layout[get_ws_id(monitor->m_activeWorkspace)].box.pos();
 
     double new_scale = std::lerp(close_scale, open_scale, perc);
     Vector2D new_pos = Vector2D {
@@ -346,7 +349,7 @@ void HTLayoutGrid::on_hide(CallbackFun on_complete) {
     build_overview_layout(HT_VIEW_CLOSED);
     *scale = 1.;
     // End workspace to end up on
-    *offset = -overview_layout[monitor->m_activeWorkspace->m_id].box.pos();
+    *offset = -overview_layout[get_ws_id(monitor->m_activeWorkspace)].box.pos();
 }
 
 void HTLayoutGrid::on_move(WORKSPACEID old_id, WORKSPACEID new_id, CallbackFun on_complete) {
@@ -360,8 +363,10 @@ void HTLayoutGrid::on_move(WORKSPACEID old_id, WORKSPACEID new_id, CallbackFun o
         return;
 
     // prevent the thing from animating
-    State::workspaceState()->query().id(old_id).run()->m_renderOffset->warp();
-    State::workspaceState()->query().id(new_id).run()->m_renderOffset->warp();
+    if (const PHLWORKSPACE old_ws = find_workspace(old_id))
+        old_ws->m_renderOffset->warp();
+    if (const PHLWORKSPACE new_ws = find_workspace(new_id))
+        new_ws->m_renderOffset->warp();
 
     build_overview_layout(HT_VIEW_CLOSED);
     *scale = 1.;
@@ -384,7 +389,7 @@ bool HTLayoutGrid::should_render_window(PHLWINDOW window) {
     if (workspace == nullptr)
         return false;
 
-    CBox window_box = get_global_window_box(window, window->workspaceID());
+    CBox window_box = get_global_window_box(window, get_ws_id(window->m_workspace));
     if (window_box.empty())
         return false;
     if (window_box.intersection(monitor->logicalBox()).empty())
@@ -408,13 +413,13 @@ void HTLayoutGrid::init_position() {
     // Sync to the layer of whatever workspace is currently active on this
     // monitor. Fresh views (e.g. after monitor reconnect) start at layer 0,
     // so without this the overview would open on the wrong layer.
-    const auto sit = ws_slot_cache.find(monitor->m_activeWorkspace->m_id);
+    const auto sit = ws_slot_cache.find(get_ws_id(monitor->m_activeWorkspace));
     if (sit != ws_slot_cache.end())
         layer = sit->second.layer;
 
     build_overview_layout(HT_VIEW_CLOSED);
 
-    const auto it = overview_layout.find(monitor->m_activeWorkspace->m_id);
+    const auto it = overview_layout.find(get_ws_id(monitor->m_activeWorkspace));
     if (it == overview_layout.end() || it->second.box.empty())
         return;
 
@@ -505,9 +510,9 @@ void HTLayoutGrid::build_overview_layout(HTViewStage stage) {
 // renderWorkspace (renderModif). The renderTexture hook keeps the per-surface
 // scissor in sync with that renderModif, so window contents aren't culled near
 // tile edges.
-void HTLayoutGrid::render() {
-    HTLayoutBase::render();
-    CScopeGuard x([this] { post_render(); });
+void HTLayoutGrid::render(CRenderContext& ctx) {
+    HTLayoutBase::render(ctx);
+    CScopeGuard x([this, &ctx] { post_render(ctx); });
 
     const PHTVIEW par_view = ht_manager->get_view_from_id(view_id);
     if (par_view == nullptr)
@@ -530,7 +535,7 @@ void HTLayoutGrid::render() {
     CRectPassElement::SRectData bg;
     bg.color = CHyprColor {HTConfig::value<Config::INTEGER>("bg_color")}.stripA();
     bg.box = monitor_box;
-    g_pHyprRenderer->m_renderPass.add(makeUnique<CRectPassElement>(bg));
+    IHyprRenderer::addPassElement(ctx, makeUnique<CRectPassElement>(bg));
 
     build_overview_layout(HT_VIEW_ANIMATING);
 
@@ -543,7 +548,7 @@ void HTLayoutGrid::render() {
     Animation::Workspace::startAnimation(
         start_workspace, Animation::Workspace::ANIMATION_TYPE_OUT, false, true
     );
-    start_workspace->m_visible = false;
+    start_workspace->setVisible(false);
 
     CBox global_mon_box = {monitor->m_position, monitor->m_transformedSize};
     const auto tile_visible = [&](const CBox& box) {
@@ -561,9 +566,9 @@ void HTLayoutGrid::render() {
             continue;
         CBorderPassElement::SBorderData bdata;
         bdata.box = ws_layout.box;
-        bdata.grad1 = start_workspace->m_id == ws_id ? *ACTIVECOL : *INACTIVECOL;
+        bdata.grad1 = get_ws_id(start_workspace) == ws_id ? *ACTIVECOL : *INACTIVECOL;
         bdata.borderSize = BORDERSIZE;
-        g_pHyprRenderer->m_renderPass.add(makeUnique<CBorderPassElement>(bdata));
+        IHyprRenderer::addPassElement(ctx, makeUnique<CBorderPassElement>(bdata));
     }
 
     // workspace may be nullptr for empty/never-visited slots: render_workspace_at_box
@@ -571,19 +576,19 @@ void HTLayoutGrid::render() {
     // the active workspace last so its windows (e.g. one just dropped) stay on top of
     // the neighbouring tiles.
     for (const auto& [ws_id, ws_layout] : overview_layout) {
-        if (!tile_visible(ws_layout.box) || ws_id == start_workspace->m_id)
+        if (!tile_visible(ws_layout.box) || ws_id == get_ws_id(start_workspace))
             continue;
-        render_workspace_at_box(monitor, State::workspaceState()->query().id(ws_id).run(), time, ws_layout.box);
+        render_workspace_at_box(ctx, monitor, find_workspace(ws_id), time, ws_layout.box);
     }
-    if (const auto it = overview_layout.find(start_workspace->m_id);
+    if (const auto it = overview_layout.find(get_ws_id(start_workspace));
         it != overview_layout.end() && tile_visible(it->second.box))
-        render_workspace_at_box(monitor, start_workspace, time, it->second.box);
+        render_workspace_at_box(ctx, monitor, start_workspace, time, it->second.box);
 
     monitor->m_activeWorkspace = start_workspace;
     Animation::Workspace::startAnimation(
         start_workspace, Animation::Workspace::ANIMATION_TYPE_IN, false, true
     );
-    start_workspace->m_visible = true;
+    start_workspace->setVisible(true);
 
     g_pHyprRenderer->damageMonitor(monitor);
 
@@ -603,5 +608,5 @@ void HTLayoutGrid::render() {
                                 .scale(cursor_view->layout->drag_window_scale())
                                 .translate(mouse_coords);
     if (!window_box.intersection(monitor->logicalBox()).empty())
-        render_window_at_box(dragged_window, monitor, time, window_box);
+        render_window_at_box(ctx, dragged_window, monitor, time, window_box);
 }

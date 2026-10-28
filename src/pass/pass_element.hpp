@@ -7,10 +7,10 @@ class HTPassElement: public IPassElement {
     HTPassElement();
     virtual ~HTPassElement() = default;
 
-    virtual std::vector<UP<IPassElement>> draw() override;
-    virtual bool needsLiveBlur() override;
-    virtual bool needsPrecomputeBlur() override;
-    virtual bool disableSimplification() override;
+    virtual std::vector<UP<IPassElement>> draw(Render::CRenderContext& ctx) override;
+    virtual bool needsLiveBlur(Render::CRenderContext& ctx) override;
+    virtual bool needsPrecomputeBlur(Render::CRenderContext& ctx) override;
+    virtual bool disableSimplification(Render::CRenderContext& ctx) override;
     virtual ePassElementType type() override {
         return EK_CUSTOM;
     }
