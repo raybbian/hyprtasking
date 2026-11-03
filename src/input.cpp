@@ -19,10 +19,11 @@
 
 // Hyprland 0.57 removed CKeybindManager::changeMouseBindMode; this mirrors its
 // v0.56.2 implementation.
-static void change_mouse_bind_mode(eMouseBindMode mode) {
+void HTManager::change_mouse_bind_mode(eMouseBindMode mode) {
     if (mode == MBIND_INVALID) {
         if (g_layoutManager->dragController()->target())
             g_layoutManager->endDragTarget();
+        drag_window.reset();
         return;
     }
 
@@ -42,7 +43,22 @@ static void change_mouse_bind_mode(eMouseBindMode mode) {
         && window->presentation().checkInputOnDecorations(INPUT_TYPE_DRAG_START, mouse_coords))
         return;
 
+    // Only tiled windows are shrunk by Hyprland's drag float; fullscreen restores an unrelated
+    // geometry, so leave those on the plain layout scale.
+    drag_window.reset();
+    if (mode == MBIND_MOVE && !window->isFloating()
+        && !Fullscreen::controller()->isFullscreen(window)) {
+        drag_window = window;
+        drag_window_size = window->getWindowMainSurfaceBox().size();
+    }
     g_layoutManager->beginDragTarget(window->layoutTarget(), mode);
+}
+
+float HTManager::drag_preview_scale(PHLWINDOW window, float layout_scale) {
+    const double width = window->getWindowMainSurfaceBox().w;
+    if (window != drag_window.lock() || drag_window_size.x <= 0 || width <= 0)
+        return layout_scale;
+    return layout_scale * drag_window_size.x / width;
 }
 
 bool HTManager::start_window_drag() {
@@ -187,13 +203,16 @@ bool HTManager::end_window_drag() {
     // Inverts the scale-around-mouse remap that start_window_drag applies for
     // tiled drags; without it, the post-close m_realPosition reads as
     // workspace-local (0, 0) and the window snaps to the cell's corner.
-    if (g_layoutManager->dragController()->draggingTiled()) {
-        const Vector2D drop_pos = cursor_view->layout->global_to_local_ws_unscaled(
-            (dragged_window->positionAnimation()->value() - use_mouse_coords)
-                    * cursor_view->layout->drag_window_scale()
-                + use_mouse_coords,
-            get_ws_id(cursor_workspace)
-        ) + cursor_monitor->m_position;
+    const bool dragging_tiled = g_layoutManager->dragController()->draggingTiled();
+    const Vector2D drag_pos = dragged_window->positionAnimation()->value();
+    if (dragging_tiled) {
+        const Vector2D drop_pos =
+            cursor_view->layout->global_to_local_ws_unscaled(
+                (drag_pos - use_mouse_coords) * cursor_view->layout->drag_window_scale()
+                    + use_mouse_coords,
+                get_ws_id(cursor_workspace)
+            )
+            + cursor_monitor->m_position;
         dragged_window->positionAnimation()->setValueAndWarp(drop_pos);
     }
 
@@ -203,8 +222,31 @@ bool HTManager::end_window_drag() {
                                       )
         + cursor_monitor->m_position;
 
+    // Where the size-preserving preview was drawn, in workspace coordinates, so the re-tile
+    // animation starts from what the user saw instead of Hyprland's shrunken float geometry.
+    std::optional<CBox> preview_box;
+    if (dragging_tiled && dragged_window == drag_window.lock()) {
+        // Same box the layout renders: scaled about the real cursor, not the snapped drop point.
+        const float scale =
+            drag_preview_scale(dragged_window, cursor_view->layout->drag_window_scale());
+        const Vector2D shown_pos = (drag_pos - mouse_coords) * scale + mouse_coords;
+        const Vector2D shown_local = cursor_view->layout->global_to_local_ws_unscaled(
+            shown_pos,
+            get_ws_id(cursor_workspace)
+        );
+        preview_box = CBox {
+            shown_local + cursor_monitor->m_position,
+            dragged_window->sizeAnimation()->value() * drag_preview_scale(dragged_window, 1.F)
+        };
+    }
+
     Pointer::mgr()->warpTo(workspace_coords);
     g_pInputManager->simulateMouseMovement();
+    // After the simulated motion, which rewrites the drag geometry.
+    if (preview_box) {
+        dragged_window->positionAnimation()->setValueAndWarp(preview_box->pos());
+        dragged_window->sizeAnimation()->setValueAndWarp(preview_box->size());
+    }
     change_mouse_bind_mode(MBIND_INVALID);
     Pointer::mgr()->warpTo(mouse_coords);
 

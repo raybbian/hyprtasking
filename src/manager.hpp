@@ -3,6 +3,7 @@
 #include <hyprland/src/desktop/DesktopTypes.hpp>
 #include <hyprland/src/devices/IKeyboard.hpp>
 #include <hyprland/src/helpers/AnimatedVariable.hpp>
+#include <hyprland/src/managers/input/InputManager.hpp>
 #include <unordered_set>
 
 #include "overview.hpp"
@@ -28,12 +29,17 @@ class HTManager {
     void refresh_all_grid_caches();
     void remove_view_for_monitor_id(MONITORID mid);
 
+    // Begins or ends a window drag like Hyprland's mouse binds.
+    void change_mouse_bind_mode(eMouseBindMode mode);
     bool start_window_drag();
     bool end_window_drag();
     bool exit_to_workspace();
     bool on_key(IKeyboard::SKeyEvent event);
     bool on_mouse_move();
     bool on_mouse_axis(double delta);
+    // Hyprland shrinks a tiled window when it floats it for a drag; scale the drag preview so
+    // it keeps the width the window had before the drag began.
+    float drag_preview_scale(PHLWINDOW window, float layout_scale);
 
     enum swipe_state_t {
         HT_SWIPE_OPEN,
@@ -50,4 +56,8 @@ class HTManager {
 
     bool has_active_view();
     bool cursor_view_active();
+
+  private:
+    PHLWINDOWREF drag_window;
+    Vector2D drag_window_size;
 };

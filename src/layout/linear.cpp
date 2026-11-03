@@ -438,7 +438,10 @@ void HTLayoutLinear::render(CRenderContext& ctx) {
     const Vector2D mouse_coords = g_pInputManager->getMouseCoordsInternal();
     const CBox window_box = dragged_window->getWindowMainSurfaceBox()
                                 .translate(-mouse_coords)
-                                .scale(cursor_view->layout->drag_window_scale())
+                                .scale(ht_manager->drag_preview_scale(
+                                    dragged_window,
+                                    cursor_view->layout->drag_window_scale()
+                                ))
                                 .translate(mouse_coords);
     if (!window_box.intersection(monitor->logicalBox()).empty())
         render_window_at_box(ctx, dragged_window, monitor, time, window_box);
