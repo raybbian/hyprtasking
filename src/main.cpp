@@ -31,6 +31,7 @@
 #include "globals.hpp"
 #include "layout/grid.hpp"
 #include "overview.hpp"
+#include "tile_window_visibility.hpp"
 #include "types.hpp"
 
 using namespace Config::Actions;
@@ -448,6 +449,15 @@ static bool hook_blur_optimizations(void* thisptr, PHLLS pLayer, PHLWINDOW pWind
 }
 
 static bool hook_should_render_window(void* thisptr, PHLWINDOW window, PHLMONITOR monitor) {
+    if (window != nullptr && monitor != nullptr && window->m_workspace != nullptr
+        && !hyprtasking_tile_accepts_window(
+            hyprtasking_rendering_workspace_tile,
+            window->m_pinned,
+            window->m_workspace->m_isSpecialWorkspace,
+            window->m_workspace == monitor->m_activeWorkspace
+        ))
+        return false;
+
     bool ori_result =
         ((should_render_window_t)(should_render_window_hook->m_original))(thisptr, window, monitor);
     if (ht_manager == nullptr || !ht_manager->has_active_view())

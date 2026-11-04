@@ -24,6 +24,7 @@ typedef uint32_t (*origIsSolitaryBlocked)(void*, bool);
 inline void* render_window = nullptr;
 
 inline std::unique_ptr<HTManager> ht_manager;
+inline bool hyprtasking_rendering_workspace_tile = false;
 
 template<typename... Args>
 inline void fail_exit(const std::format_string<Args...>& fmt, Args... args) {

@@ -9,7 +9,6 @@
 #include <hyprland/src/desktop/DesktopTypes.hpp>
 #include <hyprland/src/helpers/AnimatedVariable.hpp>
 #include <hyprland/src/animation/AnimationManager.hpp>
-#include <hyprland/src/animation/WorkspaceAnimationController.hpp>
 #include <hyprland/src/config/shared/animation/AnimationTree.hpp>
 #include <hyprland/src/managers/input/InputManager.hpp>
 #include <hyprland/src/config/shared/workspace/WorkspaceRuleManager.hpp>
@@ -540,9 +539,6 @@ void HTLayoutGrid::render() {
     const PHLWORKSPACE start_workspace = monitor->m_activeWorkspace;
     if (start_workspace == nullptr)
         return;
-    Animation::Workspace::startAnimation(
-        start_workspace, Animation::Workspace::ANIMATION_TYPE_OUT, false, true
-    );
     start_workspace->m_visible = false;
 
     CBox global_mon_box = {monitor->m_position, monitor->m_transformedSize};
@@ -580,9 +576,6 @@ void HTLayoutGrid::render() {
         render_workspace_at_box(monitor, start_workspace, time, it->second.box);
 
     monitor->m_activeWorkspace = start_workspace;
-    Animation::Workspace::startAnimation(
-        start_workspace, Animation::Workspace::ANIMATION_TYPE_IN, false, true
-    );
     start_workspace->m_visible = true;
 
     g_pHyprRenderer->damageMonitor(monitor);

@@ -5,7 +5,6 @@
 #include <hyprland/src/Compositor.hpp>
 #include <hyprland/src/config/ConfigValue.hpp>
 #include <hyprland/src/desktop/DesktopTypes.hpp>
-#include <hyprland/src/animation/WorkspaceAnimationController.hpp>
 #include <hyprland/src/managers/input/InputManager.hpp>
 #include <hyprland/src/render/OpenGL.hpp>
 #include <hyprland/src/render/Renderer.hpp>
@@ -75,20 +74,24 @@ void render_workspace_at_box(
     // active+visible while we render it. The caller restores the original active ws.
     if (workspace != nullptr) {
         monitor->m_activeWorkspace = workspace;
-        Animation::Workspace::startAnimation(
-            workspace, Animation::Workspace::ANIMATION_TYPE_IN, false, true
-        );
+        const Vector2D origin {0, 0};
+        if (workspace->m_renderOffset->isBeingAnimated()
+            || workspace->m_renderOffset->value() != origin
+            || workspace->m_renderOffset->goal() != origin)
+            workspace->m_renderOffset->setValueAndWarp(origin);
+        if (workspace->m_alpha->isBeingAnimated() || workspace->m_alpha->value() != 1.F
+            || workspace->m_alpha->goal() != 1.F)
+            workspace->m_alpha->setValueAndWarp(1.F);
         workspace->m_visible = true;
     }
 
+    const bool previous_tile_render = hyprtasking_rendering_workspace_tile;
+    hyprtasking_rendering_workspace_tile = true;
     ((render_workspace_t)(render_workspace_hook->m_original))(
         g_pHyprRenderer.get(), monitor, workspace, time, render_box
     );
+    hyprtasking_rendering_workspace_tile = previous_tile_render;
 
-    if (workspace != nullptr) {
-        Animation::Workspace::startAnimation(
-            workspace, Animation::Workspace::ANIMATION_TYPE_OUT, false, true
-        );
+    if (workspace != nullptr)
         workspace->m_visible = false;
-    }
 }
