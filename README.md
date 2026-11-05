@@ -201,6 +201,15 @@ hl.config({
 
 ```
 
+To highlight the selected workspace with a rounded outline, add these options to `plugin.hyprtasking.grid`:
+
+```lua
+selection_outline = true,
+selection_color = 0,
+```
+
+The outline follows Hyprland's outer gaps, window rounding, and reserved screen areas. Fullscreen workspaces and tiles without usable gaps receive a thin inset outline instead. The color defaults to `general:col.active_border`, or can be set using `0xAARRGGBB`. The feature is off by default and works independently of `border_size`.
+
 <details><summary>
 Click here to see the old hyprlang syntax
 </summary>

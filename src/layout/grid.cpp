@@ -11,6 +11,7 @@
 #include <hyprland/src/animation/AnimationManager.hpp>
 #include <hyprland/src/animation/WorkspaceAnimationController.hpp>
 #include <hyprland/src/config/shared/animation/AnimationTree.hpp>
+#include <hyprland/src/managers/fullscreen/FullscreenController.hpp>
 #include <hyprland/src/managers/input/InputManager.hpp>
 #include <hyprland/src/config/shared/workspace/WorkspaceRuleManager.hpp>
 #include <hyprland/src/layout/LayoutManager.hpp>
@@ -26,6 +27,7 @@
 #include "../globals.hpp"
 #include "../overview.hpp"
 #include "../render.hpp"
+#include "../selection_outline.hpp"
 #include "../types.hpp"
 #include "src/layout/target/Target.hpp"
 
@@ -584,6 +586,41 @@ void HTLayoutGrid::render() {
         start_workspace, Animation::Workspace::ANIMATION_TYPE_IN, false, true
     );
     start_workspace->m_visible = true;
+
+    if (HTConfig::value<Config::INTEGER>("grid:selection_outline")) {
+        if (const auto it = overview_layout.find(start_workspace->m_id);
+            it != overview_layout.end() && tile_visible(it->second.box)) {
+            static auto PGAPS = CConfigValue<Config::IComplexConfigValue>("general:gaps_out");
+            static auto PROUND = CConfigValue<Config::INTEGER>("decoration:rounding");
+            const auto* gaps = static_cast<Config::CCssGapData*>(PGAPS.ptr());
+            const auto rule = Config::workspaceRuleMgr()->getWorkspaceRuleFor(start_workspace);
+            if (rule && rule->m_gapsOut)
+                gaps = &*rule->m_gapsOut;
+            const auto& reserved = monitor->m_reservedArea;
+            const CBox& tile = it->second.box;
+            const auto shape = ht_selection_outline(
+                tile.x, tile.y, tile.width, tile.height,
+                monitor->m_transformedSize.x, monitor->m_scale,
+                HTSelectionInsets{static_cast<float>(reserved.left()), static_cast<float>(reserved.right()),
+                                  static_cast<float>(reserved.top()), static_cast<float>(reserved.bottom())},
+                HTSelectionInsets{static_cast<float>(gaps->m_left), static_cast<float>(gaps->m_right),
+                                  static_cast<float>(gaps->m_top), static_cast<float>(gaps->m_bottom)},
+                static_cast<float>(*PROUND),
+                Fullscreen::controller()->hasFullscreen(start_workspace)
+            );
+            if (shape) {
+                CBorderPassElement::SBorderData selector;
+                selector.box = CBox{shape->x, shape->y, shape->width, shape->height};
+                selector.grad1 = *ACTIVECOL;
+                const auto color = HTConfig::value<Config::INTEGER>("grid:selection_color");
+                if (color != 0)
+                    selector.grad1 = Config::CGradientValueData{CHyprColor{color}};
+                selector.borderSize = shape->border;
+                selector.round = shape->radius;
+                g_pHyprRenderer->m_renderPass.add(makeUnique<CBorderPassElement>(selector));
+            }
+        }
+    }
 
     g_pHyprRenderer->damageMonitor(monitor);
 
