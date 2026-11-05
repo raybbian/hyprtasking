@@ -346,6 +346,7 @@ static void hook_render_texture(
     };
     data.damage = &full_damage;
     data.clipRegion = {};
+    data.round = std::lround(data.round * render_modif.combinedScale());
     const CBox saved_clip_box = render_data.clipBox;
     render_data.clipBox = CBox {};
 
@@ -402,7 +403,11 @@ static void render_border_scaled(
         return;
     }
     render_modif.applyToBox(box);
-    data.borderSize = std::round(data.borderSize * render_modif.combinedScale());
+    const float scale = render_modif.combinedScale();
+    data.round = std::lround(data.round * scale);
+    if (data.outerRound >= 0)
+        data.outerRound = std::lround(data.outerRound * scale);
+    data.borderSize = std::round(data.borderSize * scale);
     const auto saved_modif = render_modif;
     render_modif.enabled = false;
     call_original();
