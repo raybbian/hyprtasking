@@ -73,6 +73,8 @@ else
   )
 endif
 
+test('selection_outline_test', executable('selection_outline_test', 'tests/selection_outline_test.cc', build_by_default: false))
+
 shared_module(meson.project_name(), src,
   dependencies: dependencies,
   install: true,

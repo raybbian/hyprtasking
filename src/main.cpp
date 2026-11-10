@@ -760,6 +760,8 @@ static void init_config() {
     addConfigValue(CIntValue, "grid:layers", "layers", 1);
     addConfigValue(CIntValue, "grid:loop_layers", "loop layers", 1);
     addConfigValue(CIntValue, "grid:loop", "loop", 0);
+    addConfigValue(CIntValue, "grid:selection_outline", "outline selection within wallpaper gaps or inside tiles", 0);
+    addConfigValue(CIntValue, "grid:selection_color", "selection outline color (0 follows active border)", 0);
     addConfigValue(CIntValue, "grid:gaps_use_aspect_ratio", "gaps use aspect ratio", 0);
 
     //linear specific
