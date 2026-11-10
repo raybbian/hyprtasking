@@ -32,17 +32,17 @@
 using Hyprutils::Utils::CScopeGuard;
 
 HTLayoutGrid::HTLayoutGrid(VIEWID new_view_id) : HTLayoutBase(new_view_id) {
-    auto &anim_tree = Config::animationTree();
+    const auto animation_config = HTConfig::gridAnimationConfig();
     Animation::mgr()->createAnimation(
         {0, 0},
         offset,
-        anim_tree->getAnimationPropertyConfig("workspaces"),
+        animation_config,
         AVARDAMAGE_NONE
     );
     Animation::mgr()->createAnimation(
         1.f,
         scale,
-        anim_tree->getAnimationPropertyConfig("workspaces"),
+        animation_config,
         AVARDAMAGE_NONE
     );
 
@@ -321,6 +321,17 @@ void HTLayoutGrid::close_open_lerp(float perc) {
     offset->setValueAndWarp(new_pos);
 }
 
+void HTLayoutGrid::schedule_animation_frames() {
+    offset->setUpdateCallback([this](auto) {
+        const PHLMONITOR monitor = get_monitor();
+        if (monitor == nullptr)
+            return;
+
+        g_pHyprRenderer->damageMonitor(monitor);
+        monitor->scheduleFrame();
+    });
+}
+
 void HTLayoutGrid::on_show(CallbackFun on_complete) {
     CScopeGuard x([this, &on_complete] {
         if (on_complete != nullptr)
@@ -330,6 +341,11 @@ void HTLayoutGrid::on_show(CallbackFun on_complete) {
     const PHLMONITOR monitor = get_monitor();
     if (monitor == nullptr)
         return;
+
+    const auto animation_config = HTConfig::gridAnimationConfig();
+    scale->setConfig(animation_config);
+    offset->setConfig(animation_config);
+    schedule_animation_frames();
 
     *scale = calculate_ws_box(0, 0, HT_VIEW_OPENED).w / monitor->m_transformedSize.x; // 1 / ROWS
     // Offset for the whole grid of workspaces
@@ -346,6 +362,11 @@ void HTLayoutGrid::on_hide(CallbackFun on_complete) {
     if (monitor == nullptr)
         return;
 
+    const auto animation_config = HTConfig::gridAnimationConfig();
+    scale->setConfig(animation_config);
+    offset->setConfig(animation_config);
+    schedule_animation_frames();
+
     build_overview_layout(HT_VIEW_CLOSED);
     *scale = 1.;
     // End workspace to end up on
@@ -361,6 +382,11 @@ void HTLayoutGrid::on_move(WORKSPACEID old_id, WORKSPACEID new_id, CallbackFun o
     const PHTVIEW par_view = ht_manager->get_view_from_id(view_id);
     if (par_view == nullptr || par_view->active)
         return;
+
+    const auto animation_config = HTConfig::gridAnimationConfig();
+    scale->setConfig(animation_config);
+    offset->setConfig(animation_config);
+    schedule_animation_frames();
 
     // prevent the thing from animating
     if (const PHLWORKSPACE old_ws = find_workspace(old_id))
@@ -487,9 +513,6 @@ void HTLayoutGrid::build_overview_layout(HTViewStage stage) {
     const int ROWS = HTConfig::value<Config::INTEGER>("grid:rows");
     const int COLS = HTConfig::value<Config::INTEGER>("grid:cols");
 
-    const PHLMONITOR last_monitor = Desktop::focusState()->monitor();
-    Desktop::focusState()->rawMonitorFocus(monitor);
-
     overview_layout.clear();
     for (int y = 0; y < ROWS; y++) {
         for (int x = 0; x < COLS; x++) {
@@ -502,8 +525,6 @@ void HTLayoutGrid::build_overview_layout(HTViewStage stage) {
         }
     }
 
-    if (last_monitor != nullptr)
-        Desktop::focusState()->rawMonitorFocus(last_monitor);
 }
 
 // Render each visible workspace directly into its grid tile via a scaled

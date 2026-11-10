@@ -23,6 +23,7 @@ class HTLayoutGrid: public HTLayoutBase {
     std::unordered_map<long long, WORKSPACEID> slot_ws_cache;
 
     static long long pack_slot(int layer, int x, int y);
+    void schedule_animation_frames();
 
   public:
     HTLayoutGrid(VIEWID view_id);
