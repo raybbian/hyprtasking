@@ -8,7 +8,6 @@
 #include <hyprland/src/config/ConfigManager.hpp>
 #include <hyprland/src/desktop/DesktopTypes.hpp>
 #include <hyprland/src/desktop/state/ViewState.hpp>
-#include <hyprland/src/managers/KeybindManager.hpp>
 #include <hyprland/src/managers/input/InputManager.hpp>
 #include <hyprland/src/state/MonitorState.hpp>
 #include <hyprland/src/state/WorkspacePlacementController.hpp>
@@ -75,7 +74,7 @@ PHLWINDOW HTManager::get_window_from_cursor(bool return_focused) {
     }
 
     const WORKSPACEID ws_id = cursor_view->layout->get_ws_id_from_global(mouse_coords);
-    const PHLWORKSPACE hovered_workspace = State::workspaceState()->query().id(ws_id).run();
+    const PHLWORKSPACE hovered_workspace = find_workspace(ws_id);
     if (hovered_workspace == nullptr)
         return nullptr;
 
@@ -133,15 +132,14 @@ void HTManager::refresh_all_grid_caches() {
     // so the migration would never happen.
     const auto& all_rules = Config::workspaceRuleMgr()->getAllWorkspaceRules();
     for (const auto& rule : all_rules) {
-        if (rule->m_workspaceId <= 0)
+        const WORKSPACEID rule_id = rule_ws_id(*rule);
+        if (rule_id <= 0)
             continue;
-        const auto bound = Config::workspaceRuleMgr()->getBoundMonitorForWS(
-            rule->m_workspaceName.starts_with("name:") ? rule->m_workspaceName.substr(5)
-                                                      : rule->m_workspaceName
-        );
+        const auto bound =
+            Config::workspaceRuleMgr()->getBoundMonitorForWS(std::to_string(rule_id));
         if (bound == nullptr)
             continue;
-        const PHLWORKSPACE ws = State::workspaceState()->query().id(rule->m_workspaceId).run();
+        const PHLWORKSPACE ws = find_workspace(rule_id);
         if (ws == nullptr)
             continue;
         if (ws->m_monitor.lock() != bound)

@@ -32,5 +32,5 @@ class HTLayoutLinear: public HTLayoutBase {
     virtual float drag_window_scale();
     virtual void init_position();
     virtual void build_overview_layout(HTViewStage stage);
-    virtual void render();
+    virtual void render(Render::CRenderContext& ctx);
 };

@@ -5,6 +5,7 @@
 #include <hyprland/src/Compositor.hpp>
 #include <hyprland/src/config/ConfigValue.hpp>
 #include <hyprland/src/desktop/DesktopTypes.hpp>
+#include <hyprland/src/desktop/view/window/WindowPresentation.hpp>
 #include <hyprland/src/animation/WorkspaceAnimationController.hpp>
 #include <hyprland/src/managers/input/InputManager.hpp>
 #include <hyprland/src/render/OpenGL.hpp>
@@ -18,7 +19,13 @@
 
 using namespace Render;
 // Note: box is relative to (0, 0), not monitor
-void render_window_at_box(PHLWINDOW window, PHLMONITOR monitor, const Time::steady_tp& time, CBox box) {
+void render_window_at_box(
+    CRenderContext& ctx,
+    PHLWINDOW window,
+    PHLMONITOR monitor,
+    const Time::steady_tp& time,
+    CBox box
+) {
     if (!window || !monitor)
         return;
 
@@ -33,15 +40,18 @@ void render_window_at_box(PHLWINDOW window, PHLMONITOR monitor, const Time::stea
     SRenderModifData data {};
     data.modifs.push_back({SRenderModifData::eRenderModifType::RMOD_TYPE_TRANSLATE, transform});
     data.modifs.push_back({SRenderModifData::eRenderModifType::RMOD_TYPE_SCALE, scale});
-    g_pHyprRenderer->m_renderPass.add(
+    IHyprRenderer::addPassElement(
+        ctx,
         makeUnique<CRendererHintsPassElement>(CRendererHintsPassElement::SData {data})
     );
 
     g_pHyprRenderer->damageWindow(window);
     ((render_window_t)render_window)(
         g_pHyprRenderer.get(),
+        ctx,
         window,
         monitor,
+        window->presentation().renderPresentation(),
         time,
         true,
         RENDER_PASS_MAIN,
@@ -49,12 +59,16 @@ void render_window_at_box(PHLWINDOW window, PHLMONITOR monitor, const Time::stea
         true
     );
 
-    g_pHyprRenderer->m_renderPass.add(makeUnique<CRendererHintsPassElement>(
-        CRendererHintsPassElement::SData {SRenderModifData {}}
-    ));
+    IHyprRenderer::addPassElement(
+        ctx,
+        makeUnique<CRendererHintsPassElement>(
+            CRendererHintsPassElement::SData {SRenderModifData {}}
+        )
+    );
 }
 
 void render_workspace_at_box(
+    CRenderContext& ctx,
     PHLMONITOR monitor,
     PHLWORKSPACE workspace,
     const Time::steady_tp& time,
@@ -78,17 +92,22 @@ void render_workspace_at_box(
         Animation::Workspace::startAnimation(
             workspace, Animation::Workspace::ANIMATION_TYPE_IN, false, true
         );
-        workspace->m_visible = true;
+        workspace->setVisible(true);
     }
 
     ((render_workspace_t)(render_workspace_hook->m_original))(
-        g_pHyprRenderer.get(), monitor, workspace, time, render_box
+        g_pHyprRenderer.get(),
+        ctx,
+        monitor,
+        workspace,
+        time,
+        render_box
     );
 
     if (workspace != nullptr) {
         Animation::Workspace::startAnimation(
             workspace, Animation::Workspace::ANIMATION_TYPE_OUT, false, true
         );
-        workspace->m_visible = false;
+        workspace->setVisible(false);
     }
 }
