@@ -5,6 +5,7 @@
 #include <hyprland/src/Compositor.hpp>
 #include <hyprland/src/config/ConfigValue.hpp>
 #include <hyprland/src/desktop/DesktopTypes.hpp>
+#include <hyprland/src/desktop/view/window/WindowEffectsController.hpp>
 #include <hyprland/src/desktop/view/window/WindowPresentation.hpp>
 #include <hyprland/src/animation/WorkspaceAnimationController.hpp>
 #include <hyprland/src/managers/input/InputManager.hpp>
@@ -28,6 +29,13 @@ void render_window_at_box(
 ) {
     if (!window || !monitor)
         return;
+
+    // renderWindow sends a window with active transformers (wobble, motion blur) through a
+    // separate pass placed at the window's real position, ignoring ignorePosition and the
+    // scale/translate below, so the clip drops it. A window dragged in the overview wobbles
+    // continuously, which hid its preview. Drop the effects for windows drawn here.
+    if (window->effects().hasActiveTransformers())
+        window->effects().reset();
 
     box.x -= monitor->m_position.x;
     box.y -= monitor->m_position.y;
