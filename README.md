@@ -116,6 +116,9 @@ hyprctl plugin load "$(realpath libhyprtasking.so)"
     - With `jump.enabled` enabled, press the label shown over a workspace to jump to it
       (`1`-`9`, `0`, then `a`-`z`). Set `jump.show_workspace_names` to display
       workspace names such as `A1` instead of the keyboard jump labels.
+    - Release Ctrl, Alt, and Super on all keyboards before pressing a jump label.
+      Those modifiers keep compositor shortcuts available. Shift is allowed for keyboard
+      layouts that need it to type a label, such as French number keys.
 - Window management:
     - **Left click** to drag and drop windows around
 

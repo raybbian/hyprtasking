@@ -86,13 +86,14 @@ void HTView::show(bool recalculate) {
     if (active_workspace == nullptr)
         return;
 
-    active = true;
-    closing = false;
-    navigating = false;
-
     if (recalculate) {
         layout->init_position();
     }
+
+    // init_position may finish the previous close animation and run its callback.
+    active = true;
+    closing = false;
+    navigating = false;
     layout->on_show();
 
     Pointer::Cursor::overrideController->setOverride("left_ptr", Pointer::Cursor::CURSOR_OVERRIDE_UNKNOWN);

@@ -6,9 +6,11 @@ project('hyprtasking', 'cpp',
 
 cpp_compiler = meson.get_compiler('cpp')
 if cpp_compiler.has_argument('-std=c++23')
-  add_global_arguments('-std=c++23', language: 'cpp')
+  cpp_standard = 'c++23'
+  add_global_arguments('-std=' + cpp_standard, language: 'cpp')
 elif cpp_compiler.has_argument('-std=c++2b')
-  add_global_arguments('-std=c++2b', language: 'cpp')
+  cpp_standard = 'c++2b'
+  add_global_arguments('-std=' + cpp_standard, language: 'cpp')
 else
   error('Could not configure current C++ compiler (' + cpp_compiler.get_id() + ' ' + cpp_compiler.version() + ') with required C++ standard (C++23)')
 endif
@@ -78,3 +80,10 @@ shared_module(meson.project_name(), src,
   install: true,
   include_directories: incdir
 )
+
+# The handler fixture compiles and runs a local binary; it has no cross-build wrapper.
+if not meson.is_cross_build()
+  test('overview-handlers', find_program('python3'),
+    args: files('tests/handlers.py') + ['--standard=' + cpp_standard, '--'] + cpp_compiler.cmd_array()
+  )
+endif

@@ -245,7 +245,15 @@ bool HTManager::on_key(IKeyboard::SKeyEvent event) {
     if (event.state == WL_KEYBOARD_KEY_STATE_RELEASED && jump_pressed_keys.erase(event.keycode) > 0)
         return true;
 
+    if (event.state != WL_KEYBOARD_KEY_STATE_PRESSED)
+        return false;
+
     if (!HTConfig::value<Config::INTEGER>("jump:enabled"))
+        return false;
+
+    // Leave compositor shortcuts available, including the overview toggle.
+    if (g_pInputManager->getModsFromAllKBs()
+        & (HL_MODIFIER_CTRL | HL_MODIFIER_ALT | HL_MODIFIER_META))
         return false;
 
     const PHTVIEW cursor_view = get_view_from_cursor();
@@ -297,7 +305,7 @@ bool HTManager::on_key(IKeyboard::SKeyEvent event) {
     jump_pressed_keys.insert(event.keycode);
 
     // Act only on the initial press.
-    if (event.state != WL_KEYBOARD_KEY_STATE_PRESSED || cursor_view->closing)
+    if (cursor_view->closing)
         return true;
 
     for (const PHTVIEW& view : views) {
