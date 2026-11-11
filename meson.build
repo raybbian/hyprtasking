@@ -19,7 +19,7 @@ add_project_arguments(
   ],
   language: 'cpp')
 
-globber = run_command('find', '.', '-path', './build', '-prune', '-o', '-name', '*.cpp', '-print', check: true)
+globber = run_command('find', '.', '-path', './build', '-prune', '-o', '-path', './tests', '-prune', '-o', '-name', '*.cpp', '-print', check: true)
 src = globber.stdout().strip().split('\n')
 
 incdir = []
@@ -78,3 +78,5 @@ shared_module(meson.project_name(), src,
   install: true,
   include_directories: incdir
 )
+
+test('tile_window_visibility_test', executable('tile_window_visibility_test', 'tests/tile_window_visibility_test.cpp', build_by_default: false))
