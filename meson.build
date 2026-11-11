@@ -78,3 +78,6 @@ shared_module(meson.project_name(), src,
   install: true,
   include_directories: incdir
 )
+
+# Test the actual rounded texture/border scale helper without loading a compositor.
+test('radius_scale_test', executable('radius_scale_test', 'tests/radius_scale_test.cpp', build_by_default: false))
