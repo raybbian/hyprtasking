@@ -82,7 +82,7 @@ void HTLayoutBase::build_overview_layout(HTViewStage stage) {
     ;
 }
 
-void HTLayoutBase::render() {
+void HTLayoutBase::render(CRenderContext& ctx) {
     // Keep the overview out of the monitor's precomputed background-blur cache.
     //
     // Hyprland queues the precompute-blur pass from inside renderWorkspace
@@ -112,7 +112,7 @@ void HTLayoutBase::render() {
 
     CClearPassElement::SClearData data;
     data.color = CHyprColor {0};
-    g_pHyprRenderer->m_renderPass.add(makeUnique<CClearPassElement>(data));
+    IHyprRenderer::addPassElement(ctx, makeUnique<CClearPassElement>(data));
 }
 
 std::vector<WORKSPACEID> HTLayoutBase::jump_targets() const {
@@ -161,7 +161,7 @@ std::optional<WORKSPACEID> HTLayoutBase::jump_target(size_t index) const {
     return targets[index];
 }
 
-void HTLayoutBase::render_jump_labels() {
+void HTLayoutBase::render_jump_labels(CRenderContext& ctx) {
     if (!HTConfig::value<Config::INTEGER>("jump:enabled"))
         return;
 
@@ -220,26 +220,26 @@ void HTLayoutBase::render_jump_labels() {
         badge.box = badge_box;
         badge.color = background_color;
         badge.round = std::round(std::min(badge_size.x, badge_size.y) * 0.22f);
-        g_pHyprRenderer->m_renderPass.add(makeUnique<CRectPassElement>(badge));
+        IHyprRenderer::addPassElement(ctx, makeUnique<CRectPassElement>(badge));
 
         CTexPassElement::SRenderData text;
         text.tex = texture;
         text.box = CBox {badge_pos + (badge_size - texture->m_size) / 2.f, texture->m_size};
-        g_pHyprRenderer->m_renderPass.add(makeUnique<CTexPassElement>(std::move(text)));
+        IHyprRenderer::addPassElement(ctx, makeUnique<CTexPassElement>(std::move(text)));
     }
 }
 
 const std::string CLEAR_PASS_ELEMENT_NAME = "CClearPassElement";
 
-void HTLayoutBase::post_render() {
+void HTLayoutBase::post_render(CRenderContext& ctx) {
     bool first = true;
-    std::erase_if(g_pHyprRenderer->m_renderPass.m_passElements, [&first](const auto& e) {
+    std::erase_if(IHyprRenderer::currentPass(ctx).m_passElements, [&first](const auto& e) {
         bool res = e.element->passName() == CLEAR_PASS_ELEMENT_NAME && !first;
         first = false;
         return res;
     });
-    render_jump_labels();
-    g_pHyprRenderer->m_renderPass.add(makeUnique<HTPassElement>());
+    render_jump_labels(ctx);
+    IHyprRenderer::addPassElement(ctx, makeUnique<HTPassElement>());
     // g_pHyprOpenGL->setDamage(CRegion {CBox {0, 0, INT32_MAX, INT32_MAX}});
 
     // Hand the blur-FB state back exactly as render() found it, so a refresh that
@@ -289,17 +289,19 @@ CBox HTLayoutBase::get_global_window_box(PHLWINDOW window, WORKSPACEID workspace
     if (monitor == nullptr)
         return {};
 
-    const PHLWORKSPACE workspace = State::workspaceState()->query().id(workspace_id).run();
+    const PHLWORKSPACE workspace = find_workspace(workspace_id);
     if (workspace == nullptr || workspace->m_monitor != monitor)
         return {};
 
     const CBox ws_window_box = window->getWindowMainSurfaceBox();
 
-    const Vector2D top_left =
-        local_ws_unscaled_to_global(ws_window_box.pos() - monitor->m_position, workspace->m_id);
+    const Vector2D top_left = local_ws_unscaled_to_global(
+        ws_window_box.pos() - monitor->m_position,
+        get_ws_id(workspace)
+    );
     const Vector2D bottom_right = local_ws_unscaled_to_global(
         ws_window_box.pos() + ws_window_box.size() - monitor->m_position,
-        workspace->m_id
+        get_ws_id(workspace)
     );
 
     return {top_left, bottom_right - top_left};
