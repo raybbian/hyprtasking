@@ -5,15 +5,12 @@
 #include <vector>
 
 #include <hyprland/src/Compositor.hpp>
-#include <hyprland/src/config/ConfigManager.hpp>
 #include <hyprland/src/desktop/DesktopTypes.hpp>
 #include <hyprland/src/desktop/state/ViewState.hpp>
 #include <hyprland/src/managers/input/InputManager.hpp>
 #include <hyprland/src/state/MonitorState.hpp>
-#include <hyprland/src/state/WorkspacePlacementController.hpp>
 #include <hyprland/src/state/WorkspaceState.hpp>
 
-#include "config/shared/workspace/WorkspaceRuleManager.hpp"
 #include "layout/grid.hpp"
 #include "overview.hpp"
 
@@ -125,27 +122,6 @@ void HTManager::reset() {
 }
 
 void HTManager::refresh_all_grid_caches() {
-    // Enforce monitor-binding rules globally first. Per-grid refresh below
-    // sees one workspace at a time on one monitor; if a rule-bound ws still
-    // lives on the wrong monitor, the first grid to refresh would claim it
-    // via Pass 2 and the rule-bound grid would then skip it via off_limits,
-    // so the migration would never happen.
-    const auto& all_rules = Config::workspaceRuleMgr()->getAllWorkspaceRules();
-    for (const auto& rule : all_rules) {
-        const WORKSPACEID rule_id = rule_ws_id(*rule);
-        if (rule_id <= 0)
-            continue;
-        const auto bound =
-            Config::workspaceRuleMgr()->getBoundMonitorForWS(std::to_string(rule_id));
-        if (bound == nullptr)
-            continue;
-        const PHLWORKSPACE ws = find_workspace(rule_id);
-        if (ws == nullptr)
-            continue;
-        if (ws->m_monitor.lock() != bound)
-            State::workspacePlacementController()->moveWorkspaceToMonitor(ws, bound);
-    }
-
     std::vector<HTLayoutGrid*> grids;
     grids.reserve(views.size());
     for (PHTVIEW view : views) {
@@ -167,11 +143,8 @@ void HTManager::refresh_all_grid_caches() {
             taken.insert(id);
     }
 
-    // Re-anchor each inactive view's overlay on its monitor's current
-    // active workspace. Hyprland may have switched the active workspace
-    // (e.g. after rule-driven migration moved the previous one away), and
-    // without this the overlay's stored offset still points at the old
-    // slot, producing a visible jump when the overview opens.
+    // Re-anchor inactive views after monitor or workspace changes, so the
+    // next open animation starts from the current workspace's slot.
     for (PHTVIEW view : views) {
         if (view == nullptr || view->layout == nullptr)
             continue;

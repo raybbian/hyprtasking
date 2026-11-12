@@ -281,21 +281,27 @@ void HTLayoutLinear::build_overview_layout(HTViewStage stage) {
     overview_layout.clear();
 
     std::vector<WORKSPACEID> monitor_workspaces;
+    WORKSPACEID highest_id = 0;
     for (PHLWORKSPACE workspace : State::workspaceState()->workspacesCopy()) {
         if (workspace == nullptr)
             continue;
-        if (workspace->m_monitor != monitor)
+        const auto id = get_ws_id(workspace);
+        if (id <= 0)
             continue;
-        if (get_ws_id(workspace) == WORKSPACE_INVALID)
-            continue;
-        monitor_workspaces.push_back(get_ws_id(workspace));
+        highest_id = std::max(highest_id, id);
+        if (workspace->m_monitor == monitor)
+            monitor_workspaces.push_back(id);
     }
     std::sort(monitor_workspaces.begin(), monitor_workspaces.end());
 
-    WORKSPACEID big_id = monitor_workspaces.empty() ? 1 : monitor_workspaces.back();
-    while (find_workspace(big_id) != nullptr)
-        big_id++;
-    monitor_workspaces.push_back(big_id);
+    // Assign each view a distinct synthetic ID, even if another output
+    // starts with consecutive numbered workspaces.
+    const auto rank = std::ranges::count_if(ht_manager->views, [this](const auto& view) {
+        return view->monitor_id < view_id;
+    });
+    const auto empty_id = highest_id + rank + 1;
+    if (empty_id <= UINT32_MAX)
+        monitor_workspaces.push_back(empty_id);
 
     for (const auto& [x, ws_id] : monitor_workspaces | std::views::enumerate) {
         CBox ws_box = calculate_ws_box(x, 0, stage);
@@ -352,8 +358,7 @@ void HTLayoutLinear::render(CRenderContext& ctx) {
     );
     big_ws->setVisible(true);
 
-    // use pixel size for geometry
-    CBox mon_box = {{0, 0}, monitor->m_pixelSize};
+    const CBox mon_box = {{0, 0}, monitor->m_transformedSize};
     // Render the current workspace on the screen
     ((render_workspace_t)(render_workspace_hook->m_original))(
         g_pHyprRenderer.get(),

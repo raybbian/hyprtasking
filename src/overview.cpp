@@ -40,10 +40,9 @@ void HTView::change_layout(const std::string& layout_name) {
     } else if (layout_name == "linear") {
         layout = makeShared<HTLayoutLinear>(monitor_id);
     } else {
-        fail_exit(
-            "Bad overview layout name {}, supported ones are 'grid' and 'linear'",
-            layout_name
-        );
+        Log::logger->log(ERR, "[Hyprtasking] Unknown overview layout '{}'; using grid", layout_name);
+        if (!layout || layout->layout_name() != "grid")
+            layout = makeShared<HTLayoutGrid>(monitor_id);
     }
 }
 
@@ -71,7 +70,7 @@ void HTView::do_exit_behavior(bool exit_on_mouse) {
 
     if (workspace == nullptr && ws_id != WORKSPACE_INVALID)
         workspace = create_workspace(ws_id, monitor);
-    if (workspace == nullptr)
+    if (!workspace || workspace->m_monitor.lock() != monitor)
         return;
 
     monitor->changeWorkspace(workspace);
@@ -94,11 +93,29 @@ void HTView::show(bool recalculate) {
         layout->init_position();
     }
     layout->on_show();
+    if (HTConfig::value<Config::INTEGER>("debug_geometry")) {
+        layout->build_overview_layout(HT_VIEW_OPENED);
+        Log::logger->log(LOG, std::format(
+            "[Hyprtasking] Open {} (id {}) at {} logical {} scale {} transform {} viewport {} active {}",
+            monitor->m_name, monitor_id, monitor->m_position, monitor->m_size, monitor->m_scale,
+            static_cast<int>(monitor->m_transform), monitor->m_transformedSize, get_ws_id(active_workspace)
+        ));
+        for (const auto& [id, tile] : layout->overview_layout)
+            Log::logger->log(LOG, std::format("[Hyprtasking] {} tile {} at {} size {}",
+                                              monitor->m_name, id, tile.box.pos(), tile.box.size()));
+    }
 
     Pointer::Cursor::overrideController->setOverride("left_ptr", Pointer::Cursor::CURSOR_OVERRIDE_UNKNOWN);
 
     g_pHyprRenderer->damageMonitor(monitor);
     monitor->scheduleFrame();
+}
+
+void HTView::dismiss() {
+    active = closing = navigating = false;
+    Pointer::Cursor::overrideController->unsetOverride(Pointer::Cursor::CURSOR_OVERRIDE_UNKNOWN);
+    if (const auto monitor = get_monitor())
+        g_pHyprRenderer->damageMonitor(monitor);
 }
 
 void HTView::hide(bool exit_on_mouse, std::optional<WORKSPACEID> target_workspace) {
@@ -113,7 +130,7 @@ void HTView::hide(bool exit_on_mouse, std::optional<WORKSPACEID> target_workspac
         PHLWORKSPACE workspace = find_workspace(*target_workspace);
         if (workspace == nullptr && *target_workspace != WORKSPACE_INVALID)
             workspace = create_workspace(*target_workspace, monitor);
-        if (workspace == nullptr)
+        if (!workspace || workspace->m_monitor.lock() != monitor)
             return;
         monitor->changeWorkspace(workspace);
         workspace->ready();

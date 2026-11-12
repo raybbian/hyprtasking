@@ -26,6 +26,7 @@
 #include <lua.hpp>
 
 #include "config.hpp"
+#include <hyprland/src/managers/SessionLockManager.hpp>
 #include "config/ConfigManager.hpp"
 #include "globals.hpp"
 #include "layout/grid.hpp"
@@ -97,11 +98,21 @@ static SDispatchResult change_layer(std::string arg, bool move_window) {
     const int original_layer = cursor_view->layout->layer;
 
     int resulting_layer = original_layer;
-    if (arg[0] == '+' || arg[0] == '-') {
-        resulting_layer += std::stoi(arg);
-    } else {
-        resulting_layer = std::stoi(arg);
+    try {
+        size_t end = 0;
+        const int parsed = std::stoi(arg, &end);
+        if (end != arg.size())
+            return {.success = false, .error = "invalid layer: " + arg};
+        const bool relative = arg.front() == '+' || arg.front() == '-';
+        const auto requested = static_cast<int64_t>(parsed) + (relative ? original_layer : 0);
+        if (requested < INT_MIN || requested > INT_MAX)
+            return {.success = false, .error = "layer is out of range"};
+        resulting_layer = static_cast<int>(requested);
+    } catch (const std::logic_error&) {
+        return {.success = false, .error = "invalid layer: " + arg};
     }
+    if (LAYERS <= 0)
+        return {.success = false, .error = "grid.layers must be positive"};
 
     if (resulting_layer < 0 || resulting_layer >= LAYERS) {
         if (!LOOP_LAYERS)
@@ -228,7 +239,7 @@ static void hook_render_workspace(
         return;
     }
     const PHTVIEW view = ht_manager->get_view_from_monitor(monitor);
-    if ((view != nullptr && view->navigating) || ht_manager->has_active_view()) {
+    if (view && (view->active || view->navigating) && !g_pSessionLockManager->isSessionLocked()) {
         view->layout->render(ctx);
     } else {
         ((render_workspace_t)(render_workspace_hook
@@ -257,13 +268,11 @@ static bool render_modif_scaled(CRenderContext& ctx) {
 static bool ht_scaled_render(CRenderContext& ctx) {
     if (ht_manager == nullptr || !render_modif_scaled(ctx))
         return false;
-    if (ht_manager->has_active_view())
-        return true;
     const auto monitor = ctx.m_data.pMonitor.lock();
     if (monitor == nullptr)
         return false;
     const PHTVIEW view = ht_manager->get_view_from_monitor(monitor);
-    return view != nullptr && view->navigating;
+    return view && (view->active || view->navigating);
 }
 
 // Hyprland applies the active renderModif to a texture's quad, but NOT to any of the
@@ -413,10 +422,11 @@ hook_blur_optimizations(void* thisptr, CRenderContext& ctx, PHLLS pLayer, PHLWIN
 static bool hook_should_render_window(void* thisptr, PHLWINDOW window, PHLMONITOR monitor) {
     bool ori_result =
         ((should_render_window_t)(should_render_window_hook->m_original))(thisptr, window, monitor);
-    if (ht_manager == nullptr || !ht_manager->has_active_view())
+    if (ht_manager == nullptr || !ht_manager->has_active_view()
+        || g_pSessionLockManager->isSessionLocked())
         return ori_result;
     const PHTVIEW view = ht_manager->get_view_from_monitor(monitor);
-    if (view == nullptr)
+    if (!view || (!view->active && !view->navigating))
         return ori_result;
     return view->layout->should_render_window(window);
 }
@@ -424,7 +434,8 @@ static bool hook_should_render_window(void* thisptr, PHLWINDOW window, PHLMONITO
 static uint32_t hook_is_solitary_blocked(void* thisptr, bool full) {
     // No manager/view for the cursor monitor (e.g. during teardown): defer to
     // Hyprland. Falling through here would dereference a null view.
-    PHTVIEW view = ht_manager == nullptr ? nullptr : ht_manager->get_view_from_cursor();
+    const auto monitor = static_cast<Monitor::CMonitor*>(thisptr)->m_self.lock();
+    const auto view = ht_manager ? ht_manager->get_view_from_monitor(monitor) : nullptr;
     if (view == nullptr)
         return (*(origIsSolitaryBlocked)is_solitary_blocked_hook->m_original)(thisptr, full);
 
@@ -510,8 +521,8 @@ static void register_monitors() {
     if (ht_manager == nullptr)
         return;
     for (const PHLMONITOR& monitor : State::monitorState()->monitors()) {
-        // Skip monitors that haven't finished initializing
-        if (monitor->m_transformedSize.x < 1 || monitor->m_transformedSize.y < 1)
+        if (monitor->isMirror() || monitor->m_transformedSize.x < 1
+            || monitor->m_transformedSize.y < 1)
             continue;
 
         const PHTVIEW view = ht_manager->get_view_from_monitor(monitor);
@@ -525,10 +536,11 @@ static void register_monitors() {
         Log::logger->log(
             LOG,
             std::format(
-                "[Hyprtasking] Registering view for monitor {} with resolution {}x{}",
-                monitor->m_description,
-                monitor->m_transformedSize.x,
-                monitor->m_transformedSize.y
+                "[Hyprtasking] Registered {} (id {}) mode {} oriented {} logical {}"
+                " at {} scale {} transform {} active workspace {}",
+                monitor->m_name, monitor->m_id, monitor->m_pixelSize, monitor->m_transformedSize,
+                monitor->m_size, monitor->m_position, monitor->m_scale,
+                static_cast<int>(monitor->m_transform), get_ws_id(monitor->m_activeWorkspace)
             )
         );
     }
@@ -554,8 +566,12 @@ static void on_config_reloaded() {
         if (HTConfig::value<Config::INTEGER>("close_overview_on_reload")
             || view->layout->layout_name() != new_layout) {
             Log::logger->log(LOG, "[Hyprtasking] Closing overview on config reload");
-            view->hide(false);
-            view->change_layout(new_layout);
+            if (view->active && view->layout->layout_name() == new_layout)
+                view->hide(false);
+            else if (view->layout->layout_name() != new_layout) {
+                view->dismiss();
+                view->change_layout(new_layout);
+            }
         }
     }
 
@@ -688,6 +704,7 @@ static void register_callbacks() {
     static auto P10 = Event::bus()->m_events.config.reloaded.listen(on_config_reloaded);
     static auto P11 = Event::bus()->m_events.monitor.added.listen(register_monitors);
     static auto P12 = Event::bus()->m_events.monitor.removed.listen(on_monitor_removed);
+    static auto P13 = Event::bus()->m_events.monitor.layoutChanged.listen(register_monitors);
 }
 
 
@@ -726,9 +743,10 @@ static void add_dispatchers() {
 
 static void init_config() {
     addConfigValue(CStringValue, "layout", "layout", "grid");
+    addConfigValue(CIntValue, "debug_geometry", "log overview geometry on open", 0);
 
     // general
-    addConfigValue(CIntValue, "bg_color", "background color", 0x000000FF);
+    addConfigValue(CIntValue, "bg_color", "background color", 0xFF000000);
     addConfigValue(CFloatValue, "gap_size", "gap size", 8.f);
 
     addConfigValue(CFloatValue, "border_size", "border size", 4.f);
@@ -798,7 +816,9 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
 
 APICALL EXPORT void PLUGIN_EXIT() {
     Log::logger->log(LOG, "[Hyprtasking] Plugin exiting");
-    // prevent crashes
-    ht_manager->hide_all_views();
+    if (!ht_manager)
+        return;
+    for (const auto& view : ht_manager->views)
+        view->dismiss();
     ht_manager->reset();
 }

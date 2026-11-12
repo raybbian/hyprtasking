@@ -74,16 +74,14 @@ void render_workspace_at_box(
     const Time::steady_tp& time,
     CBox box
 ) {
-    if (!monitor)
+    if (!monitor || box.empty() || monitor->m_transformedSize.x <= 0)
+        return;
+    if (workspace && workspace->m_monitor.lock() != monitor)
         return;
 
-    // renderWorkspace derives scale = box.w / pixelSize and translate = box.pos, and
-    // applies the translate BEFORE the scale, so pre-divide the position by the scale.
-    // Geometry is in pixel (untransformed) space, so swap w/h for rotated monitors.
+    // Hyprland 0.57 expects output-oriented pixels and scales after translating.
     const float ws_scale = box.w / monitor->m_transformedSize.x;
-    CBox render_box = {box.pos() / ws_scale, box.size()};
-    if (monitor->m_transform % 2 == 1)
-        std::swap(render_box.w, render_box.h);
+    const CBox render_box = {box.pos() / ws_scale, box.size()};
 
     // Hyprland only fully renders the monitor's active workspace, so make this one
     // active+visible while we render it. The caller restores the original active ws.

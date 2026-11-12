@@ -22,6 +22,7 @@
 #include "../pass/pass_element.hpp"
 #include "../types.hpp"
 #include "layout_base.hpp"
+#include "geometry.hpp"
 
 HTLayoutBase::HTLayoutBase(VIEWID new_view_id) : view_id(new_view_id) {
     ;
@@ -308,11 +309,11 @@ CBox HTLayoutBase::get_global_window_box(PHLWINDOW window, WORKSPACEID workspace
 }
 
 CBox HTLayoutBase::get_global_ws_box(WORKSPACEID workspace_id) {
-    const CBox scaled_ws_box = overview_layout[workspace_id].box;
-    const Vector2D top_left = local_ws_scaled_to_global(scaled_ws_box.pos(), workspace_id);
-    const Vector2D bottom_right =
-        local_ws_scaled_to_global(scaled_ws_box.pos() + scaled_ws_box.size(), workspace_id);
-    return {top_left, bottom_right - top_left};
+    const auto monitor = get_monitor();
+    const auto tile = overview_layout.find(workspace_id);
+    if (!monitor || tile == overview_layout.end())
+        return {};
+    return HTGeometry::tile_to_global(tile->second.box, monitor->m_position, monitor->m_scale);
 }
 
 Vector2D HTLayoutBase::global_to_local_ws_unscaled(Vector2D pos, WORKSPACEID workspace_id) {
@@ -320,25 +321,11 @@ Vector2D HTLayoutBase::global_to_local_ws_unscaled(Vector2D pos, WORKSPACEID wor
     if (monitor == nullptr)
         return {};
 
-    CBox workspace_box = overview_layout[workspace_id].box;
-    if (workspace_box.empty())
+    const auto tile = overview_layout.find(workspace_id);
+    if (tile == overview_layout.end() || tile->second.box.empty())
         return {};
-    pos -= monitor->m_position;
-    pos *= monitor->m_scale;
-    pos -= workspace_box.pos();
-    pos /= monitor->m_scale;
-    pos /= workspace_box.w / monitor->m_transformedSize.x;
-    return pos;
-}
-
-Vector2D HTLayoutBase::global_to_local_ws_scaled(Vector2D pos, WORKSPACEID workspace_id) {
-    const PHLMONITOR monitor = get_monitor();
-    if (monitor == nullptr)
-        return {};
-
-    pos = global_to_local_ws_unscaled(pos, workspace_id);
-    pos *= monitor->m_scale;
-    return pos;
+    return HTGeometry::global_to_workspace(pos, tile->second.box, monitor->m_position,
+                                           monitor->m_scale, monitor->m_transformedSize.x);
 }
 
 Vector2D HTLayoutBase::local_ws_unscaled_to_global(Vector2D pos, WORKSPACEID workspace_id) {
@@ -346,22 +333,9 @@ Vector2D HTLayoutBase::local_ws_unscaled_to_global(Vector2D pos, WORKSPACEID wor
     if (monitor == nullptr)
         return {};
 
-    CBox workspace_box = overview_layout[workspace_id].box;
-    if (workspace_box.empty())
+    const auto tile = overview_layout.find(workspace_id);
+    if (tile == overview_layout.end() || tile->second.box.empty())
         return {};
-    pos *= workspace_box.w / monitor->m_transformedSize.x;
-    pos *= monitor->m_scale;
-    pos += workspace_box.pos();
-    pos /= monitor->m_scale;
-    pos += monitor->m_position;
-    return pos;
-}
-
-Vector2D HTLayoutBase::local_ws_scaled_to_global(Vector2D pos, WORKSPACEID workspace_id) {
-    const PHLMONITOR monitor = get_monitor();
-    if (monitor == nullptr)
-        return {};
-
-    pos /= monitor->m_scale;
-    return local_ws_unscaled_to_global(pos, workspace_id);
+    return HTGeometry::workspace_to_global(pos, tile->second.box, monitor->m_position,
+                                           monitor->m_scale, monitor->m_transformedSize.x);
 }
