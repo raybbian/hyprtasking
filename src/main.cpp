@@ -438,22 +438,7 @@ static void on_mouse_button(IPointer::SButtonEvent e, Event::SCallbackInfo& info
     if (ht_manager == nullptr)
         return;
 
-    const PHTVIEW cursor_view = ht_manager->get_view_from_cursor();
-    if (cursor_view == nullptr)
-        return;
-
-    const bool pressed = e.state == WL_POINTER_BUTTON_STATE_PRESSED;
-
-    const unsigned int drag_button = HTConfig::value<Config::INTEGER>("drag_button");
-    const unsigned int select_button = HTConfig::value<Config::INTEGER>("select_button");
-
-    if (pressed && e.button == drag_button) {
-        info.cancelled = ht_manager->start_window_drag();
-    } else if (!pressed && e.button == drag_button) {
-        info.cancelled = ht_manager->end_window_drag();
-    } else if (pressed && e.button == select_button) {
-        info.cancelled = ht_manager->exit_to_workspace();
-    }
+    info.cancelled = ht_manager->on_mouse_button(e.button, e.state == WL_POINTER_BUTTON_STATE_PRESSED);
 }
 
 static void on_key(IKeyboard::SKeyEvent e, Event::SCallbackInfo& info) {
@@ -546,6 +531,7 @@ static void on_config_reloaded() {
     if (ht_manager == nullptr)
         return;
 
+    ht_manager->cancel_interaction();
     // re-init scale and offset for inactive views, change layout if changed
     for (PHTVIEW& view : ht_manager->views) {
         if (view == nullptr)
@@ -688,6 +674,10 @@ static void register_callbacks() {
     static auto P10 = Event::bus()->m_events.config.reloaded.listen(on_config_reloaded);
     static auto P11 = Event::bus()->m_events.monitor.added.listen(register_monitors);
     static auto P12 = Event::bus()->m_events.monitor.removed.listen(on_monitor_removed);
+    static auto P13 = Event::bus()->m_events.monitor.layoutChanged.listen([] {
+        if (ht_manager)
+            ht_manager->cancel_interaction();
+    });
 }
 
 
@@ -738,6 +728,8 @@ static void init_config() {
 
     addConfigValue(CIntValue, "drag_button", "drag button", BTN_LEFT);
     addConfigValue(CIntValue, "select_button", "select button", BTN_RIGHT);
+    addConfigValue(CIntValue, "click_drag_enabled", "select or drag with left click", 1);
+    addConfigValue(CIntValue, "click_drag_threshold", "click-to-drag distance in logical pixels", 6);
 
     // keyboard workspace jump labels
     addConfigValue(CIntValue, "jump:enabled", "enable keyboard workspace jump labels", 0);
@@ -798,7 +790,8 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
 
 APICALL EXPORT void PLUGIN_EXIT() {
     Log::logger->log(LOG, "[Hyprtasking] Plugin exiting");
-    // prevent crashes
+    if (!ht_manager)
+        return;
     ht_manager->hide_all_views();
     ht_manager->reset();
 }

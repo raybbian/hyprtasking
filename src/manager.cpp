@@ -81,18 +81,12 @@ PHLWINDOW HTManager::get_window_from_cursor(bool return_focused) {
     const Vector2D ws_coords = cursor_view->layout->global_to_local_ws_unscaled(mouse_coords, ws_id)
         + cursor_monitor->m_position;
 
-    const PHLWORKSPACEREF o_workspace = cursor_monitor->m_activeWorkspace;
-    cursor_monitor->changeWorkspace(hovered_workspace, true);
-
-    const PHLWINDOW hovered_window = Desktop::viewState()->hitTest().windowAt(
-        ws_coords,
-        Desktop::View::RESERVED_EXTENTS | Desktop::View::INPUT_EXTENTS | Desktop::View::ALLOW_FLOATING
+    const auto window = Desktop::viewState()->hitTest().windowAtWorkspace(
+        ws_coords, hovered_workspace,
+        Desktop::View::RESERVED_EXTENTS | Desktop::View::INPUT_EXTENTS
+            | Desktop::View::USE_PROP_TILED | Desktop::View::ALLOW_FLOATING
     );
-
-    if (o_workspace != nullptr)
-        cursor_monitor->changeWorkspace(o_workspace.lock(), true);
-
-    return hovered_window;
+    return window && window->m_workspace == hovered_workspace ? window : nullptr;
 }
 
 void HTManager::show_all_views() {
@@ -104,10 +98,12 @@ void HTManager::show_all_views() {
 }
 
 void HTManager::hide_all_views() {
+    cancel_interaction();
     for (PHTVIEW view : views) {
         if (view == nullptr)
             continue;
-        view->hide(false);
+        if (view->active && !view->closing)
+            view->hide(false);
     }
 }
 
@@ -118,6 +114,11 @@ void HTManager::show_cursor_view() {
 }
 
 void HTManager::reset() {
+    cancel_interaction();
+    interaction = Interaction::Idle;
+    press_window.reset();
+    previous_workspace.reset();
+    drag_source_workspace.reset();
     swipe_state = HT_SWIPE_NONE;
     swipe_amt = 0.0;
     jump_pressed_keys.clear();
@@ -182,6 +183,7 @@ void HTManager::refresh_all_grid_caches() {
 }
 
 void HTManager::remove_view_for_monitor_id(MONITORID mid) {
+    cancel_interaction();
     std::erase_if(views, [mid](const PHTVIEW& v) {
         return v == nullptr || v->monitor_id == mid;
     });
