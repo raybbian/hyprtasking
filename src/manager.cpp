@@ -118,6 +118,7 @@ void HTManager::show_cursor_view() {
 }
 
 void HTManager::reset() {
+    workspace_press.reset();
     swipe_state = HT_SWIPE_NONE;
     swipe_amt = 0.0;
     jump_pressed_keys.clear();
@@ -182,6 +183,7 @@ void HTManager::refresh_all_grid_caches() {
 }
 
 void HTManager::remove_view_for_monitor_id(MONITORID mid) {
+    cancel_workspace_drag();
     std::erase_if(views, [mid](const PHTVIEW& v) {
         return v == nullptr || v->monitor_id == mid;
     });

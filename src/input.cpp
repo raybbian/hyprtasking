@@ -245,6 +245,12 @@ bool HTManager::on_key(IKeyboard::SKeyEvent event) {
     if (event.state == WL_KEYBOARD_KEY_STATE_RELEASED && jump_pressed_keys.erase(event.keycode) > 0)
         return true;
 
+    if (event.keycode == KEY_ESC && event.state == WL_KEYBOARD_KEY_STATE_PRESSED
+        && cancel_workspace_drag()) {
+        jump_pressed_keys.insert(event.keycode);
+        return true;
+    }
+
     if (!HTConfig::value<Config::INTEGER>("jump:enabled"))
         return false;
 
