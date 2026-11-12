@@ -33,6 +33,7 @@ class HTView {
     PHLMONITOR get_monitor();
 
     void show(bool recalculate = true);
+    void dismiss();
     void hide(bool exit_on_mouse, std::optional<WORKSPACEID> target_workspace = std::nullopt);
 
     void move_id(WORKSPACEID ws_id, bool move_window);

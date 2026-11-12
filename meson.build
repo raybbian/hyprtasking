@@ -78,3 +78,8 @@ shared_module(meson.project_name(), src,
   install: true,
   include_directories: incdir
 )
+
+if not get_option('local_include')
+  test('overview geometry', executable('test-overview-geometry', 'tests/geometry.cc',
+    dependencies: hyprutils_dep))
+endif

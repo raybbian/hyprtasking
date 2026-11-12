@@ -73,8 +73,12 @@ void HTLayoutGrid::refresh_workspace_cache(
     const int ROWS = HTConfig::value<Config::INTEGER>("grid:rows");
     const int COLS = HTConfig::value<Config::INTEGER>("grid:cols");
     const int LAYERS = HTConfig::value<Config::INTEGER>("grid:layers");
-    if (ROWS <= 0 || COLS <= 0 || LAYERS <= 0)
+    if (ROWS <= 0 || COLS <= 0 || LAYERS <= 0 || ROWS > 100 || COLS > 100 || LAYERS > 100
+        || static_cast<int64_t>(ROWS) * COLS * LAYERS > 4096) {
+        ws_slot_cache.clear();
+        slot_ws_cache.clear();
         return;
+    }
 
     const auto prior = ws_slot_cache;
 
@@ -173,7 +177,9 @@ void HTLayoutGrid::refresh_workspace_cache(
             Config::workspaceRuleMgr()->getBoundMonitorForWS(std::to_string(rule_id));
         if (bound == nullptr || bound->m_id != view_id)
             continue;
-        place_with_prior(rule_id, cursor);
+        const auto workspace = find_workspace(rule_id);
+        if (!workspace || workspace->monitorID() == view_id)
+            place_with_prior(rule_id, cursor);
     }
 
     // Sort by m_id so slot assignment is independent of Hyprland's internal
@@ -253,7 +259,7 @@ WORKSPACEID HTLayoutGrid::get_ws_id_in_direction(int x, int y, std::string& dire
         return WORKSPACE_INVALID;
     }
 
-    if (LOOP) {
+    if (LOOP && COLS > 0 && ROWS > 0) {
         x = (x + COLS) % COLS;
         y = (y + ROWS) % ROWS;
     }
@@ -447,12 +453,16 @@ CBox HTLayoutGrid::calculate_ws_box(int x, int y, HTViewStage stage) {
             : GAP_SIZE
     };
 
+    if (ROWS <= 0 || COLS <= 0)
+        return {};
     if (GAP_SIZE > std::min(monitor->m_transformedSize.x, monitor->m_transformedSize.y)
         || GAP_SIZE < 0)
         return {};
 
     double render_x = (monitor->m_transformedSize.x - gaps.x * (COLS + 1)) / COLS;
     double render_y = (monitor->m_transformedSize.y - gaps.y * (ROWS + 1)) / ROWS;
+    if (render_x <= 0 || render_y <= 0)
+        return {};
     const double mon_aspect = monitor->m_transformedSize.x / monitor->m_transformedSize.y;
     Vector2D start_offset {};
 
@@ -487,23 +497,20 @@ void HTLayoutGrid::build_overview_layout(HTViewStage stage) {
     const int ROWS = HTConfig::value<Config::INTEGER>("grid:rows");
     const int COLS = HTConfig::value<Config::INTEGER>("grid:cols");
 
-    const PHLMONITOR last_monitor = Desktop::focusState()->monitor();
-    Desktop::focusState()->rawMonitorFocus(monitor);
-
     overview_layout.clear();
+    if (slot_ws_cache.empty())
+        return;
     for (int y = 0; y < ROWS; y++) {
         for (int x = 0; x < COLS; x++) {
             const WORKSPACEID ws_id = slot_workspace(layer, x, y);
             if (ws_id == WORKSPACE_INVALID)
                 continue;
             CBox ws_box = calculate_ws_box(x, y, stage);
-            ws_box.round();
+            ws_box.x = std::round(ws_box.x);
+            ws_box.y = std::round(ws_box.y);
             overview_layout[ws_id] = HTWorkspace {x, y, ws_box};
         }
     }
-
-    if (last_monitor != nullptr)
-        Desktop::focusState()->rawMonitorFocus(last_monitor);
 }
 
 // Render each visible workspace directly into its grid tile via a scaled
