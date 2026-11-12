@@ -102,6 +102,7 @@ void HTView::show(bool recalculate) {
 }
 
 void HTView::hide(bool exit_on_mouse, std::optional<WORKSPACEID> target_workspace) {
+    ht_manager->cancel_interaction();
     const PHLMONITOR monitor = get_monitor();
     if (monitor == nullptr)
         return;

@@ -28,8 +28,8 @@ class HTManager {
     void refresh_all_grid_caches();
     void remove_view_for_monitor_id(MONITORID mid);
 
-    bool start_window_drag();
-    bool end_window_drag();
+    bool on_mouse_button(unsigned int button, bool pressed);
+    void cancel_interaction();
     bool exit_to_workspace();
     bool on_key(IKeyboard::SKeyEvent event);
     bool on_mouse_move();
@@ -50,4 +50,23 @@ class HTManager {
 
     bool has_active_view();
     bool cursor_view_active();
+
+  private:
+    enum class Interaction { Idle, PointerPressed, DraggingWindow, CompletingDrop, Cancelled };
+
+    Interaction interaction = Interaction::Idle;
+    unsigned int press_button = 0;
+    Vector2D press_position;
+    double press_threshold = 0;
+    MONITORID press_monitor = MONITOR_INVALID;
+    WORKSPACEID press_workspace = WORKSPACE_INVALID;
+    PHLWINDOWREF press_window;
+    PHLWORKSPACE previous_workspace;
+    PHLWORKSPACE drag_source_workspace;
+    CBox original_window_box;
+    bool originally_floating = false;
+
+    bool moved_past_threshold(Vector2D position) const;
+    bool start_window_drag();
+    bool end_window_drag();
 };
