@@ -1,5 +1,6 @@
 #include "config.hpp"
 #include "globals.hpp"
+#include "layout/dwindle_snapshot.hpp"
 #include "manager.hpp"
 
 #include <hyprland/src/desktop/state/GlobalWindowController.hpp>
@@ -203,6 +204,8 @@ bool HTManager::swap_workspace_contents(const WorkspacePress& press) {
     for (auto& move : moves)
         move.floating_box = move.window->layoutTarget()->position();
 
+    const auto a_tree = HTDwindle::capture(a);
+    const auto b_tree = HTDwindle::capture(b);
     auto& windows = *Desktop::globalWindowController();
     bool success = true;
     for (const auto& move : moves) {
@@ -222,6 +225,10 @@ bool HTManager::swap_workspace_contents(const WorkspacePress& press) {
     for (const auto& move : moves)
         restore_window(move, success ? move.to : move.from);
 
+    const bool restored_a = a_tree && HTDwindle::restore(*a_tree, success ? b : a);
+    const bool restored_b = b_tree && HTDwindle::restore(*b_tree, success ? a : b);
+    if (!restored_a || !restored_b)
+        Log::logger->log(LOG, "[Hyprtasking] A workspace uses native placement for its tiled windows");
     for (const auto& move : moves) {
         if (move.fullscreen.internal != Fullscreen::FSMODE_NONE) {
             fullscreen.setFullscreenMode(move.window, move.fullscreen.internal, move.fullscreen.client,
