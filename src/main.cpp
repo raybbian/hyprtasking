@@ -228,8 +228,9 @@ static void hook_render_workspace(
         return;
     }
     const PHTVIEW view = ht_manager->get_view_from_monitor(monitor);
-    if ((view != nullptr && view->navigating) || ht_manager->has_active_view()) {
+    if (view && (view->navigating || ht_manager->has_active_view())) {
         view->layout->render(ctx);
+        ht_manager->render_workspace_handles(ctx, view);
     } else {
         ((render_workspace_t)(render_workspace_hook
                                   ->m_original))(thisptr, ctx, monitor, workspace, now, geometry);
@@ -438,11 +439,15 @@ static void on_mouse_button(IPointer::SButtonEvent e, Event::SCallbackInfo& info
     if (ht_manager == nullptr)
         return;
 
+    const bool pressed = e.state == WL_POINTER_BUTTON_STATE_PRESSED;
+    if (ht_manager->workspace_drag_button(e.button, pressed)) {
+        info.cancelled = true;
+        return;
+    }
+
     const PHTVIEW cursor_view = ht_manager->get_view_from_cursor();
     if (cursor_view == nullptr)
         return;
-
-    const bool pressed = e.state == WL_POINTER_BUTTON_STATE_PRESSED;
 
     const unsigned int drag_button = HTConfig::value<Config::INTEGER>("drag_button");
     const unsigned int select_button = HTConfig::value<Config::INTEGER>("select_button");
@@ -465,7 +470,7 @@ static void on_key(IKeyboard::SKeyEvent e, Event::SCallbackInfo& info) {
 static void on_mouse_move(Vector2D c, Event::SCallbackInfo& info) {
     if (ht_manager == nullptr)
         return;
-    info.cancelled = ht_manager->on_mouse_move();
+    info.cancelled = ht_manager->workspace_drag_motion() || ht_manager->on_mouse_move();
 }
 
 static void on_mouse_axis(IPointer::SAxisEvent e, Event::SCallbackInfo& info) {
@@ -546,6 +551,7 @@ static void on_config_reloaded() {
     if (ht_manager == nullptr)
         return;
 
+    ht_manager->cancel_workspace_drag();
     // re-init scale and offset for inactive views, change layout if changed
     for (PHTVIEW& view : ht_manager->views) {
         if (view == nullptr)
@@ -738,6 +744,9 @@ static void init_config() {
 
     addConfigValue(CIntValue, "drag_button", "drag button", BTN_LEFT);
     addConfigValue(CIntValue, "select_button", "select button", BTN_RIGHT);
+    addConfigValue(CIntValue, "workspace_drag:enabled", "enable workspace drag handles", 1);
+    addConfigValue(CIntValue, "workspace_drag:handle_size", "workspace handle size in logical pixels", 24);
+    addConfigValue(CIntValue, "workspace_drag:close_overview_after_swap", "close overview after a swap", 0);
 
     // keyboard workspace jump labels
     addConfigValue(CIntValue, "jump:enabled", "enable keyboard workspace jump labels", 0);

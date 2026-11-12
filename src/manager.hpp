@@ -28,6 +28,11 @@ class HTManager {
     void refresh_all_grid_caches();
     void remove_view_for_monitor_id(MONITORID mid);
 
+    bool workspace_drag_button(unsigned int button, bool pressed);
+    bool workspace_drag_motion();
+    bool cancel_workspace_drag();
+    void render_workspace_handles(Render::CRenderContext& ctx, const PHTVIEW& view);
+
     bool start_window_drag();
     bool end_window_drag();
     bool exit_to_workspace();
@@ -50,4 +55,18 @@ class HTManager {
 
     bool has_active_view();
     bool cursor_view_active();
+
+  private:
+    struct WorkspacePress {
+        MONITORID monitor;
+        WORKSPACEID workspace;
+        Vector2D origin;
+        bool dragging = false;
+    };
+    std::optional<WorkspacePress> workspace_press;
+
+    CBox workspace_handle(const CBox& tile, double scale) const;
+    bool can_swap_tiles(const PHTVIEW& source, WORKSPACEID source_id,
+                        const PHTVIEW& destination, WORKSPACEID destination_id) const;
+    bool swap_workspace_contents(const WorkspacePress& source);
 };
